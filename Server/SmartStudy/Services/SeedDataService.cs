@@ -33,19 +33,20 @@ public static class SeedDataService
         );
 
         // === Instructors ===
-        var inst1 = new Instructor { InstructorId = 1, InstructorName = "Dr. Sarah Miller" };
-        var inst2 = new Instructor { InstructorId = 2, InstructorName = "Prof. David Chen" };
-        var inst3 = new Instructor { InstructorId = 3, InstructorName = "Dr. Rachel Green" };
+        var inst1 = new Instructor { InstructorName = "Dr. Sarah Miller" };
+        var inst2 = new Instructor { InstructorName = "Prof. David Chen" };
+        var inst3 = new Instructor { InstructorName = "Dr. Rachel Green" };
         db.Instructors.AddRange(inst1, inst2, inst3);
+        db.SaveChanges(); // Save to get auto-generated InstructorIds
 
         // === Courses ===
         var courses = new[]
         {
-            new Course { CourseId = 1, CourseName = "Introduction to Computer Science", WeeklyHours = 4, Credits = 3, Semester = "2025B", InstructorId = 1 },
-            new Course { CourseId = 2, CourseName = "Data Structures & Algorithms", WeeklyHours = 5, Credits = 4, Semester = "2025B", InstructorId = 2 },
-            new Course { CourseId = 3, CourseName = "Linear Algebra", WeeklyHours = 3, Credits = 3, Semester = "2025B", InstructorId = 3 },
-            new Course { CourseId = 4, CourseName = "Probability & Statistics", WeeklyHours = 3, Credits = 3, Semester = "2025B", InstructorId = 1 },
-            new Course { CourseId = 5, CourseName = "Web Development", WeeklyHours = 4, Credits = 3, Semester = "2025B", InstructorId = 2 }
+            new Course { CourseId = 1, CourseName = "Introduction to Computer Science", WeeklyHours = 4, Credits = 3, Semester = "2025B", InstructorId = inst1.InstructorId },
+            new Course { CourseId = 2, CourseName = "Data Structures & Algorithms", WeeklyHours = 5, Credits = 4, Semester = "2025B", InstructorId = inst2.InstructorId },
+            new Course { CourseId = 3, CourseName = "Linear Algebra", WeeklyHours = 3, Credits = 3, Semester = "2025B", InstructorId = inst3.InstructorId },
+            new Course { CourseId = 4, CourseName = "Probability & Statistics", WeeklyHours = 3, Credits = 3, Semester = "2025B", InstructorId = inst1.InstructorId },
+            new Course { CourseId = 5, CourseName = "Web Development", WeeklyHours = 4, Credits = 3, Semester = "2025B", InstructorId = inst2.InstructorId }
         };
         db.Courses.AddRange(courses);
 
@@ -55,9 +56,9 @@ public static class SeedDataService
             db.UserCourses.Add(new UserCourse { Email = user1.Email, CourseId = c.CourseId });
         }
         db.UserCourses.AddRange(
-            new UserCourse { Email = user2.Email, CourseId = 1 },
-            new UserCourse { Email = user2.Email, CourseId = 2 },
-            new UserCourse { Email = user2.Email, CourseId = 3 }
+            new UserCourse { Email = user2.Email, CourseId = courses[0].CourseId },
+            new UserCourse { Email = user2.Email, CourseId = courses[1].CourseId },
+            new UserCourse { Email = user2.Email, CourseId = courses[2].CourseId }
         );
 
         // === Exams ===
@@ -136,6 +137,13 @@ public static class SeedDataService
         db.WorkEvents.AddRange(
             new WorkEvent { Email = user1.Email, From = monday.AddDays(5).AddHours(9), To = monday.AddDays(5).AddHours(17), Recurring = true, TravelTime = 30, WorkPlace = "Tech Startup Inc." },
             new WorkEvent { Email = user1.Email, From = monday.AddDays(5).AddDays(7).AddHours(9), To = monday.AddDays(5).AddDays(7).AddHours(17), Recurring = true, TravelTime = 30, WorkPlace = "Tech Startup Inc." }
+        );
+
+        // Task events (calendar blocks for working on specific tasks)
+        db.TaskEvents.AddRange(
+            new TaskEvent { Email = user1.Email, From = monday.AddDays(1).AddHours(16), To = monday.AddDays(1).AddHours(18), Recurring = false, TaskId = tasks[1].TaskId, Priority = "High", Status = "Scheduled" },
+            new TaskEvent { Email = user1.Email, From = monday.AddDays(3).AddHours(16), To = monday.AddDays(3).AddHours(19), Recurring = false, TaskId = tasks[5].TaskId, Priority = "High", Status = "In Progress" },
+            new TaskEvent { Email = user1.Email, From = monday.AddDays(4).AddHours(14), To = monday.AddDays(4).AddHours(17), Recurring = false, TaskId = tasks[9].TaskId, Priority = "High", Status = "Scheduled" }
         );
 
         // Personal events

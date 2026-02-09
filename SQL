@@ -93,13 +93,20 @@ CREATE TABLE SmartStudy_Exams (
 CREATE TABLE SmartStudy_Tasks (
   TaskId          INT IDENTITY(1,1) NOT NULL PRIMARY KEY,
   CourseId        INT               NOT NULL,
+  Title           NVARCHAR(200)     NOT NULL,
   [Type]          NVARCHAR(50)      NOT NULL,
   EstimatedHours  DECIMAL(5,2)      NULL,
   DueDate         DATETIME2         NULL,
+  IsCompleted     BIT               NOT NULL CONSTRAINT DF_Task_IsCompleted DEFAULT (0),
+  [Priority]      NVARCHAR(20)      NULL,
+  Email           NVARCHAR(255)     NOT NULL,
 
   CONSTRAINT FK_Task_Course
     FOREIGN KEY (CourseId) REFERENCES SmartStudy_Courses(CourseId)
-    ON DELETE CASCADE
+    ON DELETE CASCADE,
+
+  CONSTRAINT FK_Task_User
+    FOREIGN KEY (Email) REFERENCES SmartStudy_Users(Email)
 );
 
 -- =====================================================

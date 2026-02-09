@@ -66,6 +66,7 @@ public class SmartStudyDbContext : DbContext
         {
             entity.ToTable("SmartStudy_Courses");
             entity.HasKey(e => e.CourseId);
+            entity.Property(e => e.CourseId).ValueGeneratedNever();
             entity.Property(e => e.CourseName).HasMaxLength(200).IsRequired();
             entity.Property(e => e.WeeklyHours).HasColumnType("decimal(4,1)");
             entity.Property(e => e.Credits).HasColumnType("decimal(4,1)");

@@ -5,14 +5,16 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.FileProviders;
 using Microsoft.IdentityModel.Tokens;
+using Microsoft.EntityFrameworkCore.Infrastructure;
 using SmartStudy.Data;
 using SmartStudy.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Database - SQLite for development
+// Database - SQL Server
+var connectionString = builder.Configuration.GetConnectionString("SmartStudyDb");
 builder.Services.AddDbContext<SmartStudyDbContext>(options =>
-    options.UseSqlite("Data Source=smartstudy.db"));
+    options.UseSqlServer(connectionString));
 
 // JWT Authentication
 var jwtKey = builder.Configuration["Jwt:Key"] ?? "SmartStudySuperSecretKey2026ForJwtTokenGeneration!";
@@ -48,11 +50,49 @@ builder.Services.AddCors(options =>
 
 var app = builder.Build();
 
-// Create database and seed data
+// Create tables and seed data on first run (works on shared school DB)
 using (var scope = app.Services.CreateScope())
 {
     var db = scope.ServiceProvider.GetRequiredService<SmartStudyDbContext>();
-    db.Database.EnsureCreated();
+
+    // Check if tables need to be created (works on shared school DB)
+    var conn = db.Database.GetDbConnection();
+    conn.Open();
+    bool needsSetup = false;
+    using (var checkCmd = conn.CreateCommand())
+    {
+        // Check if SmartStudy_Courses exists and has data (courses are the core entity)
+        checkCmd.CommandText = @"
+            IF OBJECT_ID('SmartStudy_Courses','U') IS NULL SELECT 0
+            ELSE SELECT COUNT(*) FROM SmartStudy_Courses";
+        var result = Convert.ToInt32(checkCmd.ExecuteScalar());
+        needsSetup = (result == 0);
+    }
+
+    if (needsSetup)
+    {
+        // Drop all SmartStudy tables and recreate with correct schema
+        using var dropCmd = conn.CreateCommand();
+        dropCmd.CommandText = @"
+            IF OBJECT_ID('SmartStudy_TaskEvents','U') IS NOT NULL DROP TABLE SmartStudy_TaskEvents;
+            IF OBJECT_ID('SmartStudy_ClassEvents','U') IS NOT NULL DROP TABLE SmartStudy_ClassEvents;
+            IF OBJECT_ID('SmartStudy_WorkEvents','U') IS NOT NULL DROP TABLE SmartStudy_WorkEvents;
+            IF OBJECT_ID('SmartStudy_PersonalEvents','U') IS NOT NULL DROP TABLE SmartStudy_PersonalEvents;
+            IF OBJECT_ID('SmartStudy_Events','U') IS NOT NULL DROP TABLE SmartStudy_Events;
+            IF OBJECT_ID('SmartStudy_Exams','U') IS NOT NULL DROP TABLE SmartStudy_Exams;
+            IF OBJECT_ID('SmartStudy_Tasks','U') IS NOT NULL DROP TABLE SmartStudy_Tasks;
+            IF OBJECT_ID('SmartStudy_UserCourses','U') IS NOT NULL DROP TABLE SmartStudy_UserCourses;
+            IF OBJECT_ID('SmartStudy_Courses','U') IS NOT NULL DROP TABLE SmartStudy_Courses;
+            IF OBJECT_ID('SmartStudy_NotificationSettings','U') IS NOT NULL DROP TABLE SmartStudy_NotificationSettings;
+            IF OBJECT_ID('SmartStudy_Users','U') IS NOT NULL DROP TABLE SmartStudy_Users;
+            IF OBJECT_ID('SmartStudy_Instructors','U') IS NOT NULL DROP TABLE SmartStudy_Instructors;";
+        dropCmd.ExecuteNonQuery();
+
+        var creator = db.GetService<Microsoft.EntityFrameworkCore.Storage.IRelationalDatabaseCreator>();
+        creator.CreateTables();
+    }
+    conn.Close();
+
     SeedDataService.SeedDatabase(db);
 }
 
