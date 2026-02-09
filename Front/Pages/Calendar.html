@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SmartStudy - Calendar</title>
+    <link rel="stylesheet" href="/CSS/app.css">
+</head>
+<body data-page="calendar">
+    <div id="pageRoot">
+        <div class="page-hero">
+            <div class="calendar-nav">
+                <button class="btn btn-sm" id="calPrev">&larr;</button>
+                <h2 class="page-hero__title" id="calendarHeader">Loading...</h2>
+                <button class="btn btn-sm" id="calNext">&rarr;</button>
+            </div>
+            <div class="cal-header-actions">
+                <button class="btn btn-sm" id="calToday">Today</button>
+                <div class="cal-view-toggle">
+                    <button class="cal-view-btn active" data-view="weekly">Week</button>
+                    <button class="cal-view-btn" data-view="3day">3 Day</button>
+                    <button class="cal-view-btn" data-view="monthly">Month</button>
+                </div>
+            </div>
+        </div>
+
+        <div class="calendar-wrapper">
+            <div id="calendarGrid" class="calendar-grid">
+                <div class="skeleton skeleton-chart" style="height:600px"></div>
+            </div>
+        </div>
+
+        <div class="calendar-legend">
+            <span class="legend-item"><span class="legend-dot" style="background:#00BCD4"></span> Classes</span>
+            <span class="legend-item"><span class="legend-dot" style="background:#F28D35"></span> Tasks</span>
+            <span class="legend-item"><span class="legend-dot" style="background:#9B76FF"></span> Work</span>
+            <span class="legend-item"><span class="legend-dot" style="background:#F2C777"></span> Personal</span>
+        </div>
+    </div>
+    <script type="module" src="/Script/main.js"></script>
+</body>
+</html>

@@ -1,0 +1,8 @@
+.DS_Store
+.claude/
+.cursor/
+.playwright-mcp/
+bin/
+obj/
+*.user
+*.suo

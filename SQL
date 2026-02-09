@@ -1,0 +1,197 @@
+-- =====================================================
+-- 1) USERS
+-- =====================================================
+
+CREATE TABLE SmartStudy_Users (
+  Email      NVARCHAR(255)  NOT NULL PRIMARY KEY,
+  FirstName  NVARCHAR(100)  NOT NULL,
+  LastName   NVARCHAR(100)  NOT NULL,
+  [Password] NVARCHAR(255)  NOT NULL
+);
+
+-- =====================================================
+-- 2) NOTIFICATION SETTINGS
+-- =====================================================
+
+CREATE TABLE SmartStudy_NotificationSettings (
+  Email                   NVARCHAR(255) NOT NULL PRIMARY KEY,
+  Notify_before_task      BIT           NOT NULL CONSTRAINT DF_Notif_NotifyBefore DEFAULT (0),
+  Daily_morning_summary   BIT           NOT NULL CONSTRAINT DF_Notif_DailyMorning DEFAULT (0),
+  Weekly_plan_reminder    BIT           NOT NULL CONSTRAINT DF_Notif_WeeklyPlan DEFAULT (0),
+  Enable_push_notification BIT          NOT NULL CONSTRAINT DF_Notif_EnablePush DEFAULT (0),
+
+  CONSTRAINT FK_Notif_User
+    FOREIGN KEY (Email) REFERENCES SmartStudy_Users(Email)
+    ON DELETE CASCADE
+);
+
+-- =====================================================
+-- 3) INSTRUCTORS
+-- =====================================================
+
+CREATE TABLE SmartStudy_Instructors (
+  InstructorId   INT IDENTITY(1,1) NOT NULL PRIMARY KEY,
+  InstructorName NVARCHAR(200)     NOT NULL
+);
+
+-- =====================================================
+-- 4) COURSES
+-- =====================================================
+
+CREATE TABLE SmartStudy_Courses (
+  CourseId      INT NOT NULL PRIMARY KEY,
+  CourseName    NVARCHAR(200)     NOT NULL,
+  WeeklyHours   DECIMAL(4,1)      NULL,
+  Credits       DECIMAL(4,1)      NULL,
+  Semester      NVARCHAR(50)      NULL,
+  InstructorId  INT              NULL,
+
+  CONSTRAINT FK_Course_Instructor
+    FOREIGN KEY (InstructorId) REFERENCES SmartStudy_Instructors(InstructorId)
+    ON DELETE SET NULL
+);
+
+-- =====================================================
+-- 5) USERCOURSES (Enrollment)
+-- =====================================================
+
+CREATE TABLE SmartStudy_UserCourses (
+  Email    NVARCHAR(255) NOT NULL,
+  CourseId INT           NOT NULL,
+  CONSTRAINT PK_UserCourses PRIMARY KEY (Email, CourseId),
+
+  CONSTRAINT FK_UserCourses_User
+    FOREIGN KEY (Email) REFERENCES SmartStudy_Users(Email)
+    ON DELETE CASCADE,
+
+  CONSTRAINT FK_UserCourses_Course
+    FOREIGN KEY (CourseId) REFERENCES SmartStudy_Courses(CourseId)
+    ON DELETE CASCADE
+);
+
+-- =====================================================
+-- 6) EXAMS
+-- =====================================================
+
+CREATE TABLE SmartStudy_Exams (
+  ExamId    INT IDENTITY(1,1) NOT NULL PRIMARY KEY,
+  CourseId  INT               NOT NULL,
+  [Date]    DATE              NOT NULL,
+  [Time]    TIME(0)           NOT NULL,
+  [Session] NVARCHAR(10)      NOT NULL,
+  Duration  INT               NULL,   -- minutes
+
+  CONSTRAINT FK_Exam_Course
+    FOREIGN KEY (CourseId) REFERENCES SmartStudy_Courses(CourseId)
+    ON DELETE CASCADE
+);
+
+-- =====================================================
+-- 7) TASKS
+-- =====================================================
+
+CREATE TABLE SmartStudy_Tasks (
+  TaskId          INT IDENTITY(1,1) NOT NULL PRIMARY KEY,
+  CourseId        INT               NOT NULL,
+  [Type]          NVARCHAR(50)      NOT NULL,
+  EstimatedHours  DECIMAL(5,2)      NULL,
+  DueDate         DATETIME2         NULL,
+
+  CONSTRAINT FK_Task_Course
+    FOREIGN KEY (CourseId) REFERENCES SmartStudy_Courses(CourseId)
+    ON DELETE CASCADE
+);
+
+-- =====================================================
+-- 8) EVENTS (Base Entity)
+-- =====================================================
+
+CREATE TABLE SmartStudy_Events (
+  EventId    INT IDENTITY(1,1) NOT NULL PRIMARY KEY,
+  Email      NVARCHAR(255)     NOT NULL,
+  [From]     DATETIME2(0)      NOT NULL,
+  [To]       DATETIME2(0)      NOT NULL,
+  Recurring  BIT              NOT NULL CONSTRAINT DF_Event_Recurring DEFAULT (0),
+
+  CONSTRAINT FK_Event_User
+    FOREIGN KEY (Email) REFERENCES SmartStudy_Users(Email)
+    ON DELETE CASCADE,
+
+  CONSTRAINT CHK_Event_Time
+    CHECK ([To] > [From])
+);
+
+-- =====================================================
+-- 9) CLASS EVENTS (subtype of Events)
+-- =====================================================
+
+CREATE TABLE SmartStudy_ClassEvents (
+  EventId   INT           NOT NULL PRIMARY KEY,
+  CourseId  INT           NOT NULL,
+  Location  NVARCHAR(200) NULL,
+  Duration  DECIMAL(5,2)           NULL,  -- minutes (optional)
+
+  CONSTRAINT FK_ClassEvent_Event
+    FOREIGN KEY (EventId) REFERENCES SmartStudy_Events(EventId)
+    ON DELETE CASCADE,
+
+  CONSTRAINT FK_ClassEvent_Course
+    FOREIGN KEY (CourseId) REFERENCES SmartStudy_Courses(CourseId)
+    ON DELETE CASCADE
+);
+
+-- =====================================================
+-- 10) TASK EVENTS (subtype of Events) + link to Task
+-- =====================================================
+
+CREATE TABLE SmartStudy_TaskEvents (
+  EventId      INT          NOT NULL PRIMARY KEY,
+  TaskId       INT          NOT NULL UNIQUE,
+  Priority     NVARCHAR(50) NULL,
+  ActualHours  DECIMAL(5,2) NULL,
+  [Status]     NVARCHAR(50) NULL,
+
+  CONSTRAINT FK_TaskEvent_Event
+    FOREIGN KEY (EventId) REFERENCES SmartStudy_Events(EventId)
+    ON DELETE CASCADE,
+
+  CONSTRAINT FK_TaskEvent_Task
+    FOREIGN KEY (TaskId) REFERENCES SmartStudy_Tasks(TaskId)
+    ON DELETE CASCADE
+);
+
+-- =====================================================
+-- 11) WORK EVENTS (subtype of Events)
+-- =====================================================
+
+CREATE TABLE SmartStudy_WorkEvents (
+  EventId     INT           NOT NULL PRIMARY KEY,
+  TravelTime  INT           NULL, -- minutes
+  WorkPlace   NVARCHAR(200) NULL,
+
+  CONSTRAINT FK_WorkEvent_Event
+    FOREIGN KEY (EventId) REFERENCES SmartStudy_Events(EventId)
+    ON DELETE CASCADE
+);
+
+-- =====================================================
+-- 12) PERSONAL EVENTS (subtype of Events)
+-- =====================================================
+
+CREATE TABLE SmartStudy_PersonalEvents (
+  EventId      INT           NOT NULL PRIMARY KEY,
+  [Type]       NVARCHAR(50)  NULL,
+  [Description] NVARCHAR(MAX) NULL,
+
+  CONSTRAINT FK_PersonalEvent_Event
+    FOREIGN KEY (EventId) REFERENCES SmartStudy_Events(EventId)
+    ON DELETE CASCADE
+);
+
+-- =====================================================
+-- 13) Helpful Indexes
+-- =====================================================
+
+CREATE INDEX IX_Events_Email_From ON SmartStudy_Events (Email, [From]);
+CREATE INDEX IX_Tasks_Course_Due  ON SmartStudy_Tasks (CourseId, DueDate);
+CREATE INDEX IX_Exams_Course_Date ON SmartStudy_Exams (CourseId, [Date]);

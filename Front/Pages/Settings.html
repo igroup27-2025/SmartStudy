@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SmartStudy - Settings</title>
+    <link rel="stylesheet" href="/CSS/app.css">
+</head>
+<body data-page="settings">
+    <div id="pageRoot">
+        <div class="page-hero">
+            <div>
+                <h2 class="page-hero__title">Settings</h2>
+            </div>
+        </div>
+
+        <div class="settings-layout">
+            <div class="settings-content">
+                <div class="card">
+                    <div class="card-header">
+                        <h3 class="card-title">Profile</h3>
+                    </div>
+                    <div class="card-body">
+                        <form id="profileForm">
+                            <div class="settings-row">
+                                <div class="settings-info">
+                                    <div class="settings-label">Email</div>
+                                    <div class="settings-description" id="profileEmail">Loading...</div>
+                                </div>
+                            </div>
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label for="profileFirstName">First Name</label>
+                                    <input type="text" id="profileFirstName" class="form-input" required>
+                                </div>
+                                <div class="form-group">
+                                    <label for="profileLastName">Last Name</label>
+                                    <input type="text" id="profileLastName" class="form-input" required>
+                                </div>
+                            </div>
+                            <button type="submit" class="btn btn-primary">Save Profile</button>
+                        </form>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <div class="card-header">
+                        <h3 class="card-title">Notification Preferences</h3>
+                    </div>
+                    <div class="card-body">
+                        <form id="notificationForm">
+                            <div class="settings-row">
+                                <div class="settings-info">
+                                    <div class="settings-label">Task Reminders</div>
+                                    <div class="settings-description">Get notified before task deadlines</div>
+                                </div>
+                                <label class="toggle-switch">
+                                    <input type="checkbox" id="notifyBeforeTask">
+                                    <span class="toggle-slider"></span>
+                                </label>
+                            </div>
+                            <div class="settings-row">
+                                <div class="settings-info">
+                                    <div class="settings-label">Daily Summary</div>
+                                    <div class="settings-description">Morning summary of your day's tasks</div>
+                                </div>
+                                <label class="toggle-switch">
+                                    <input type="checkbox" id="dailyMorningSummary">
+                                    <span class="toggle-slider"></span>
+                                </label>
+                            </div>
+                            <div class="settings-row">
+                                <div class="settings-info">
+                                    <div class="settings-label">Weekly Plan</div>
+                                    <div class="settings-description">Weekly planning reminder</div>
+                                </div>
+                                <label class="toggle-switch">
+                                    <input type="checkbox" id="weeklyPlanReminder">
+                                    <span class="toggle-slider"></span>
+                                </label>
+                            </div>
+                            <div class="settings-row">
+                                <div class="settings-info">
+                                    <div class="settings-label">Push Notifications</div>
+                                    <div class="settings-description">Enable browser push notifications</div>
+                                </div>
+                                <label class="toggle-switch">
+                                    <input type="checkbox" id="enablePushNotification">
+                                    <span class="toggle-slider"></span>
+                                </label>
+                            </div>
+                            <button type="submit" class="btn btn-primary">Save Notifications</button>
+                        </form>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <div class="card-body">
+                        <button class="btn btn-danger btn-block" id="logoutSettingsBtn">Logout</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <script type="module" src="/Script/main.js"></script>
+</body>
+</html>
