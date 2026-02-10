@@ -133,7 +133,7 @@ public class SmartStudyDbContext : DbContext
             entity.HasOne(e => e.User)
                 .WithMany(u => u.Tasks)
                 .HasForeignKey(e => e.Email)
-                .OnDelete(DeleteBehavior.Cascade);
+                .OnDelete(DeleteBehavior.NoAction);
         });
 
         // ===== Events (TPT base) =====
@@ -176,7 +176,7 @@ public class SmartStudyDbContext : DbContext
             entity.HasOne(e => e.StudentTask)
                 .WithMany(t => t.TaskEvents)
                 .HasForeignKey(e => e.TaskId)
-                .OnDelete(DeleteBehavior.Cascade);
+                .OnDelete(DeleteBehavior.NoAction);
         });
 
         // ===== WorkEvents (TPT) =====

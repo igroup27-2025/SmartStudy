@@ -213,7 +213,7 @@ async function openSafeZone(connectionId, name) {
             <div class="empty-state" style="padding: var(--space-8) 0;">
                 <div class="empty-state-icon">&#128337;</div>
                 <h3>No safe zones found</h3>
-                <p>No overlapping free time with low stress this week</p>
+                <p>No overlapping free time this week</p>
             </div>`;
         return;
     }
@@ -229,7 +229,7 @@ async function openSafeZone(connectionId, name) {
     const days = Object.values(grouped);
 
     content.innerHTML = `
-        <p class="safezone-intro">Available study slots where both of you have stress below 60%:</p>
+        <p class="safezone-intro">Mutual free time slots this week — stress levels shown for reference:</p>
         <div class="safezone-days">
             ${days.map(d => `
                 <div class="safezone-day">
@@ -240,7 +240,7 @@ async function openSafeZone(connectionId, name) {
                     <div class="safezone-slots">
                         ${d.slots.map(s => {
                             const maxStress = Math.max(s.myStress, s.friendStress);
-                            const level = maxStress <= 25 ? 'low' : maxStress <= 45 ? 'medium' : 'high';
+                            const level = maxStress <= 40 ? 'low' : maxStress <= 70 ? 'medium' : 'high';
                             return `
                             <div class="safezone-slot">
                                 <span class="safezone-slot-time">${s.startTime} - ${s.endTime}</span>

@@ -25,16 +25,9 @@ public class SafeZoneService
         var myStress = await _stress.GetStressScoreAsync(myEmail);
         var friendStress = await _stress.GetStressScoreAsync(friendEmail);
 
-        // Get all events for both users in the next 7 days
-        var myEvents = await _db.Events
-            .Where(e => e.Email == myEmail && e.From < endDate && e.To > startDate)
-            .OrderBy(e => e.From)
-            .ToListAsync();
-
-        var friendEvents = await _db.Events
-            .Where(e => e.Email == friendEmail && e.From < endDate && e.To > startDate)
-            .OrderBy(e => e.From)
-            .ToListAsync();
+        // Get all events for both users (include recurring that started before range)
+        var myEvents = await GetExpandedEvents(myEmail, startDate, endDate);
+        var friendEvents = await GetExpandedEvents(friendEmail, startDate, endDate);
 
         var safeZones = new List<SafeZoneDto>();
 
@@ -64,14 +57,10 @@ public class SafeZoneService
             // Merge adjacent 30-min slots into longer blocks
             var merged = MergeSlots(mutualFree);
 
-            // Filter: only include slots where both stress < 60%
-            // Use day-level stress approximation
+            // Return mutual free slots with stress info displayed alongside
             foreach (var slot in merged)
             {
                 if (slot.duration < TimeSpan.FromMinutes(30)) continue;
-
-                // Both users must have overall stress < 60%
-                if (myStress.Score >= 60 && friendStress.Score >= 60) continue;
 
                 safeZones.Add(new SafeZoneDto
                 {
@@ -168,5 +157,48 @@ public class SafeZoneService
             }
         }
         return result;
+    }
+
+    private async Task<List<Models.Event>> GetExpandedEvents(
+        string email, DateTime rangeStart, DateTime rangeEnd)
+    {
+        // Fetch events in range + all recurring events (may have started before range)
+        var events = await _db.Events
+            .Where(e => e.Email == email &&
+                ((e.From < rangeEnd && e.To > rangeStart) || e.Recurring))
+            .OrderBy(e => e.From)
+            .ToListAsync();
+
+        var expanded = new List<Models.Event>();
+        foreach (var evt in events)
+        {
+            // Add original if in range
+            if (evt.From < rangeEnd && evt.To > rangeStart)
+                expanded.Add(evt);
+
+            // Expand recurring into weekly copies
+            if (evt.Recurring)
+            {
+                var duration = evt.To - evt.From;
+                var nextFrom = evt.From.AddDays(7);
+                while (nextFrom < rangeEnd)
+                {
+                    var nextTo = nextFrom.Add(duration);
+                    if (nextTo > rangeStart)
+                    {
+                        expanded.Add(new Models.Event
+                        {
+                            Email = email,
+                            From = nextFrom,
+                            To = nextTo,
+                            Recurring = true
+                        });
+                    }
+                    nextFrom = nextFrom.AddDays(7);
+                }
+            }
+        }
+
+        return expanded;
     }
 }

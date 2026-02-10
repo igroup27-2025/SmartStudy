@@ -111,6 +111,51 @@ using (var scope = app.Services.CreateScope())
             END";
         fixCmd.ExecuteNonQuery();
     }
+
+    // Create StudyConnections table if it doesn't exist (added after initial schema)
+    using (var scCmd = conn.CreateCommand())
+    {
+        scCmd.CommandText = @"
+            IF OBJECT_ID('SmartStudy_StudyConnections','U') IS NULL
+            BEGIN
+                CREATE TABLE SmartStudy_StudyConnections (
+                    ConnectionId INT IDENTITY(1,1) PRIMARY KEY,
+                    RequesterEmail NVARCHAR(255) NOT NULL,
+                    ReceiverEmail NVARCHAR(255) NOT NULL,
+                    Status NVARCHAR(20) NOT NULL DEFAULT 'Pending',
+                    CreatedAt DATETIME2 NOT NULL,
+                    AcceptedAt DATETIME2 NULL,
+                    CONSTRAINT FK_StudyConnections_Requester FOREIGN KEY (RequesterEmail) REFERENCES SmartStudy_Users(Email) ON DELETE CASCADE,
+                    CONSTRAINT FK_StudyConnections_Receiver FOREIGN KEY (ReceiverEmail) REFERENCES SmartStudy_Users(Email) ON DELETE NO ACTION
+                );
+                -- Seed demo connections (only for users that exist)
+                INSERT INTO SmartStudy_StudyConnections (RequesterEmail, ReceiverEmail, Status, CreatedAt, AcceptedAt)
+                SELECT r.Email, v.Email, 'Accepted', '2026-01-15', '2026-01-15'
+                FROM SmartStudy_Users r CROSS JOIN SmartStudy_Users v
+                WHERE r.Email = 'demo@smartstudy.com' AND v.Email = 'sarah.cohen@uni.ac.il';
+
+                INSERT INTO SmartStudy_StudyConnections (RequesterEmail, ReceiverEmail, Status, CreatedAt, AcceptedAt)
+                SELECT r.Email, v.Email, 'Accepted', '2026-01-22', '2026-01-22'
+                FROM SmartStudy_Users r CROSS JOIN SmartStudy_Users v
+                WHERE r.Email = 'demo@smartstudy.com' AND v.Email = 'david.levi@uni.ac.il';
+
+                INSERT INTO SmartStudy_StudyConnections (RequesterEmail, ReceiverEmail, Status, CreatedAt, AcceptedAt)
+                SELECT r.Email, v.Email, 'Pending', '2026-02-05', NULL
+                FROM SmartStudy_Users r CROSS JOIN SmartStudy_Users v
+                WHERE r.Email = 'maya.alon@uni.ac.il' AND v.Email = 'demo@smartstudy.com';
+
+                INSERT INTO SmartStudy_StudyConnections (RequesterEmail, ReceiverEmail, Status, CreatedAt, AcceptedAt)
+                SELECT r.Email, v.Email, 'Accepted', '2026-01-20', '2026-01-20'
+                FROM SmartStudy_Users r CROSS JOIN SmartStudy_Users v
+                WHERE r.Email = 'yuval@smartstudy.com' AND v.Email = 'sarah.cohen@uni.ac.il';
+
+                INSERT INTO SmartStudy_StudyConnections (RequesterEmail, ReceiverEmail, Status, CreatedAt, AcceptedAt)
+                SELECT r.Email, v.Email, 'Pending', '2026-02-06', NULL
+                FROM SmartStudy_Users r CROSS JOIN SmartStudy_Users v
+                WHERE r.Email = 'maya.alon@uni.ac.il' AND v.Email = 'yuval@smartstudy.com';
+            END";
+        scCmd.ExecuteNonQuery();
+    }
     conn.Close();
 }
 

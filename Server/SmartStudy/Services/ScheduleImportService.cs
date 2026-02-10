@@ -11,6 +11,7 @@ namespace SmartStudy.Services;
 public class ScheduleImportService
 {
     private readonly SmartStudyDbContext _db;
+    private ColumnLayout? _columns;
 
     public ScheduleImportService(SmartStudyDbContext db) => _db = db;
 
@@ -49,6 +50,10 @@ public class ScheduleImportService
 
             // Group words into horizontal bands (rows) by Y position
             var rows = GroupIntoRows(words, pageHeight);
+
+            // Detect column layout from header row (once per import)
+            if (_columns == null)
+                _columns = DetectColumns(rows);
 
             // Parse entries from the rows
             allEntries.AddRange(ParseRows(rows));
@@ -93,6 +98,45 @@ public class ScheduleImportService
             rows.Add(currentRow.OrderBy(w => w.X).ToList());
 
         return rows;
+    }
+
+    private ColumnLayout? DetectColumns(List<List<PdfWord>> rows)
+    {
+        foreach (var row in rows)
+        {
+            var roomW = row.FirstOrDefault(w => w.Text == "חדר");
+            var instrW = row.FirstOrDefault(w => w.Text == "מרצה");
+            var hoursW = row.FirstOrDefault(w => w.Text == "שעות");
+            var courseWs = row.Where(w => w.Text == "שעור").ToList();
+
+            if (roomW == null || instrW == null || courseWs.Count == 0) continue;
+
+            // The course name "שעור" is the one just to the right of מרצה (higher X)
+            var courseW = courseWs.Where(w => w.X > instrW.X).OrderBy(w => w.X).FirstOrDefault()
+                          ?? courseWs.First();
+
+            // Find boundary helpers: headers adjacent to our targets
+            var rightOfRoom = row.Where(w => w.X > roomW.X + roomW.Width)
+                                 .OrderBy(w => w.X).FirstOrDefault();
+            var rightOfCourse = row.Where(w => w.X > courseW.X + courseW.Width)
+                                   .OrderBy(w => w.X).FirstOrDefault();
+
+            return new ColumnLayout
+            {
+                RoomMaxX = rightOfRoom != null
+                    ? (roomW.X + roomW.Width + rightOfRoom.X) / 2
+                    : roomW.X + roomW.Width + 50,
+                InstructorMinX = hoursW != null
+                    ? (hoursW.X + hoursW.Width + instrW.X) / 2
+                    : instrW.X - 30,
+                InstructorMaxX = (instrW.X + instrW.Width + courseW.X) / 2,
+                CourseMinX = (instrW.X + instrW.Width + courseW.X) / 2,
+                CourseMaxX = rightOfCourse != null
+                    ? (courseW.X + courseW.Width + rightOfCourse.X) / 2
+                    : courseW.X + courseW.Width + 50
+            };
+        }
+        return null;
     }
 
     private List<RawEntry> ParseRows(List<List<PdfWord>> rows)
@@ -197,57 +241,90 @@ public class ScheduleImportService
 
     private void ExtractTextFields(RawEntry entry)
     {
-        // Collect text words (non-pattern) and reverse for RTL reading order
-        var textWords = new List<PdfWord>();
-        foreach (var word in entry.AllWords)
+        if (_columns == null)
         {
-            var t = word.Text.Trim();
-            if (string.IsNullOrEmpty(t)) continue;
-            // Skip if it's a pattern we already extracted
-            if (Regex.IsMatch(t, @"^\d{6}-\d{1,2}$")) continue;
-            if (Regex.IsMatch(t, @"^\d{2}/\d{2}/\d{4}$")) continue;
-            if (Regex.IsMatch(t, @"^\d{1,2}:\d{2}$")) continue;
-            if (Regex.IsMatch(t, @"^\d+\.\d{2}$")) continue;
-            if (Regex.IsMatch(t, @"^\d{1,2}$")) continue; // Row numbers, single digits
-            // Skip Hebrew date parts
-            if (IsHebrewDatePart(t)) continue;
-            // Skip day-of-week single Hebrew letters
-            if (t.Length == 1 && "אבגדהוש".Contains(t[0])) continue;
-            // Skip Hebrew "total" line
-            if (t.Contains("סה\"כ") || t == "שעות" || t == ":") continue;
-
-            textWords.Add(word);
+            // Fallback if column detection failed
+            entry.CourseName = entry.CourseCode;
+            return;
         }
 
-        // Build text in RTL reading order (reverse X-sorted words)
-        var fullText = BuildHebrewText(textWords);
+        // Classify words by column based on X-position
+        var roomRows = new List<List<PdfWord>>();
+        var instrRows = new List<List<PdfWord>>();
+        var courseRows = new List<List<PdfWord>>();
 
-        // Extract instructor: starts with title prefix
-        var instructorPattern = @"(מר|גב'|ד""ר|פרופ'?)\s+[\u0590-\u05FF\s,'-]+";
-        var instrMatch = Regex.Match(fullText, instructorPattern);
-        if (instrMatch.Success)
+        foreach (var row in entry.Rows)
         {
-            entry.InstructorName = instrMatch.Value.Trim().TrimEnd(',').Trim();
-            fullText = fullText.Replace(instrMatch.Value, " ").Trim();
+            var rowRoom = new List<PdfWord>();
+            var rowInstr = new List<PdfWord>();
+            var rowCourse = new List<PdfWord>();
+
+            foreach (var word in row)
+            {
+                if (ShouldFilterWord(word.Text)) continue;
+
+                var cx = word.X + word.Width / 2;
+
+                if (cx <= _columns.RoomMaxX)
+                    rowRoom.Add(word);
+                else if (cx >= _columns.InstructorMinX && cx <= _columns.InstructorMaxX)
+                    rowInstr.Add(word);
+                else if (cx >= _columns.CourseMinX && cx <= _columns.CourseMaxX)
+                    rowCourse.Add(word);
+                // else: other column (times, dates, hours, row#) — already extracted
+            }
+
+            if (rowRoom.Count > 0) roomRows.Add(rowRoom);
+            if (rowInstr.Count > 0) instrRows.Add(rowInstr);
+            if (rowCourse.Count > 0) courseRows.Add(rowCourse);
         }
 
-        // Extract room: contains building/room keywords or building code patterns
-        var roomPattern = @"(בנין|בניין|חדר|קומה|מעב)[\u0590-\u05FF0-9\s\-\.]+";
-        var roomMatch = Regex.Match(fullText, roomPattern);
-        if (roomMatch.Success)
-        {
-            entry.Location = roomMatch.Value.Trim();
-            fullText = fullText.Replace(roomMatch.Value, " ").Trim();
-        }
-        // Also clean up stray room numbers like "113", "-014"
-        fullText = Regex.Replace(fullText, @"\s*-?\d{3,4}\s*", " ").Trim();
+        // Build RTL text per column (reversing word order within each row)
+        var courseName = BuildColumnText(courseRows);
+        var instructor = BuildColumnText(instrRows);
+        var location = BuildColumnText(roomRows);
 
-        // Clean up remaining text = course name
-        fullText = Regex.Replace(fullText, @"\s+", " ").Trim();
-        // Remove stray punctuation and dashes
-        fullText = fullText.Trim('-', ' ');
-        if (!string.IsNullOrWhiteSpace(fullText))
-            entry.CourseName = fullText;
+        // Clean course name
+        if (!string.IsNullOrWhiteSpace(courseName))
+        {
+            courseName = Regex.Replace(courseName, @"\bשיעור\b", " ");
+            courseName = Regex.Replace(courseName, @"\bבזום\b", " ");
+            courseName = Regex.Replace(courseName, @"\s+", " ").Trim().Trim('-', ' ');
+            entry.CourseName = courseName;
+        }
+
+        if (!string.IsNullOrWhiteSpace(instructor))
+            entry.InstructorName = instructor.TrimEnd(',').Trim();
+
+        if (!string.IsNullOrWhiteSpace(location))
+            entry.Location = location;
+    }
+
+    private static bool ShouldFilterWord(string text)
+    {
+        var t = text.Trim();
+        if (string.IsNullOrEmpty(t)) return true;
+        if (Regex.IsMatch(t, @"^\d{6}-\d{1,2}$")) return true;   // course code
+        if (Regex.IsMatch(t, @"^\d{2}/\d{2}/\d{4}$")) return true; // date
+        if (Regex.IsMatch(t, @"^\d{1,2}:\d{2}$")) return true;    // time
+        if (Regex.IsMatch(t, @"^\d+\.\d{2}$")) return true;       // hours decimal
+        if (Regex.IsMatch(t, @"^\d{1,2}$")) return true;          // row numbers
+        if (IsHebrewDatePart(t)) return true;
+        if (t.Length == 1 && "אבגדהוש".Contains(t[0])) return true; // day-of-week letters
+        if (t.Contains("סה\"כ") || t == "שעות" || t == ":") return true;
+        return false;
+    }
+
+    private static string BuildColumnText(List<List<PdfWord>> rowGroups)
+    {
+        var parts = new List<string>();
+        foreach (var row in rowGroups)
+        {
+            if (row.Count > 0)
+                parts.Add(BuildHebrewText(row));
+        }
+        var text = string.Join(" ", parts);
+        return Regex.Replace(text, @"\s+", " ").Trim();
     }
 
     private static bool IsHebrewDatePart(string text)
@@ -434,6 +511,15 @@ public class ScheduleImportService
     }
 
     // ── Internal Types ──────────────────────────────────────────
+
+    private class ColumnLayout
+    {
+        public double RoomMaxX { get; set; }
+        public double InstructorMinX { get; set; }
+        public double InstructorMaxX { get; set; }
+        public double CourseMinX { get; set; }
+        public double CourseMaxX { get; set; }
+    }
 
     private class PdfWord
     {

@@ -640,14 +640,57 @@ async function populateEventCourses() {
     } catch { /* silent */ }
 }
 
+let cachedTaskList = [];
+
 async function populateEventTasks() {
     const select = document.getElementById('eventTaskId');
     if (!select) return;
     try {
-        const tasks = await api.getTasks({ completed: false });
+        cachedTaskList = await api.getTasks({ completed: false });
         select.innerHTML = '<option value="">Select a task...</option>' +
-            tasks.map(t => `<option value="${t.taskId}">${t.title}${t.courseName ? ' (' + t.courseName + ')' : ''}</option>`).join('');
+            cachedTaskList.map(t => `<option value="${t.taskId}">${t.title}${t.courseName ? ' (' + t.courseName + ')' : ''}</option>`).join('');
+
+        // Attach change listener (remove old one first to avoid duplicates)
+        select.removeEventListener('change', onTaskSelectChange);
+        select.addEventListener('change', onTaskSelectChange);
+        // Reset info card
+        onTaskSelectChange();
     } catch { /* silent */ }
+}
+
+function onTaskSelectChange() {
+    const select = document.getElementById('eventTaskId');
+    const card = document.getElementById('taskInfoCard');
+    if (!select || !card) return;
+
+    const taskId = parseInt(select.value);
+    const task = cachedTaskList.find(t => t.taskId === taskId);
+
+    if (!task) {
+        card.classList.add('hidden');
+        return;
+    }
+
+    card.classList.remove('hidden');
+
+    const hoursEl = document.getElementById('taskInfoHours');
+    const dueEl = document.getElementById('taskInfoDue');
+    const priorityEl = document.getElementById('taskInfoPriority');
+
+    if (hoursEl) {
+        hoursEl.textContent = task.estimatedHours
+            ? `Est. ${task.estimatedHours}h`
+            : 'No estimate';
+    }
+    if (dueEl) {
+        dueEl.textContent = task.dueDate
+            ? `Due ${new Date(task.dueDate).toLocaleDateString('en', { month: 'short', day: 'numeric' })}`
+            : 'No due date';
+    }
+    if (priorityEl) {
+        priorityEl.textContent = task.priority || '';
+        priorityEl.className = task.priority ? `task-info-priority priority-${task.priority.toLowerCase()}` : '';
+    }
 }
 
 async function populateTaskCourses() {
