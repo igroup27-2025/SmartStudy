@@ -1,8 +1,29 @@
+# macOS
 .DS_Store
+
+# IDE / Editor
 .claude/
 .cursor/
 .playwright-mcp/
-bin/
-obj/
 *.user
 *.suo
+*.swp
+~$*
+
+# .NET build
+bin/
+obj/
+
+# SQLite temp files
+*.db-shm
+*.db-wal
+*.db-journal
+
+# Screenshots / dev artifacts
+*.png
+*.jpg
+*.jpeg
+
+# Documents
+*.pdf
+*.docx
