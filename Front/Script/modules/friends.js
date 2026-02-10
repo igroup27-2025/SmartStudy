@@ -4,6 +4,7 @@ import { getUser } from './auth.js';
 
 let connections = [];
 let pendingRequests = [];
+let sharedTasks = [];
 
 // Demo data fallback (used when API is unavailable)
 const DEMO_CONNECTIONS = [
@@ -32,9 +33,17 @@ export async function initFriends() {
         pendingRequests = [...DEMO_PENDING];
     }
 
+    try {
+        sharedTasks = await api.getSharedTasks();
+    } catch {
+        sharedTasks = [];
+    }
+
     renderPendingRequests();
     renderFriends();
+    renderSharedTasks();
     setupInvite();
+    setupShareTask();
 }
 
 function getInitials(name) {
@@ -139,7 +148,10 @@ function renderFriends() {
                 <div class="friend-card-date">Connected ${formatDate(c.connectedDate)}</div>
             </div>
             <div class="friend-card-footer">
-                <button class="btn btn-primary w-full friend-safezone" data-id="${c.connectionId}" data-name="${c.friendName}">Find Safe Zone</button>
+                <div class="friend-card-footer-buttons">
+                    <button class="btn btn-primary btn-sm friend-safezone" data-id="${c.connectionId}" data-name="${c.friendName}">Find Safe Zone</button>
+                    <button class="btn btn-secondary btn-sm friend-share-task" data-email="${c.friendEmail}" data-name="${c.friendName}">Share Task</button>
+                </div>
             </div>
         </div>
     `).join('');
@@ -163,6 +175,12 @@ function renderFriends() {
             const id = parseInt(btn.dataset.id);
             const name = btn.dataset.name;
             openSafeZone(id, name);
+        });
+    });
+
+    el.querySelectorAll('.friend-share-task').forEach(btn => {
+        btn.addEventListener('click', () => {
+            openShareTaskModal(btn.dataset.email, btn.dataset.name);
         });
     });
 }
@@ -257,4 +275,223 @@ async function openSafeZone(connectionId, name) {
             `).join('')}
         </div>
     `;
+}
+
+/* ── Shared Tasks ── */
+
+function renderSharedTasks() {
+    const section = document.getElementById('sharedTasksSection');
+    const list = document.getElementById('sharedTasksList');
+    const badge = document.getElementById('sharedTaskCount');
+    if (!section || !list) return;
+
+    // Filter out cancelled tasks
+    const visible = sharedTasks.filter(t => t.responseStatus !== 'Cancelled');
+
+    if (!visible.length) {
+        section.style.display = 'none';
+        return;
+    }
+
+    section.style.display = '';
+    badge.textContent = visible.length;
+
+    const user = getUser();
+    const myEmail = user ? user.email.toLowerCase() : '';
+
+    const pending = visible.filter(t => t.responseStatus === 'Pending');
+    const confirmed = visible.filter(t => t.responseStatus === 'Confirmed');
+
+    let html = '';
+
+    if (pending.length) {
+        html += `<div class="shared-tasks-group">
+            <h4 class="shared-tasks-group-title">Pending Invitations</h4>
+            ${pending.map(t => {
+                const isReceiver = t.partnerEmail?.toLowerCase() === myEmail;
+                const partnerName = isReceiver ? t.ownerName || t.ownerEmail : t.partnerName || t.partnerEmail;
+                return `
+                <div class="shared-task-card" data-task-id="${t.taskId}">
+                    <div class="shared-task-card__body">
+                        <div class="shared-task-card__title">${escapeHtml(t.taskTitle || 'Untitled Task')}</div>
+                        <div class="shared-task-card__meta">
+                            ${t.courseName ? `<span>${escapeHtml(t.courseName)}</span> · ` : ''}
+                            <span>${isReceiver ? 'From' : 'To'}: ${escapeHtml(partnerName)}</span>
+                        </div>
+                    </div>
+                    <div class="shared-task-card__actions">
+                        ${isReceiver ? `
+                            <button class="btn btn-primary btn-sm shared-task-accept" data-task-id="${t.taskId}">Accept</button>
+                            <button class="btn btn-secondary btn-sm shared-task-decline" data-task-id="${t.taskId}">Decline</button>
+                        ` : `
+                            <span class="badge badge-medium">Awaiting response</span>
+                        `}
+                    </div>
+                </div>`;
+            }).join('')}
+        </div>`;
+    }
+
+    if (confirmed.length) {
+        html += `<div class="shared-tasks-group">
+            <h4 class="shared-tasks-group-title">Active Shared Tasks</h4>
+            ${confirmed.map(t => {
+                const partnerName = t.partnerEmail?.toLowerCase() === myEmail
+                    ? t.ownerName || t.ownerEmail
+                    : t.partnerName || t.partnerEmail;
+                return `
+                <div class="shared-task-card shared-task-card--confirmed" data-task-id="${t.taskId}">
+                    <div class="shared-task-card__body">
+                        <div class="shared-task-card__title">${escapeHtml(t.taskTitle || 'Untitled Task')}</div>
+                        <div class="shared-task-card__meta">
+                            ${t.courseName ? `<span>${escapeHtml(t.courseName)}</span> · ` : ''}
+                            <span>With: ${escapeHtml(partnerName)}</span>
+                        </div>
+                    </div>
+                    <div class="shared-task-card__actions">
+                        <span class="badge badge-low">Confirmed</span>
+                        <button class="btn btn-ghost btn-sm shared-task-view" data-task-id="${t.taskId}">View</button>
+                    </div>
+                </div>`;
+            }).join('')}
+        </div>`;
+    }
+
+    list.innerHTML = html;
+
+    // Bind accept/decline buttons
+    list.querySelectorAll('.shared-task-accept').forEach(btn => {
+        btn.addEventListener('click', () => respondToSharedTask(parseInt(btn.dataset.taskId), true));
+    });
+    list.querySelectorAll('.shared-task-decline').forEach(btn => {
+        btn.addEventListener('click', () => respondToSharedTask(parseInt(btn.dataset.taskId), false));
+    });
+    list.querySelectorAll('.shared-task-view').forEach(btn => {
+        btn.addEventListener('click', () => openSharedTaskDetail(parseInt(btn.dataset.taskId)));
+    });
+}
+
+async function openShareTaskModal(friendEmail, friendName) {
+    document.getElementById('shareTaskTitle').textContent = `Share Task with ${friendName}`;
+    document.getElementById('shareTaskSubtitle').textContent = `Select a task to share with ${friendName}.`;
+    document.getElementById('shareTaskFriendEmail').value = friendEmail;
+    document.getElementById('shareTaskForm')?.reset();
+    document.getElementById('shareTaskFriendEmail').value = friendEmail;
+
+    const select = document.getElementById('shareTaskSelect');
+    select.innerHTML = '<option value="">Loading tasks...</option>';
+    openModal('shareTaskModal');
+
+    let tasks = [];
+    try {
+        tasks = await api.getTasks();
+    } catch { /* fallback empty */ }
+
+    // Filter out already-shared tasks with this friend
+    const alreadyShared = new Set(
+        sharedTasks
+            .filter(st => st.partnerEmail?.toLowerCase() === friendEmail.toLowerCase() && st.responseStatus !== 'Cancelled')
+            .map(st => st.taskId)
+    );
+    const available = tasks.filter(t => !t.isCompleted && !alreadyShared.has(t.taskId));
+
+    if (!available.length) {
+        select.innerHTML = '<option value="">No available tasks</option>';
+        return;
+    }
+
+    select.innerHTML = '<option value="">Choose a task...</option>' +
+        available.map(t => `<option value="${t.taskId}">${escapeHtml(t.title)}${t.courseName ? ` (${escapeHtml(t.courseName)})` : ''}</option>`).join('');
+}
+
+function setupShareTask() {
+    document.getElementById('shareTaskForm')?.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const taskId = parseInt(document.getElementById('shareTaskSelect').value);
+        const partnerEmail = document.getElementById('shareTaskFriendEmail').value;
+
+        if (!taskId || !partnerEmail) {
+            showToast('Please select a task', 'error');
+            return;
+        }
+
+        try {
+            await api.createSharedTask({ taskId, partnerEmail });
+            showToast('Task shared successfully!');
+        } catch (err) {
+            showToast(err.message || 'Failed to share task', 'error');
+            return;
+        }
+
+        closeModal('shareTaskModal');
+
+        try {
+            sharedTasks = await api.getSharedTasks();
+        } catch { /* keep existing */ }
+        renderSharedTasks();
+    });
+}
+
+async function respondToSharedTask(taskId, accept) {
+    try {
+        await api.respondSharedTask(taskId, accept);
+        showToast(accept ? 'Shared task accepted!' : 'Shared task declined');
+    } catch (err) {
+        showToast(err.message || 'Failed to respond', 'error');
+        return;
+    }
+
+    try {
+        sharedTasks = await api.getSharedTasks();
+    } catch { /* keep existing */ }
+    renderSharedTasks();
+}
+
+async function openSharedTaskDetail(taskId) {
+    const content = document.getElementById('sharedTaskDetailContent');
+    content.innerHTML = '<div class="spinner-center"><div class="spinner"></div></div>';
+    openModal('sharedTaskDetailModal');
+
+    let detail;
+    try {
+        detail = await api.getSharedTask(taskId);
+    } catch {
+        detail = sharedTasks.find(t => t.taskId === taskId);
+    }
+
+    if (!detail) {
+        content.innerHTML = '<p class="text-muted">Could not load task details.</p>';
+        return;
+    }
+
+    const statusClass = detail.responseStatus === 'Confirmed' ? 'low' : detail.responseStatus === 'Pending' ? 'medium' : 'high';
+
+    content.innerHTML = `
+        <div class="shared-task-detail">
+            <div class="shared-task-detail__header">
+                <h4>${escapeHtml(detail.taskTitle || 'Untitled Task')}</h4>
+                <span class="badge badge-${statusClass}">${detail.responseStatus}</span>
+            </div>
+            ${detail.courseName ? `<p class="shared-task-card__meta">Course: ${escapeHtml(detail.courseName)}</p>` : ''}
+            ${detail.dueDate ? `<p class="shared-task-card__meta">Due: ${formatDate(detail.dueDate)}</p>` : ''}
+            <div class="shared-task-detail__members">
+                <h5 style="margin: var(--space-4) 0 var(--space-2);">Members</h5>
+                <div class="shared-task-member">
+                    <span class="friend-request-avatar" style="width:32px;height:32px;font-size:var(--fs-xs);">${getInitials(detail.ownerName || detail.ownerEmail)}</span>
+                    <span>${escapeHtml(detail.ownerName || detail.ownerEmail)}</span>
+                    <span class="badge badge-low">Owner</span>
+                </div>
+                <div class="shared-task-member">
+                    <span class="friend-request-avatar" style="width:32px;height:32px;font-size:var(--fs-xs);">${getInitials(detail.partnerName || detail.partnerEmail)}</span>
+                    <span>${escapeHtml(detail.partnerName || detail.partnerEmail)}</span>
+                    <span class="badge badge-${statusClass}">${detail.responseStatus}</span>
+                </div>
+            </div>
+        </div>
+    `;
+}
+
+function escapeHtml(str) {
+    if (!str) return '';
+    return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }

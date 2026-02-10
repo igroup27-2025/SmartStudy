@@ -24,6 +24,7 @@ obj/
 *.jpg
 *.jpeg
 !Front/Images/**
+!screenshots/**
 
 # Documents
 *.pdf

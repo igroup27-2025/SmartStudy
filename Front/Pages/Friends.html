@@ -32,6 +32,15 @@
             <div class="skeleton skeleton-card"></div>
         </div>
 
+        <!-- Shared Tasks Section -->
+        <section id="sharedTasksSection" class="shared-tasks-section" style="display: none;">
+            <div class="friends-section-header">
+                <h3>Shared Tasks</h3>
+                <span class="friends-section-badge" id="sharedTaskCount">0</span>
+            </div>
+            <div id="sharedTasksList"></div>
+        </section>
+
         <!-- Invite Modal -->
         <div class="modal-overlay" id="inviteModal">
             <div class="modal" style="max-width: 440px;">
@@ -63,6 +72,44 @@
                     <button class="modal-close" data-close-modal>&times;</button>
                 </div>
                 <div class="modal-body" id="safeZoneContent">
+                    <div class="spinner-center"><div class="spinner"></div></div>
+                </div>
+            </div>
+        </div>
+        <!-- Share Task Modal -->
+        <div class="modal-overlay" id="shareTaskModal">
+            <div class="modal" style="max-width: 480px;">
+                <div class="modal-header">
+                    <h3 id="shareTaskTitle">Share Task</h3>
+                    <button class="modal-close" data-close-modal>&times;</button>
+                </div>
+                <form id="shareTaskForm">
+                    <div class="modal-body">
+                        <p class="form-hint" style="margin-bottom: var(--space-4);" id="shareTaskSubtitle"></p>
+                        <div class="form-group">
+                            <label for="shareTaskSelect">Select Task *</label>
+                            <select id="shareTaskSelect" class="form-input" required>
+                                <option value="">Choose a task...</option>
+                            </select>
+                        </div>
+                        <input type="hidden" id="shareTaskFriendEmail">
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-close-modal>Cancel</button>
+                        <button type="submit" class="btn btn-primary">Share Task</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- Shared Task Detail Modal -->
+        <div class="modal-overlay" id="sharedTaskDetailModal">
+            <div class="modal" style="max-width: 520px;">
+                <div class="modal-header">
+                    <h3>Shared Task Details</h3>
+                    <button class="modal-close" data-close-modal>&times;</button>
+                </div>
+                <div class="modal-body" id="sharedTaskDetailContent">
                     <div class="spinner-center"><div class="spinner"></div></div>
                 </div>
             </div>
