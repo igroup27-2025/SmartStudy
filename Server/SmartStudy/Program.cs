@@ -77,6 +77,10 @@ using (var scope = app.Services.CreateScope())
         // Drop all SmartStudy tables and recreate with correct schema
         using var dropCmd = conn.CreateCommand();
         dropCmd.CommandText = @"
+            IF OBJECT_ID('SmartStudy_SharedTaskMembers','U') IS NOT NULL DROP TABLE SmartStudy_SharedTaskMembers;
+            IF OBJECT_ID('SmartStudy_SharedTasks','U') IS NOT NULL DROP TABLE SmartStudy_SharedTasks;
+            IF OBJECT_ID('SmartStudy_Friendships','U') IS NOT NULL DROP TABLE SmartStudy_Friendships;
+            IF OBJECT_ID('SmartStudy_FriendRequests','U') IS NOT NULL DROP TABLE SmartStudy_FriendRequests;
             IF OBJECT_ID('SmartStudy_StudyConnections','U') IS NOT NULL DROP TABLE SmartStudy_StudyConnections;
             IF OBJECT_ID('SmartStudy_TaskEvents','U') IS NOT NULL DROP TABLE SmartStudy_TaskEvents;
             IF OBJECT_ID('SmartStudy_ClassEvents','U') IS NOT NULL DROP TABLE SmartStudy_ClassEvents;
@@ -112,49 +116,91 @@ using (var scope = app.Services.CreateScope())
         fixCmd.ExecuteNonQuery();
     }
 
-    // Create StudyConnections table if it doesn't exist (added after initial schema)
-    using (var scCmd = conn.CreateCommand())
+    // Migrate: drop old StudyConnections, create new FriendRequests + Friendships + SharedTasks + SharedTaskMembers
+    using (var migrateCmd = conn.CreateCommand())
     {
-        scCmd.CommandText = @"
-            IF OBJECT_ID('SmartStudy_StudyConnections','U') IS NULL
+        migrateCmd.CommandText = @"
+            -- Drop old table if it exists
+            IF OBJECT_ID('SmartStudy_StudyConnections','U') IS NOT NULL
+                DROP TABLE SmartStudy_StudyConnections;
+
+            -- Create FriendRequests if not exists
+            IF OBJECT_ID('SmartStudy_FriendRequests','U') IS NULL
             BEGIN
-                CREATE TABLE SmartStudy_StudyConnections (
-                    ConnectionId INT IDENTITY(1,1) PRIMARY KEY,
+                CREATE TABLE SmartStudy_FriendRequests (
+                    RequestId INT IDENTITY(1,1) PRIMARY KEY,
                     RequesterEmail NVARCHAR(255) NOT NULL,
-                    ReceiverEmail NVARCHAR(255) NOT NULL,
+                    AddresseeEmail NVARCHAR(255) NOT NULL,
                     Status NVARCHAR(20) NOT NULL DEFAULT 'Pending',
-                    CreatedAt DATETIME2 NOT NULL,
-                    AcceptedAt DATETIME2 NULL,
-                    CONSTRAINT FK_StudyConnections_Requester FOREIGN KEY (RequesterEmail) REFERENCES SmartStudy_Users(Email) ON DELETE CASCADE,
-                    CONSTRAINT FK_StudyConnections_Receiver FOREIGN KEY (ReceiverEmail) REFERENCES SmartStudy_Users(Email) ON DELETE NO ACTION
+                    RequestedAt DATETIME2 NOT NULL,
+                    RespondedAt DATETIME2 NULL,
+                    CONSTRAINT FK_FriendRequests_Requester FOREIGN KEY (RequesterEmail) REFERENCES SmartStudy_Users(Email) ON DELETE CASCADE,
+                    CONSTRAINT FK_FriendRequests_Addressee FOREIGN KEY (AddresseeEmail) REFERENCES SmartStudy_Users(Email) ON DELETE NO ACTION,
+                    CONSTRAINT CK_FriendRequest_NotSelf CHECK (RequesterEmail <> AddresseeEmail)
                 );
-                -- Seed demo connections (only for users that exist)
-                INSERT INTO SmartStudy_StudyConnections (RequesterEmail, ReceiverEmail, Status, CreatedAt, AcceptedAt)
-                SELECT r.Email, v.Email, 'Accepted', '2026-01-15', '2026-01-15'
-                FROM SmartStudy_Users r CROSS JOIN SmartStudy_Users v
-                WHERE r.Email = 'demo@smartstudy.com' AND v.Email = 'sarah.cohen@uni.ac.il';
+                CREATE UNIQUE NONCLUSTERED INDEX IX_FriendRequests_Pending
+                    ON SmartStudy_FriendRequests(RequesterEmail, AddresseeEmail) WHERE Status = 'Pending';
 
-                INSERT INTO SmartStudy_StudyConnections (RequesterEmail, ReceiverEmail, Status, CreatedAt, AcceptedAt)
-                SELECT r.Email, v.Email, 'Accepted', '2026-01-22', '2026-01-22'
-                FROM SmartStudy_Users r CROSS JOIN SmartStudy_Users v
-                WHERE r.Email = 'demo@smartstudy.com' AND v.Email = 'david.levi@uni.ac.il';
+                -- Seed friend requests
+                INSERT INTO SmartStudy_FriendRequests (RequesterEmail, AddresseeEmail, Status, RequestedAt, RespondedAt)
+                VALUES
+                    ('demo@smartstudy.com', 'sarah.cohen@uni.ac.il', 'Accepted', '2026-01-15', '2026-01-15'),
+                    ('demo@smartstudy.com', 'david.levi@uni.ac.il', 'Accepted', '2026-01-22', '2026-01-22'),
+                    ('yuval@smartstudy.com', 'sarah.cohen@uni.ac.il', 'Accepted', '2026-01-20', '2026-01-20'),
+                    ('maya.alon@uni.ac.il', 'demo@smartstudy.com', 'Pending', '2026-02-05', NULL),
+                    ('maya.alon@uni.ac.il', 'yuval@smartstudy.com', 'Pending', '2026-02-06', NULL);
+            END
 
-                INSERT INTO SmartStudy_StudyConnections (RequesterEmail, ReceiverEmail, Status, CreatedAt, AcceptedAt)
-                SELECT r.Email, v.Email, 'Pending', '2026-02-05', NULL
-                FROM SmartStudy_Users r CROSS JOIN SmartStudy_Users v
-                WHERE r.Email = 'maya.alon@uni.ac.il' AND v.Email = 'demo@smartstudy.com';
+            -- Create Friendships if not exists
+            IF OBJECT_ID('SmartStudy_Friendships','U') IS NULL
+            BEGIN
+                CREATE TABLE SmartStudy_Friendships (
+                    FriendshipId INT IDENTITY(1,1) PRIMARY KEY,
+                    Email1 NVARCHAR(255) NOT NULL,
+                    Email2 NVARCHAR(255) NOT NULL,
+                    CreatedAt DATETIME2 NOT NULL,
+                    IsActive BIT NOT NULL DEFAULT 1,
+                    CONSTRAINT FK_Friendships_User1 FOREIGN KEY (Email1) REFERENCES SmartStudy_Users(Email) ON DELETE CASCADE,
+                    CONSTRAINT FK_Friendships_User2 FOREIGN KEY (Email2) REFERENCES SmartStudy_Users(Email) ON DELETE NO ACTION,
+                    CONSTRAINT CK_Friendship_NotSelf CHECK (Email1 <> Email2)
+                );
+                CREATE UNIQUE NONCLUSTERED INDEX IX_Friendships_Pair ON SmartStudy_Friendships(Email1, Email2);
 
-                INSERT INTO SmartStudy_StudyConnections (RequesterEmail, ReceiverEmail, Status, CreatedAt, AcceptedAt)
-                SELECT r.Email, v.Email, 'Accepted', '2026-01-20', '2026-01-20'
-                FROM SmartStudy_Users r CROSS JOIN SmartStudy_Users v
-                WHERE r.Email = 'yuval@smartstudy.com' AND v.Email = 'sarah.cohen@uni.ac.il';
+                -- Seed friendships (normalized pairs: Email1 < Email2 alphabetically)
+                INSERT INTO SmartStudy_Friendships (Email1, Email2, CreatedAt, IsActive)
+                VALUES
+                    ('demo@smartstudy.com', 'sarah.cohen@uni.ac.il', '2026-01-15', 1),
+                    ('david.levi@uni.ac.il', 'demo@smartstudy.com', '2026-01-22', 1),
+                    ('sarah.cohen@uni.ac.il', 'yuval@smartstudy.com', '2026-01-20', 1);
+            END
 
-                INSERT INTO SmartStudy_StudyConnections (RequesterEmail, ReceiverEmail, Status, CreatedAt, AcceptedAt)
-                SELECT r.Email, v.Email, 'Pending', '2026-02-06', NULL
-                FROM SmartStudy_Users r CROSS JOIN SmartStudy_Users v
-                WHERE r.Email = 'maya.alon@uni.ac.il' AND v.Email = 'yuval@smartstudy.com';
+            -- Create SharedTasks if not exists
+            IF OBJECT_ID('SmartStudy_SharedTasks','U') IS NULL
+            BEGIN
+                CREATE TABLE SmartStudy_SharedTasks (
+                    TaskId INT NOT NULL PRIMARY KEY,
+                    CreatedByEmail NVARCHAR(255) NOT NULL,
+                    CreatedAt DATETIME2 NOT NULL,
+                    SharedStatus NVARCHAR(20) NOT NULL DEFAULT 'Draft',
+                    CONSTRAINT FK_SharedTasks_Task FOREIGN KEY (TaskId) REFERENCES SmartStudy_Tasks(TaskId) ON DELETE CASCADE,
+                    CONSTRAINT FK_SharedTasks_CreatedBy FOREIGN KEY (CreatedByEmail) REFERENCES SmartStudy_Users(Email) ON DELETE NO ACTION
+                );
+            END
+
+            -- Create SharedTaskMembers if not exists
+            IF OBJECT_ID('SmartStudy_SharedTaskMembers','U') IS NULL
+            BEGIN
+                CREATE TABLE SmartStudy_SharedTaskMembers (
+                    TaskId INT NOT NULL,
+                    Email NVARCHAR(255) NOT NULL,
+                    ResponseStatus NVARCHAR(20) NOT NULL DEFAULT 'Pending',
+                    RespondedAt DATETIME2 NULL,
+                    CONSTRAINT PK_SharedTaskMembers PRIMARY KEY (TaskId, Email),
+                    CONSTRAINT FK_SharedTaskMembers_SharedTask FOREIGN KEY (TaskId) REFERENCES SmartStudy_SharedTasks(TaskId) ON DELETE CASCADE,
+                    CONSTRAINT FK_SharedTaskMembers_User FOREIGN KEY (Email) REFERENCES SmartStudy_Users(Email) ON DELETE NO ACTION
+                );
             END";
-        scCmd.ExecuteNonQuery();
+        migrateCmd.ExecuteNonQuery();
     }
     conn.Close();
 }

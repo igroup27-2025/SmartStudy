@@ -19,40 +19,80 @@ public class ConnectionsController : ControllerBase
 
     private string GetEmail() => User.FindFirst(ClaimTypes.Email)!.Value;
 
+    private static (string, string) NormalizePair(string a, string b) =>
+        string.Compare(a, b, StringComparison.OrdinalIgnoreCase) < 0 ? (a, b) : (b, a);
+
     /// <summary>
-    /// Get all connections (accepted + pending incoming) for the current user.
+    /// Get all connections (accepted friends + pending incoming requests) for the current user.
     /// </summary>
     [HttpGet]
     public async Task<IActionResult> GetAll()
     {
         var email = GetEmail();
 
-        var connections = await _db.StudyConnections
-            .Include(c => c.Requester)
-            .Include(c => c.Receiver)
-            .Where(c => c.RequesterEmail == email || c.ReceiverEmail == email)
-            .OrderByDescending(c => c.CreatedAt)
+        // Pending incoming requests
+        var pendingRequests = await _db.FriendRequests
+            .Include(r => r.Requester)
+            .Where(r => r.AddresseeEmail == email && r.Status == "Pending")
+            .OrderByDescending(r => r.RequestedAt)
             .ToListAsync();
 
-        var result = connections.Select(c =>
+        // Sent pending requests
+        var sentRequests = await _db.FriendRequests
+            .Include(r => r.Addressee)
+            .Where(r => r.RequesterEmail == email && r.Status == "Pending")
+            .OrderByDescending(r => r.RequestedAt)
+            .ToListAsync();
+
+        // Active friendships
+        var friendships = await _db.Friendships
+            .Include(f => f.User1)
+            .Include(f => f.User2)
+            .Where(f => (f.Email1 == email || f.Email2 == email) && f.IsActive)
+            .OrderByDescending(f => f.CreatedAt)
+            .ToListAsync();
+
+        var result = new List<ConnectionDto>();
+
+        // Map pending incoming → status "pending"
+        foreach (var r in pendingRequests)
         {
-            var isRequester = c.RequesterEmail == email;
-            var friend = isRequester ? c.Receiver : c.Requester;
-
-            // For pending requests where current user is the requester, mark as "sent"
-            var status = c.Status.ToLower();
-            if (status == "pending" && isRequester)
-                status = "sent";
-
-            return new ConnectionDto
+            result.Add(new ConnectionDto
             {
-                ConnectionId = c.ConnectionId,
+                ConnectionId = r.RequestId,
+                FriendEmail = r.Requester.Email,
+                FriendName = $"{r.Requester.FirstName} {r.Requester.LastName}",
+                Status = "pending",
+                ConnectedDate = r.RequestedAt
+            });
+        }
+
+        // Map sent pending → status "sent"
+        foreach (var r in sentRequests)
+        {
+            result.Add(new ConnectionDto
+            {
+                ConnectionId = r.RequestId,
+                FriendEmail = r.Addressee.Email,
+                FriendName = $"{r.Addressee.FirstName} {r.Addressee.LastName}",
+                Status = "sent",
+                ConnectedDate = r.RequestedAt
+            });
+        }
+
+        // Map active friendships → status "accepted"
+        foreach (var f in friendships)
+        {
+            var friend = f.Email1 == email ? f.User2 : f.User1;
+            result.Add(new ConnectionDto
+            {
+                ConnectionId = f.FriendshipId,
                 FriendEmail = friend.Email,
                 FriendName = $"{friend.FirstName} {friend.LastName}",
-                Status = status,
-                ConnectedDate = c.AcceptedAt ?? c.CreatedAt
-            };
-        }).ToList();
+                Status = "accepted",
+                ConnectedDate = f.CreatedAt
+            });
+        }
 
         return Ok(result);
     }
@@ -68,52 +108,72 @@ public class ConnectionsController : ControllerBase
         if (dto.Email.Equals(email, StringComparison.OrdinalIgnoreCase))
             return BadRequest(new { message = "You cannot invite yourself" });
 
-        // Check target user exists
         var targetUser = await _db.Users.FirstOrDefaultAsync(u => u.Email == dto.Email);
         if (targetUser == null)
             return NotFound(new { message = "User not found" });
 
-        // Check for existing connection
-        var existing = await _db.StudyConnections.FirstOrDefaultAsync(c =>
-            (c.RequesterEmail == email && c.ReceiverEmail == dto.Email) ||
-            (c.RequesterEmail == dto.Email && c.ReceiverEmail == email));
+        // Check existing pending request (either direction)
+        var existingRequest = await _db.FriendRequests.FirstOrDefaultAsync(r =>
+            r.Status == "Pending" &&
+            ((r.RequesterEmail == email && r.AddresseeEmail == dto.Email) ||
+             (r.RequesterEmail == dto.Email && r.AddresseeEmail == email)));
 
-        if (existing != null)
-            return BadRequest(new { message = "Connection already exists" });
+        if (existingRequest != null)
+            return BadRequest(new { message = "A pending request already exists" });
 
-        var connection = new StudyConnection
+        // Check existing active friendship
+        var (e1, e2) = NormalizePair(email, dto.Email);
+        var existingFriendship = await _db.Friendships.FirstOrDefaultAsync(f =>
+            f.Email1 == e1 && f.Email2 == e2 && f.IsActive);
+
+        if (existingFriendship != null)
+            return BadRequest(new { message = "Already friends" });
+
+        var request = new FriendRequest
         {
             RequesterEmail = email,
-            ReceiverEmail = dto.Email,
+            AddresseeEmail = dto.Email,
             Status = "Pending",
-            CreatedAt = DateTime.Now
+            RequestedAt = DateTime.Now
         };
 
-        _db.StudyConnections.Add(connection);
+        _db.FriendRequests.Add(request);
         await _db.SaveChangesAsync();
 
-        return CreatedAtAction(nameof(GetAll), new { }, new { connection.ConnectionId, status = "pending" });
+        return CreatedAtAction(nameof(GetAll), new { }, new { request.RequestId, status = "pending" });
     }
 
     /// <summary>
-    /// Accept a pending connection request.
+    /// Accept a pending connection request. Creates a Friendship record.
     /// </summary>
     [HttpPost("{id}/accept")]
     public async Task<IActionResult> Accept(int id)
     {
         var email = GetEmail();
 
-        var connection = await _db.StudyConnections
-            .FirstOrDefaultAsync(c => c.ConnectionId == id && c.ReceiverEmail == email && c.Status == "Pending");
+        var request = await _db.FriendRequests
+            .FirstOrDefaultAsync(r => r.RequestId == id && r.AddresseeEmail == email && r.Status == "Pending");
 
-        if (connection == null)
+        if (request == null)
             return NotFound(new { message = "Pending request not found" });
 
-        connection.Status = "Accepted";
-        connection.AcceptedAt = DateTime.Now;
+        request.Status = "Accepted";
+        request.RespondedAt = DateTime.Now;
+
+        // Create friendship with normalized email pair
+        var (e1, e2) = NormalizePair(request.RequesterEmail, request.AddresseeEmail);
+        var friendship = new Friendship
+        {
+            Email1 = e1,
+            Email2 = e2,
+            CreatedAt = DateTime.Now,
+            IsActive = true
+        };
+
+        _db.Friendships.Add(friendship);
         await _db.SaveChangesAsync();
 
-        return Ok(new { connection.ConnectionId, status = "accepted" });
+        return Ok(new { friendshipId = friendship.FriendshipId, status = "accepted" });
     }
 
     /// <summary>
@@ -124,34 +184,35 @@ public class ConnectionsController : ControllerBase
     {
         var email = GetEmail();
 
-        var connection = await _db.StudyConnections
-            .FirstOrDefaultAsync(c => c.ConnectionId == id && c.ReceiverEmail == email && c.Status == "Pending");
+        var request = await _db.FriendRequests
+            .FirstOrDefaultAsync(r => r.RequestId == id && r.AddresseeEmail == email && r.Status == "Pending");
 
-        if (connection == null)
+        if (request == null)
             return NotFound(new { message = "Pending request not found" });
 
-        _db.StudyConnections.Remove(connection);
+        request.Status = "Rejected";
+        request.RespondedAt = DateTime.Now;
         await _db.SaveChangesAsync();
 
         return NoContent();
     }
 
     /// <summary>
-    /// Remove an existing connection.
+    /// Remove an existing friendship (soft delete).
     /// </summary>
     [HttpDelete("{id}")]
     public async Task<IActionResult> Remove(int id)
     {
         var email = GetEmail();
 
-        var connection = await _db.StudyConnections
-            .FirstOrDefaultAsync(c => c.ConnectionId == id &&
-                (c.RequesterEmail == email || c.ReceiverEmail == email));
+        var friendship = await _db.Friendships
+            .FirstOrDefaultAsync(f => f.FriendshipId == id &&
+                (f.Email1 == email || f.Email2 == email) && f.IsActive);
 
-        if (connection == null)
+        if (friendship == null)
             return NotFound();
 
-        _db.StudyConnections.Remove(connection);
+        friendship.IsActive = false;
         await _db.SaveChangesAsync();
 
         return NoContent();

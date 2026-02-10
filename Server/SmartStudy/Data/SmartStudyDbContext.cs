@@ -20,7 +20,10 @@ public class SmartStudyDbContext : DbContext
     public DbSet<TaskEvent> TaskEvents => Set<TaskEvent>();
     public DbSet<WorkEvent> WorkEvents => Set<WorkEvent>();
     public DbSet<PersonalEvent> PersonalEvents => Set<PersonalEvent>();
-    public DbSet<StudyConnection> StudyConnections => Set<StudyConnection>();
+    public DbSet<FriendRequest> FriendRequests => Set<FriendRequest>();
+    public DbSet<Friendship> Friendships => Set<Friendship>();
+    public DbSet<SharedTask> SharedTasks => Set<SharedTask>();
+    public DbSet<SharedTaskMember> SharedTaskMembers => Set<SharedTaskMember>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -194,25 +197,96 @@ public class SmartStudyDbContext : DbContext
             entity.Property(e => e.Description).HasColumnName("Description");
         });
 
-        // ===== StudyConnections =====
-        modelBuilder.Entity<StudyConnection>(entity =>
+        // ===== FriendRequests =====
+        modelBuilder.Entity<FriendRequest>(entity =>
         {
-            entity.ToTable("SmartStudy_StudyConnections");
-            entity.HasKey(e => e.ConnectionId);
+            entity.ToTable("SmartStudy_FriendRequests");
+            entity.HasKey(e => e.RequestId);
             entity.Property(e => e.RequesterEmail).HasMaxLength(255).IsRequired();
-            entity.Property(e => e.ReceiverEmail).HasMaxLength(255).IsRequired();
+            entity.Property(e => e.AddresseeEmail).HasMaxLength(255).IsRequired();
             entity.Property(e => e.Status).HasMaxLength(20).HasDefaultValue("Pending");
-            entity.Property(e => e.CreatedAt);
-            entity.Property(e => e.AcceptedAt);
+            entity.Property(e => e.RequestedAt);
+            entity.Property(e => e.RespondedAt);
 
             entity.HasOne(e => e.Requester)
-                .WithMany(u => u.SentConnections)
+                .WithMany(u => u.SentFriendRequests)
                 .HasForeignKey(e => e.RequesterEmail)
                 .OnDelete(DeleteBehavior.Cascade);
 
-            entity.HasOne(e => e.Receiver)
-                .WithMany(u => u.ReceivedConnections)
-                .HasForeignKey(e => e.ReceiverEmail)
+            entity.HasOne(e => e.Addressee)
+                .WithMany(u => u.ReceivedFriendRequests)
+                .HasForeignKey(e => e.AddresseeEmail)
+                .OnDelete(DeleteBehavior.NoAction);
+
+            entity.HasCheckConstraint("CK_FriendRequest_NotSelf", "[RequesterEmail] <> [AddresseeEmail]");
+
+            entity.HasIndex(e => new { e.RequesterEmail, e.AddresseeEmail })
+                .HasFilter("[Status] = 'Pending'")
+                .IsUnique();
+        });
+
+        // ===== Friendships =====
+        modelBuilder.Entity<Friendship>(entity =>
+        {
+            entity.ToTable("SmartStudy_Friendships");
+            entity.HasKey(e => e.FriendshipId);
+            entity.Property(e => e.Email1).HasMaxLength(255).IsRequired();
+            entity.Property(e => e.Email2).HasMaxLength(255).IsRequired();
+            entity.Property(e => e.CreatedAt);
+            entity.Property(e => e.IsActive).HasDefaultValue(true);
+
+            entity.HasOne(e => e.User1)
+                .WithMany(u => u.FriendshipsAsUser1)
+                .HasForeignKey(e => e.Email1)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasOne(e => e.User2)
+                .WithMany(u => u.FriendshipsAsUser2)
+                .HasForeignKey(e => e.Email2)
+                .OnDelete(DeleteBehavior.NoAction);
+
+            entity.HasCheckConstraint("CK_Friendship_NotSelf", "[Email1] <> [Email2]");
+
+            entity.HasIndex(e => new { e.Email1, e.Email2 }).IsUnique();
+        });
+
+        // ===== SharedTasks =====
+        modelBuilder.Entity<SharedTask>(entity =>
+        {
+            entity.ToTable("SmartStudy_SharedTasks");
+            entity.HasKey(e => e.TaskId);
+            entity.Property(e => e.CreatedByEmail).HasMaxLength(255).IsRequired();
+            entity.Property(e => e.SharedStatus).HasMaxLength(20).HasDefaultValue("Draft");
+            entity.Property(e => e.CreatedAt);
+
+            entity.HasOne(e => e.Task)
+                .WithOne(t => t.SharedTask)
+                .HasForeignKey<SharedTask>(e => e.TaskId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasOne(e => e.CreatedBy)
+                .WithMany()
+                .HasForeignKey(e => e.CreatedByEmail)
+                .OnDelete(DeleteBehavior.NoAction);
+        });
+
+        // ===== SharedTaskMembers =====
+        modelBuilder.Entity<SharedTaskMember>(entity =>
+        {
+            entity.ToTable("SmartStudy_SharedTaskMembers");
+            entity.HasKey(e => new { e.TaskId, e.Email });
+            entity.Property(e => e.Email).HasMaxLength(255);
+            entity.Property(e => e.ResponseStatus).HasMaxLength(20).HasDefaultValue("Pending");
+            entity.Property(e => e.RespondedAt);
+
+            entity.HasOne(e => e.SharedTask)
+                .WithMany(st => st.Members)
+                .HasForeignKey(e => e.TaskId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasOne(e => e.User)
+                .WithMany(u => u.SharedTaskMemberships)
+                .HasForeignKey(e => e.Email)
                 .OnDelete(DeleteBehavior.NoAction);
         });
     }

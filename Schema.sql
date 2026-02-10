@@ -1,11 +1,15 @@
 -- =====================================================
 -- SmartStudy Database Schema for SQL Server
--- 13 tables with SmartStudy_ prefix
+-- 16 tables with SmartStudy_ prefix
 -- Run this BEFORE SeedData.sql
 -- =====================================================
 
 -- ===== DROP TABLES (reverse dependency order) =====
-IF OBJECT_ID('SmartStudy_StudyConnections','U') IS NOT NULL DROP TABLE SmartStudy_StudyConnections;
+IF OBJECT_ID('SmartStudy_SharedTaskMembers','U') IS NOT NULL DROP TABLE SmartStudy_SharedTaskMembers;
+IF OBJECT_ID('SmartStudy_SharedTasks','U')       IS NOT NULL DROP TABLE SmartStudy_SharedTasks;
+IF OBJECT_ID('SmartStudy_Friendships','U')       IS NOT NULL DROP TABLE SmartStudy_Friendships;
+IF OBJECT_ID('SmartStudy_FriendRequests','U')    IS NOT NULL DROP TABLE SmartStudy_FriendRequests;
+IF OBJECT_ID('SmartStudy_StudyConnections','U')  IS NOT NULL DROP TABLE SmartStudy_StudyConnections;
 IF OBJECT_ID('SmartStudy_TaskEvents','U')       IS NOT NULL DROP TABLE SmartStudy_TaskEvents;
 IF OBJECT_ID('SmartStudy_ClassEvents','U')      IS NOT NULL DROP TABLE SmartStudy_ClassEvents;
 IF OBJECT_ID('SmartStudy_WorkEvents','U')       IS NOT NULL DROP TABLE SmartStudy_WorkEvents;
@@ -205,19 +209,72 @@ CREATE TABLE SmartStudy_PersonalEvents (
 GO
 
 -- =====================================================
--- 13) STUDY CONNECTIONS (peer collaboration)
+-- 13) FRIEND REQUESTS (invitation lifecycle)
 -- =====================================================
-CREATE TABLE SmartStudy_StudyConnections (
-    ConnectionId   INT           IDENTITY(1,1) NOT NULL,
+CREATE TABLE SmartStudy_FriendRequests (
+    RequestId      INT           IDENTITY(1,1) NOT NULL,
     RequesterEmail NVARCHAR(255) NOT NULL,
-    ReceiverEmail  NVARCHAR(255) NOT NULL,
+    AddresseeEmail NVARCHAR(255) NOT NULL,
     [Status]       NVARCHAR(20)  NOT NULL DEFAULT N'Pending',
-    CreatedAt      DATETIME2     NOT NULL,
-    AcceptedAt     DATETIME2     NULL,
-    CONSTRAINT PK_SmartStudy_StudyConnections PRIMARY KEY (ConnectionId),
-    CONSTRAINT FK_StudyConnections_Requester FOREIGN KEY (RequesterEmail)
+    RequestedAt    DATETIME2     NOT NULL,
+    RespondedAt    DATETIME2     NULL,
+    CONSTRAINT PK_SmartStudy_FriendRequests PRIMARY KEY (RequestId),
+    CONSTRAINT FK_FriendRequests_Requester FOREIGN KEY (RequesterEmail)
         REFERENCES SmartStudy_Users(Email) ON DELETE CASCADE,
-    CONSTRAINT FK_StudyConnections_Receiver FOREIGN KEY (ReceiverEmail)
+    CONSTRAINT FK_FriendRequests_Addressee FOREIGN KEY (AddresseeEmail)
+        REFERENCES SmartStudy_Users(Email) ON DELETE NO ACTION,
+    CONSTRAINT CK_FriendRequest_NotSelf CHECK (RequesterEmail <> AddresseeEmail)
+);
+GO
+
+-- =====================================================
+-- 14) FRIENDSHIPS (confirmed friends)
+-- Email1 < Email2 alphabetically (normalized pair)
+-- =====================================================
+CREATE TABLE SmartStudy_Friendships (
+    FriendshipId INT           IDENTITY(1,1) NOT NULL,
+    Email1       NVARCHAR(255) NOT NULL,
+    Email2       NVARCHAR(255) NOT NULL,
+    CreatedAt    DATETIME2     NOT NULL,
+    IsActive     BIT           NOT NULL DEFAULT 1,
+    CONSTRAINT PK_SmartStudy_Friendships PRIMARY KEY (FriendshipId),
+    CONSTRAINT FK_Friendships_User1 FOREIGN KEY (Email1)
+        REFERENCES SmartStudy_Users(Email) ON DELETE CASCADE,
+    CONSTRAINT FK_Friendships_User2 FOREIGN KEY (Email2)
+        REFERENCES SmartStudy_Users(Email) ON DELETE NO ACTION,
+    CONSTRAINT CK_Friendship_NotSelf CHECK (Email1 <> Email2)
+);
+GO
+
+-- =====================================================
+-- 15) SHARED TASKS (1:1 with Tasks)
+-- =====================================================
+CREATE TABLE SmartStudy_SharedTasks (
+    TaskId         INT           NOT NULL,
+    CreatedByEmail NVARCHAR(255) NOT NULL,
+    CreatedAt      DATETIME2     NOT NULL,
+    SharedStatus   NVARCHAR(20)  NOT NULL DEFAULT N'Draft',
+    CONSTRAINT PK_SmartStudy_SharedTasks PRIMARY KEY (TaskId),
+    CONSTRAINT FK_SharedTasks_Task FOREIGN KEY (TaskId)
+        REFERENCES SmartStudy_Tasks(TaskId) ON DELETE CASCADE,
+    CONSTRAINT FK_SharedTasks_CreatedBy FOREIGN KEY (CreatedByEmail)
+        REFERENCES SmartStudy_Users(Email) ON DELETE NO ACTION
+);
+GO
+
+-- =====================================================
+-- 16) SHARED TASK MEMBERS
+-- Composite PK (TaskId, Email)
+-- =====================================================
+CREATE TABLE SmartStudy_SharedTaskMembers (
+    TaskId         INT           NOT NULL,
+    Email          NVARCHAR(255) NOT NULL,
+    ResponseStatus NVARCHAR(20)  NOT NULL DEFAULT N'Pending',
+    RespondedAt    DATETIME2     NULL,
+    CONSTRAINT PK_SmartStudy_SharedTaskMembers PRIMARY KEY (TaskId, Email),
+    CONSTRAINT FK_SharedTaskMembers_SharedTask FOREIGN KEY (TaskId)
+        REFERENCES SmartStudy_SharedTasks(TaskId) ON DELETE CASCADE,
+    CONSTRAINT FK_SharedTaskMembers_User FOREIGN KEY (Email)
         REFERENCES SmartStudy_Users(Email) ON DELETE NO ACTION
 );
 GO
@@ -233,8 +290,10 @@ CREATE NONCLUSTERED INDEX IX_TaskEvents_TaskId ON SmartStudy_TaskEvents(TaskId);
 CREATE NONCLUSTERED INDEX IX_ClassEvents_CourseId ON SmartStudy_ClassEvents(CourseId);
 CREATE NONCLUSTERED INDEX IX_UserCourses_CourseId ON SmartStudy_UserCourses(CourseId);
 CREATE NONCLUSTERED INDEX IX_Courses_InstructorId ON SmartStudy_Courses(InstructorId);
-CREATE NONCLUSTERED INDEX IX_StudyConnections_Requester ON SmartStudy_StudyConnections(RequesterEmail);
-CREATE NONCLUSTERED INDEX IX_StudyConnections_Receiver ON SmartStudy_StudyConnections(ReceiverEmail);
+CREATE UNIQUE NONCLUSTERED INDEX IX_FriendRequests_Pending ON SmartStudy_FriendRequests(RequesterEmail, AddresseeEmail) WHERE [Status] = 'Pending';
+CREATE NONCLUSTERED INDEX IX_FriendRequests_Addressee ON SmartStudy_FriendRequests(AddresseeEmail);
+CREATE UNIQUE NONCLUSTERED INDEX IX_Friendships_Pair ON SmartStudy_Friendships(Email1, Email2);
+CREATE NONCLUSTERED INDEX IX_SharedTaskMembers_Email ON SmartStudy_SharedTaskMembers(Email);
 GO
 
-PRINT 'SmartStudy schema created successfully (13 tables).';
+PRINT 'SmartStudy schema created successfully (16 tables).';

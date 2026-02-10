@@ -16,4 +16,5 @@ public class StudentTask
     public Course Course { get; set; } = null!;
     public User User { get; set; } = null!;
     public ICollection<TaskEvent> TaskEvents { get; set; } = new List<TaskEvent>();
+    public SharedTask? SharedTask { get; set; }
 }

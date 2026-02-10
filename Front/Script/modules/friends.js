@@ -79,13 +79,18 @@ function renderPendingRequests() {
     list.querySelectorAll('.request-accept').forEach(btn => {
         btn.addEventListener('click', async () => {
             const id = parseInt(btn.dataset.id);
+            let result;
             try {
-                await api.acceptConnection(id);
+                result = await api.acceptConnection(id);
             } catch { /* demo mode */ }
 
             const req = pendingRequests.find(r => r.connectionId === id);
             if (req) {
                 req.status = 'accepted';
+                // Use the friendshipId returned by the server for safe-zone lookups
+                if (result && result.friendshipId) {
+                    req.connectionId = result.friendshipId;
+                }
                 connections.push(req);
                 pendingRequests = pendingRequests.filter(r => r.connectionId !== id);
             }

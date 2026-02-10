@@ -12,6 +12,9 @@ public class User
     public ICollection<UserCourse> UserCourses { get; set; } = new List<UserCourse>();
     public ICollection<Event> Events { get; set; } = new List<Event>();
     public ICollection<StudentTask> Tasks { get; set; } = new List<StudentTask>();
-    public ICollection<StudyConnection> SentConnections { get; set; } = new List<StudyConnection>();
-    public ICollection<StudyConnection> ReceivedConnections { get; set; } = new List<StudyConnection>();
+    public ICollection<FriendRequest> SentFriendRequests { get; set; } = new List<FriendRequest>();
+    public ICollection<FriendRequest> ReceivedFriendRequests { get; set; } = new List<FriendRequest>();
+    public ICollection<Friendship> FriendshipsAsUser1 { get; set; } = new List<Friendship>();
+    public ICollection<Friendship> FriendshipsAsUser2 { get; set; } = new List<Friendship>();
+    public ICollection<SharedTaskMember> SharedTaskMemberships { get; set; } = new List<SharedTaskMember>();
 }

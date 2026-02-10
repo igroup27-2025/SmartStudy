@@ -179,11 +179,20 @@ public static class SeedDataService
             new PersonalEvent { Email = user1.Email, From = monday.AddDays(6).AddHours(10), To = monday.AddDays(6).AddHours(12), Recurring = false, Type = "Errand", Description = "Doctor appointment" }
         );
 
-        // === Study Connections ===
-        db.StudyConnections.AddRange(
-            new StudyConnection { RequesterEmail = user1.Email, ReceiverEmail = user3.Email, Status = "Accepted", CreatedAt = new DateTime(2026, 1, 15), AcceptedAt = new DateTime(2026, 1, 15) },
-            new StudyConnection { RequesterEmail = user1.Email, ReceiverEmail = user4.Email, Status = "Accepted", CreatedAt = new DateTime(2026, 1, 22), AcceptedAt = new DateTime(2026, 1, 22) },
-            new StudyConnection { RequesterEmail = user5.Email, ReceiverEmail = user1.Email, Status = "Pending", CreatedAt = new DateTime(2026, 2, 5) }
+        // === Friend Requests ===
+        db.FriendRequests.AddRange(
+            new FriendRequest { RequesterEmail = user1.Email, AddresseeEmail = user3.Email, Status = "Accepted", RequestedAt = new DateTime(2026, 1, 15), RespondedAt = new DateTime(2026, 1, 15) },
+            new FriendRequest { RequesterEmail = user1.Email, AddresseeEmail = user4.Email, Status = "Accepted", RequestedAt = new DateTime(2026, 1, 22), RespondedAt = new DateTime(2026, 1, 22) },
+            new FriendRequest { RequesterEmail = user2.Email, AddresseeEmail = user3.Email, Status = "Accepted", RequestedAt = new DateTime(2026, 1, 20), RespondedAt = new DateTime(2026, 1, 20) },
+            new FriendRequest { RequesterEmail = user5.Email, AddresseeEmail = user1.Email, Status = "Pending", RequestedAt = new DateTime(2026, 2, 5) },
+            new FriendRequest { RequesterEmail = user5.Email, AddresseeEmail = user2.Email, Status = "Pending", RequestedAt = new DateTime(2026, 2, 6) }
+        );
+
+        // === Friendships (normalized pairs: Email1 < Email2 alphabetically) ===
+        db.Friendships.AddRange(
+            new Friendship { Email1 = user1.Email, Email2 = user3.Email, CreatedAt = new DateTime(2026, 1, 15), IsActive = true },   // demo < sarah
+            new Friendship { Email1 = user4.Email, Email2 = user1.Email, CreatedAt = new DateTime(2026, 1, 22), IsActive = true },   // david < demo
+            new Friendship { Email1 = user3.Email, Email2 = user2.Email, CreatedAt = new DateTime(2026, 1, 20), IsActive = true }    // sarah < yuval
         );
 
         db.SaveChanges();

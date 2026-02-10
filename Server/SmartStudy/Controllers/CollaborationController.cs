@@ -31,17 +31,17 @@ public class CollaborationController : ControllerBase
     {
         var email = GetEmail();
 
-        var connection = await _db.StudyConnections
-            .FirstOrDefaultAsync(c => c.ConnectionId == connectionId &&
-                (c.RequesterEmail == email || c.ReceiverEmail == email) &&
-                c.Status == "Accepted");
+        var friendship = await _db.Friendships
+            .FirstOrDefaultAsync(f => f.FriendshipId == connectionId &&
+                (f.Email1 == email || f.Email2 == email) &&
+                f.IsActive);
 
-        if (connection == null)
-            return NotFound(new { message = "Connection not found or not accepted" });
+        if (friendship == null)
+            return NotFound(new { message = "Friendship not found or not active" });
 
-        var friendEmail = connection.RequesterEmail == email
-            ? connection.ReceiverEmail
-            : connection.RequesterEmail;
+        var friendEmail = friendship.Email1 == email
+            ? friendship.Email2
+            : friendship.Email1;
 
         var zones = await _safeZoneService.GetSafeZonesAsync(email, friendEmail);
         return Ok(zones);

@@ -126,6 +126,13 @@ export const api = {
     // Collaboration
     getSafeZones: (connectionId) => request('GET', `/collaboration/safe-zones?connectionId=${connectionId}`),
 
+    // Shared Tasks
+    getSharedTasks: () => request('GET', '/shared-tasks'),
+    getSharedTask: (taskId) => request('GET', `/shared-tasks/${taskId}`),
+    createSharedTask: (data) => request('POST', '/shared-tasks', data),
+    respondSharedTask: (taskId, accept) => request('POST', `/shared-tasks/${taskId}/respond`, { accept }),
+    cancelSharedTask: (taskId) => request('POST', `/shared-tasks/${taskId}/cancel`),
+
     // Settings
     getProfile: () => request('GET', '/settings/profile'),
     updateProfile: (data) => request('PUT', '/settings/profile', data),
