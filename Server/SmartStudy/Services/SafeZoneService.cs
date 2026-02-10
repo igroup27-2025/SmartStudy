@@ -62,6 +62,9 @@ public class SafeZoneService
             {
                 if (slot.duration < TimeSpan.FromMinutes(30)) continue;
 
+                // Both users must have stress < 60% for a safe zone
+                if (myStress.Score >= 60 || friendStress.Score >= 60) continue;
+
                 safeZones.Add(new SafeZoneDto
                 {
                     Date = day.ToString("yyyy-MM-dd"),

@@ -131,9 +131,11 @@ public class ScheduleImportService
                     : instrW.X - 30,
                 InstructorMaxX = (instrW.X + instrW.Width + courseW.X) / 2,
                 CourseMinX = (instrW.X + instrW.Width + courseW.X) / 2,
+                // Extend course column to page right edge — course codes and row numbers
+                // are already filtered by ShouldFilterWord, so won't contaminate
                 CourseMaxX = rightOfCourse != null
-                    ? (courseW.X + courseW.Width + rightOfCourse.X) / 2
-                    : courseW.X + courseW.Width + 50
+                    ? rightOfCourse.X + rightOfCourse.Width + 100
+                    : 1000
             };
         }
         return null;
@@ -308,7 +310,7 @@ public class ScheduleImportService
         if (Regex.IsMatch(t, @"^\d{2}/\d{2}/\d{4}$")) return true; // date
         if (Regex.IsMatch(t, @"^\d{1,2}:\d{2}$")) return true;    // time
         if (Regex.IsMatch(t, @"^\d+\.\d{2}$")) return true;       // hours decimal
-        if (Regex.IsMatch(t, @"^\d{1,2}$")) return true;          // row numbers
+        if (Regex.IsMatch(t, @"^\d$")) return true;               // single-digit row numbers
         if (IsHebrewDatePart(t)) return true;
         if (t.Length == 1 && "אבגדהוש".Contains(t[0])) return true; // day-of-week letters
         if (t.Contains("סה\"כ") || t == "שעות" || t == ":") return true;
