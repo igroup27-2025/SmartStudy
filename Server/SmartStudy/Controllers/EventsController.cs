@@ -25,74 +25,111 @@ public class EventsController : ControllerBase
         var email = GetEmail();
         var query = _db.Events.Where(e => e.Email == email);
 
-        if (from.HasValue) query = query.Where(e => e.To >= from.Value);
-        if (to.HasValue) query = query.Where(e => e.From <= to.Value);
+        // For recurring expansion, also fetch recurring events that started before the range
+        if (from.HasValue && to.HasValue)
+            query = _db.Events.Where(e => e.Email == email &&
+                ((e.To >= from.Value && e.From <= to.Value) || e.Recurring));
+        else
+        {
+            if (from.HasValue) query = query.Where(e => e.To >= from.Value);
+            if (to.HasValue) query = query.Where(e => e.From <= to.Value);
+        }
 
         var events = await query.OrderBy(e => e.From).ToListAsync();
+
+        // Pre-load all subtype data for these events
+        var eventIds = events.Select(e => e.EventId).ToList();
+        var classEvents = await _db.ClassEvents.Include(ce => ce.Course)
+            .Where(ce => eventIds.Contains(ce.EventId)).ToDictionaryAsync(ce => ce.EventId);
+        var taskEvents = await _db.TaskEvents.Include(te => te.StudentTask)
+            .Where(te => eventIds.Contains(te.EventId)).ToDictionaryAsync(te => te.EventId);
+        var workEvents = await _db.WorkEvents
+            .Where(we => eventIds.Contains(we.EventId)).ToDictionaryAsync(we => we.EventId);
+        var personalEvents = await _db.PersonalEvents
+            .Where(pe => eventIds.Contains(pe.EventId)).ToDictionaryAsync(pe => pe.EventId);
+
         var result = new List<EventDto>();
 
         foreach (var evt in events)
         {
-            var dto = new EventDto
-            {
-                EventId = evt.EventId,
-                From = evt.From,
-                To = evt.To,
-                Recurring = evt.Recurring
-            };
+            // Add the original event (if it falls in range)
+            if ((!from.HasValue || evt.To >= from.Value) && (!to.HasValue || evt.From <= to.Value))
+                result.Add(BuildDto(evt, classEvents, taskEvents, workEvents, personalEvents));
 
-            var classEvent = await _db.ClassEvents.Include(ce => ce.Course)
-                .FirstOrDefaultAsync(ce => ce.EventId == evt.EventId);
-            if (classEvent != null)
+            // Expand recurring events into weekly copies within the range
+            if (evt.Recurring && from.HasValue && to.HasValue)
             {
-                dto.EventType = "class";
-                dto.CourseId = classEvent.CourseId;
-                dto.CourseName = classEvent.Course.CourseName;
-                dto.Location = classEvent.Location;
-                dto.Duration = classEvent.Duration;
-                result.Add(dto);
-                continue;
+                var duration = evt.To - evt.From;
+                var nextFrom = evt.From.AddDays(7);
+                while (nextFrom <= to.Value)
+                {
+                    var nextTo = nextFrom.Add(duration);
+                    if (nextTo >= from.Value)
+                    {
+                        var virtualDto = BuildDto(evt, classEvents, taskEvents, workEvents, personalEvents);
+                        virtualDto.EventId = evt.EventId;
+                        virtualDto.From = nextFrom;
+                        virtualDto.To = nextTo;
+                        result.Add(virtualDto);
+                    }
+                    nextFrom = nextFrom.AddDays(7);
+                }
             }
-
-            var taskEvent = await _db.TaskEvents.Include(te => te.StudentTask)
-                .FirstOrDefaultAsync(te => te.EventId == evt.EventId);
-            if (taskEvent != null)
-            {
-                dto.EventType = "task";
-                dto.TaskId = taskEvent.TaskId;
-                dto.TaskTitle = taskEvent.StudentTask.Title;
-                dto.Priority = taskEvent.Priority;
-                dto.ActualHours = taskEvent.ActualHours;
-                dto.Status = taskEvent.Status;
-                result.Add(dto);
-                continue;
-            }
-
-            var workEvent = await _db.WorkEvents.FirstOrDefaultAsync(we => we.EventId == evt.EventId);
-            if (workEvent != null)
-            {
-                dto.EventType = "work";
-                dto.TravelTime = workEvent.TravelTime;
-                dto.WorkPlace = workEvent.WorkPlace;
-                result.Add(dto);
-                continue;
-            }
-
-            var personalEvent = await _db.PersonalEvents.FirstOrDefaultAsync(pe => pe.EventId == evt.EventId);
-            if (personalEvent != null)
-            {
-                dto.EventType = "personal";
-                dto.Type = personalEvent.Type;
-                dto.Description = personalEvent.Description;
-                result.Add(dto);
-                continue;
-            }
-
-            dto.EventType = "unknown";
-            result.Add(dto);
         }
 
-        return Ok(result);
+        return Ok(result.OrderBy(e => e.From));
+    }
+
+    private static EventDto BuildDto(
+        Event evt,
+        Dictionary<int, ClassEvent> classEvents,
+        Dictionary<int, TaskEvent> taskEvents,
+        Dictionary<int, WorkEvent> workEvents,
+        Dictionary<int, PersonalEvent> personalEvents)
+    {
+        var dto = new EventDto
+        {
+            EventId = evt.EventId,
+            From = evt.From,
+            To = evt.To,
+            Recurring = evt.Recurring
+        };
+
+        if (classEvents.TryGetValue(evt.EventId, out var ce))
+        {
+            dto.EventType = "class";
+            dto.CourseId = ce.CourseId;
+            dto.CourseName = ce.Course.CourseName;
+            dto.Location = ce.Location;
+            dto.Duration = ce.Duration;
+        }
+        else if (taskEvents.TryGetValue(evt.EventId, out var te))
+        {
+            dto.EventType = "task";
+            dto.TaskId = te.TaskId;
+            dto.TaskTitle = te.StudentTask.Title;
+            dto.Priority = te.Priority;
+            dto.ActualHours = te.ActualHours;
+            dto.Status = te.Status;
+        }
+        else if (workEvents.TryGetValue(evt.EventId, out var we))
+        {
+            dto.EventType = "work";
+            dto.TravelTime = we.TravelTime;
+            dto.WorkPlace = we.WorkPlace;
+        }
+        else if (personalEvents.TryGetValue(evt.EventId, out var pe))
+        {
+            dto.EventType = "personal";
+            dto.Type = pe.Type;
+            dto.Description = pe.Description;
+        }
+        else
+        {
+            dto.EventType = "unknown";
+        }
+
+        return dto;
     }
 
     [HttpPost("class")]
@@ -167,6 +204,55 @@ public class EventsController : ControllerBase
         _db.PersonalEvents.Add(evt);
         await _db.SaveChangesAsync();
         return CreatedAtAction(nameof(GetAll), new { }, new { evt.EventId, eventType = "personal" });
+    }
+
+    [HttpPut("class/{id}")]
+    public async Task<IActionResult> UpdateClass(int id, [FromBody] CreateClassEventDto dto)
+    {
+        var email = GetEmail();
+        var evt = await _db.ClassEvents.FirstOrDefaultAsync(e => e.EventId == id && e.Email == email);
+        if (evt == null) return NotFound();
+
+        evt.From = dto.From;
+        evt.To = dto.To;
+        evt.Recurring = dto.Recurring;
+        evt.CourseId = dto.CourseId;
+        evt.Location = dto.Location;
+        evt.Duration = dto.Duration;
+        await _db.SaveChangesAsync();
+        return Ok(new { evt.EventId, eventType = "class" });
+    }
+
+    [HttpPut("work/{id}")]
+    public async Task<IActionResult> UpdateWork(int id, [FromBody] CreateWorkEventDto dto)
+    {
+        var email = GetEmail();
+        var evt = await _db.WorkEvents.FirstOrDefaultAsync(e => e.EventId == id && e.Email == email);
+        if (evt == null) return NotFound();
+
+        evt.From = dto.From;
+        evt.To = dto.To;
+        evt.Recurring = dto.Recurring;
+        evt.TravelTime = dto.TravelTime;
+        evt.WorkPlace = dto.WorkPlace;
+        await _db.SaveChangesAsync();
+        return Ok(new { evt.EventId, eventType = "work" });
+    }
+
+    [HttpPut("personal/{id}")]
+    public async Task<IActionResult> UpdatePersonal(int id, [FromBody] CreatePersonalEventDto dto)
+    {
+        var email = GetEmail();
+        var evt = await _db.PersonalEvents.FirstOrDefaultAsync(e => e.EventId == id && e.Email == email);
+        if (evt == null) return NotFound();
+
+        evt.From = dto.From;
+        evt.To = dto.To;
+        evt.Recurring = dto.Recurring;
+        evt.Type = dto.Type;
+        evt.Description = dto.Description;
+        await _db.SaveChangesAsync();
+        return Ok(new { evt.EventId, eventType = "personal" });
     }
 
     [HttpDelete("{id}")]

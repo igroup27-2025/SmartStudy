@@ -36,6 +36,7 @@ export const api = {
     // Auth
     login: (email, password) => request('POST', '/auth/login', { email, password }),
     register: (data) => request('POST', '/auth/register', data),
+    logout: () => request('POST', '/auth/logout'),
 
     // Dashboard
     getDashboard: () => request('GET', '/dashboard'),
@@ -80,7 +81,32 @@ export const api = {
     createTaskEvent: (data) => request('POST', '/events/task', data),
     createWorkEvent: (data) => request('POST', '/events/work', data),
     createPersonalEvent: (data) => request('POST', '/events/personal', data),
+    updateClassEvent: (id, data) => request('PUT', `/events/class/${id}`, data),
+    updateWorkEvent: (id, data) => request('PUT', `/events/work/${id}`, data),
+    updatePersonalEvent: (id, data) => request('PUT', `/events/personal/${id}`, data),
     deleteEvent: (id) => request('DELETE', `/events/${id}`),
+
+    // Schedule Import
+    importSchedule: async (file) => {
+        const formData = new FormData();
+        formData.append('file', file);
+        const token = localStorage.getItem('smartstudy_token');
+        const headers = {};
+        if (token) headers['Authorization'] = `Bearer ${token}`;
+        const res = await fetch(`${API_BASE}/schedule/import`, {
+            method: 'POST',
+            headers,
+            body: formData
+        });
+        if (res.status === 401) {
+            localStorage.removeItem('smartstudy_token');
+            window.location.href = '/Pages/Login.html';
+            throw new Error('Unauthorized');
+        }
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.message || 'Import failed');
+        return data;
+    },
 
     // Scheduling
     runScheduling: () => request('POST', '/scheduling/run'),

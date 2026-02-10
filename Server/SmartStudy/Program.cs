@@ -36,6 +36,8 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
 builder.Services.AddAuthorization();
 builder.Services.AddScoped<StressService>();
 builder.Services.AddScoped<SchedulingService>();
+builder.Services.AddScoped<ScheduleImportService>();
+builder.Services.AddScoped<SafeZoneService>();
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
@@ -75,6 +77,7 @@ using (var scope = app.Services.CreateScope())
         // Drop all SmartStudy tables and recreate with correct schema
         using var dropCmd = conn.CreateCommand();
         dropCmd.CommandText = @"
+            IF OBJECT_ID('SmartStudy_StudyConnections','U') IS NOT NULL DROP TABLE SmartStudy_StudyConnections;
             IF OBJECT_ID('SmartStudy_TaskEvents','U') IS NOT NULL DROP TABLE SmartStudy_TaskEvents;
             IF OBJECT_ID('SmartStudy_ClassEvents','U') IS NOT NULL DROP TABLE SmartStudy_ClassEvents;
             IF OBJECT_ID('SmartStudy_WorkEvents','U') IS NOT NULL DROP TABLE SmartStudy_WorkEvents;

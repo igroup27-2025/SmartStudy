@@ -12,4 +12,6 @@ public class User
     public ICollection<UserCourse> UserCourses { get; set; } = new List<UserCourse>();
     public ICollection<Event> Events { get; set; } = new List<Event>();
     public ICollection<StudentTask> Tasks { get; set; } = new List<StudentTask>();
+    public ICollection<StudyConnection> SentConnections { get; set; } = new List<StudyConnection>();
+    public ICollection<StudyConnection> ReceivedConnections { get; set; } = new List<StudyConnection>();
 }

@@ -162,4 +162,23 @@ INSERT INTO SmartStudy_TaskEvents (EventId, TaskId, [Priority], ActualHours, [St
   (18,  5, N'High',   NULL, N'Not Started'),   -- Lab 2 Binary Trees
   (19,  6, N'High',   NULL, N'Not Started');   -- Assignment 1 Sorting
 
+-- ===== 13) EXTRA USERS FOR CONNECTIONS =====
+INSERT INTO SmartStudy_Users (Email, FirstName, LastName, [Password]) VALUES
+  (N'sarah.cohen@uni.ac.il', N'Sarah', N'Cohen', N'LqoUjFlaFomQR6fYJyBbX3ryQL1et+LkFw4l8DSn5U8='),
+  (N'david.levi@uni.ac.il',  N'David', N'Levi',  N'LqoUjFlaFomQR6fYJyBbX3ryQL1et+LkFw4l8DSn5U8='),
+  (N'maya.alon@uni.ac.il',   N'Maya',  N'Alon',  N'LqoUjFlaFomQR6fYJyBbX3ryQL1et+LkFw4l8DSn5U8=');
+
+INSERT INTO SmartStudy_NotificationSettings (Email, Notify_before_task, Daily_morning_summary, Weekly_plan_reminder, Enable_push_notification) VALUES
+  (N'sarah.cohen@uni.ac.il', 1, 0, 0, 0),
+  (N'david.levi@uni.ac.il',  1, 0, 0, 0),
+  (N'maya.alon@uni.ac.il',   1, 0, 0, 0);
+
+-- ===== 14) STUDY CONNECTIONS =====
+SET IDENTITY_INSERT SmartStudy_StudyConnections ON;
+INSERT INTO SmartStudy_StudyConnections (ConnectionId, RequesterEmail, ReceiverEmail, [Status], CreatedAt, AcceptedAt) VALUES
+  (1, N'demo@smartstudy.com', N'sarah.cohen@uni.ac.il', N'Accepted', '2026-01-15', '2026-01-15'),
+  (2, N'demo@smartstudy.com', N'david.levi@uni.ac.il',  N'Accepted', '2026-01-22', '2026-01-22'),
+  (3, N'maya.alon@uni.ac.il', N'demo@smartstudy.com',   N'Pending',  '2026-02-05', NULL);
+SET IDENTITY_INSERT SmartStudy_StudyConnections OFF;
+
 PRINT 'Seed data inserted successfully!';

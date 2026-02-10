@@ -17,6 +17,8 @@
             <div class="cal-header-actions">
                 <button class="btn btn-sm" id="calToday">Today</button>
                 <button class="btn btn-sm btn-primary" id="calAddEvent">+ Event</button>
+                <button class="btn btn-sm btn-secondary" id="calImportSchedule">Import Schedule</button>
+                <input type="file" id="scheduleFileInput" accept=".pdf" style="display:none">
                 <div class="cal-view-toggle">
                     <button class="cal-view-btn active" data-view="weekly">Week</button>
                     <button class="cal-view-btn" data-view="3day">3 Day</button>
@@ -53,6 +55,7 @@
                                 <option value="personal">Personal</option>
                                 <option value="class">Class</option>
                                 <option value="work">Work</option>
+                                <option value="task">Task</option>
                             </select>
                         </div>
                         <div class="form-row">
@@ -121,6 +124,78 @@
                             <div class="form-group">
                                 <label for="eventDescription">Description</label>
                                 <input type="text" id="eventDescription" class="form-input" placeholder="What is this event?">
+                            </div>
+                        </div>
+
+                        <!-- Task-specific fields -->
+                        <div id="eventTaskFields" class="hidden">
+                            <div class="form-group">
+                                <label>Task Source</label>
+                                <div class="task-source-toggle">
+                                    <button type="button" class="btn btn-sm task-source-btn active" data-source="existing">Existing Task</button>
+                                    <button type="button" class="btn btn-sm task-source-btn" data-source="new">New Task</button>
+                                </div>
+                            </div>
+
+                            <!-- Existing task selector -->
+                            <div id="taskExistingFields">
+                                <div class="form-group">
+                                    <label for="eventTaskId">Select Task</label>
+                                    <select id="eventTaskId" class="form-input">
+                                        <option value="">Select a task...</option>
+                                    </select>
+                                </div>
+                                <div id="taskInfoCard" class="task-info-card hidden">
+                                    <span id="taskInfoHours"></span>
+                                    <span id="taskInfoDue"></span>
+                                    <span id="taskInfoPriority"></span>
+                                </div>
+                            </div>
+
+                            <!-- New task inline form -->
+                            <div id="taskNewFields" class="hidden">
+                                <div class="form-group">
+                                    <label for="eventTaskTitle">Task Title *</label>
+                                    <input type="text" id="eventTaskTitle" class="form-input" placeholder="e.g. Finish homework ch.5">
+                                </div>
+                                <div class="form-group">
+                                    <label for="eventTaskCourseId">Course *</label>
+                                    <select id="eventTaskCourseId" class="form-input">
+                                        <option value="">Select course...</option>
+                                    </select>
+                                </div>
+                                <div class="form-row">
+                                    <div class="form-group">
+                                        <label for="eventTaskType">Task Type</label>
+                                        <select id="eventTaskType" class="form-input">
+                                            <option value="Homework">Homework</option>
+                                            <option value="Assignment">Assignment</option>
+                                            <option value="Project">Project</option>
+                                            <option value="Lab">Lab</option>
+                                            <option value="Reading">Reading</option>
+                                            <option value="Other">Other</option>
+                                        </select>
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="eventTaskPriority">Priority</label>
+                                        <select id="eventTaskPriority" class="form-input">
+                                            <option value="">None</option>
+                                            <option value="High">High</option>
+                                            <option value="Medium">Medium</option>
+                                            <option value="Low">Low</option>
+                                        </select>
+                                    </div>
+                                </div>
+                                <div class="form-row">
+                                    <div class="form-group">
+                                        <label for="eventTaskDueDate">Due Date</label>
+                                        <input type="date" id="eventTaskDueDate" class="form-input">
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="eventTaskHours">Est. Hours</label>
+                                        <input type="number" id="eventTaskHours" class="form-input" min="0" step="0.5" placeholder="e.g. 3">
+                                    </div>
+                                </div>
                             </div>
                         </div>
                     </div>

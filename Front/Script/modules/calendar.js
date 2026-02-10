@@ -65,6 +65,30 @@ function setupNavigation() {
     document.getElementById('calAddEvent')?.addEventListener('click', () => {
         openEventModal(null);
     });
+
+    // Import schedule button
+    const importBtn = document.getElementById('calImportSchedule');
+    const fileInput = document.getElementById('scheduleFileInput');
+    importBtn?.addEventListener('click', () => fileInput?.click());
+    fileInput?.addEventListener('change', async () => {
+        const file = fileInput.files[0];
+        if (!file) return;
+        try {
+            importBtn.disabled = true;
+            importBtn.textContent = 'Importing...';
+            const result = await api.importSchedule(file);
+            const msg = `Imported ${result.eventsCreated} event(s) from ${result.courses.length} course(s)` +
+                (result.entriesSkipped ? ` (${result.entriesSkipped} skipped)` : '');
+            showToast(msg);
+            await navigate();
+        } catch (err) {
+            showToast(err.message || 'Failed to import schedule', 'error');
+        } finally {
+            importBtn.disabled = false;
+            importBtn.textContent = 'Import Schedule';
+            fileInput.value = '';
+        }
+    });
 }
 
 function shiftDate(direction) {
@@ -355,7 +379,10 @@ function renderMonthlyGrid(events, gridStart, gridEnd) {
     });
 }
 
-/* ---- Event Creation ---- */
+/* ---- Event Creation / Editing ---- */
+let editingEventId = null;
+let editingEventType = null;
+
 function setupEventCreation() {
     const form = document.getElementById('eventForm');
     if (!form) return;
@@ -390,38 +417,86 @@ function setupEventCreation() {
         }
 
         try {
+            const isEditing = editingEventId !== null;
+
             if (type === 'class') {
-                await api.createClassEvent({
+                const data = {
                     from: from.toISOString(),
                     to: to.toISOString(),
                     recurring,
                     courseId: parseInt(document.getElementById('eventCourseId').value),
                     location: document.getElementById('eventLocation')?.value || null,
                     duration: (to - from) / 3600000
-                });
+                };
+                if (isEditing) await api.updateClassEvent(editingEventId, data);
+                else await api.createClassEvent(data);
             } else if (type === 'work') {
-                await api.createWorkEvent({
+                const data = {
                     from: from.toISOString(),
                     to: to.toISOString(),
                     recurring,
                     workPlace: document.getElementById('eventWorkPlace')?.value || null,
                     travelTime: parseInt(document.getElementById('eventTravelTime')?.value) || null
-                });
+                };
+                if (isEditing) await api.updateWorkEvent(editingEventId, data);
+                else await api.createWorkEvent(data);
+            } else if (type === 'task') {
+                const activeSource = document.querySelector('.task-source-btn.active')?.dataset.source || 'existing';
+                let taskId;
+
+                if (activeSource === 'existing') {
+                    taskId = parseInt(document.getElementById('eventTaskId').value);
+                    if (!taskId) {
+                        showToast('Please select a task', 'error');
+                        return;
+                    }
+                } else {
+                    // Create a new task first
+                    const title = document.getElementById('eventTaskTitle').value?.trim();
+                    const courseId = parseInt(document.getElementById('eventTaskCourseId').value);
+                    if (!title || !courseId) {
+                        showToast('Task title and course are required', 'error');
+                        return;
+                    }
+                    const newTask = await api.createTask({
+                        title,
+                        courseId,
+                        taskType: document.getElementById('eventTaskType')?.value || 'Other',
+                        dueDate: document.getElementById('eventTaskDueDate')?.value || null,
+                        estimatedHours: parseFloat(document.getElementById('eventTaskHours')?.value) || null,
+                        priority: document.getElementById('eventTaskPriority')?.value || null
+                    });
+                    taskId = newTask.taskId;
+                }
+
+                const data = {
+                    from: from.toISOString(),
+                    to: to.toISOString(),
+                    recurring,
+                    taskId,
+                    priority: null,
+                    status: 'Scheduled'
+                };
+                await api.createTaskEvent(data);
             } else {
-                await api.createPersonalEvent({
+                const data = {
                     from: from.toISOString(),
                     to: to.toISOString(),
                     recurring,
                     type: document.getElementById('eventPersonalType')?.value || null,
                     description: document.getElementById('eventDescription')?.value || null
-                });
+                };
+                if (isEditing) await api.updatePersonalEvent(editingEventId, data);
+                else await api.createPersonalEvent(data);
             }
 
-            showToast('Event created');
+            showToast(isEditing ? 'Event updated' : 'Event created');
+            editingEventId = null;
+            editingEventType = null;
             closeModal('eventModal');
-            await navigate(); // Refresh calendar
+            await navigate();
         } catch (err) {
-            showToast(err.message || 'Failed to create event', 'error');
+            showToast(err.message || 'Failed to save event', 'error');
         }
     });
 }
@@ -430,6 +505,20 @@ function openEventModal(dateStr, hour) {
     const form = document.getElementById('eventForm');
     if (!form) return;
     form.reset();
+
+    // Reset editing state
+    editingEventId = null;
+    editingEventType = null;
+
+    // Update modal title and button
+    const title = document.querySelector('#eventModal .modal-header h3');
+    const submitBtn = document.querySelector('#eventModal button[type="submit"]');
+    if (title) title.textContent = 'Add Event';
+    if (submitBtn) submitBtn.textContent = 'Create Event';
+
+    // Enable type selector for new events
+    const typeSelect = document.getElementById('eventTypeSelect');
+    if (typeSelect) typeSelect.disabled = false;
 
     // Pre-fill date/time if provided
     if (dateStr) {
@@ -444,7 +533,85 @@ function openEventModal(dateStr, hour) {
     updateEventFormFields('personal');
     document.getElementById('eventTypeSelect').value = 'personal';
 
+    // Reset task source toggle to "existing"
+    document.querySelectorAll('.task-source-btn').forEach(b => b.classList.remove('active'));
+    document.querySelector('.task-source-btn[data-source="existing"]')?.classList.add('active');
+    document.getElementById('taskExistingFields')?.classList.remove('hidden');
+    document.getElementById('taskNewFields')?.classList.add('hidden');
+
     // Populate course select
+    populateEventCourses();
+
+    openModal('eventModal');
+}
+
+function openEventModalForEdit(event) {
+    const form = document.getElementById('eventForm');
+    if (!form) return;
+    form.reset();
+
+    editingEventId = event.eventId;
+    editingEventType = event.eventType;
+
+    // Update modal title and button
+    const title = document.querySelector('#eventModal .modal-header h3');
+    const submitBtn = document.querySelector('#eventModal button[type="submit"]');
+    if (title) title.textContent = 'Edit Event';
+    if (submitBtn) submitBtn.textContent = 'Save Changes';
+
+    // Set type (disable changing type on edit)
+    const typeSelect = document.getElementById('eventTypeSelect');
+    if (typeSelect) {
+        typeSelect.value = event.eventType;
+        typeSelect.disabled = true;
+    }
+    updateEventFormFields(event.eventType);
+
+    // Fill date/time
+    const from = new Date(event.from);
+    const to = new Date(event.to);
+    const pad = (n) => String(n).padStart(2, '0');
+    const dateStr = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+    const timeStr = (d) => `${pad(d.getHours())}:${pad(d.getMinutes())}`;
+
+    document.getElementById('eventFromDate').value = dateStr(from);
+    document.getElementById('eventFromTime').value = timeStr(from);
+    document.getElementById('eventToDate').value = dateStr(to);
+    document.getElementById('eventToTime').value = timeStr(to);
+    document.getElementById('eventRecurring').checked = event.recurring;
+
+    // Fill type-specific fields
+    if (event.eventType === 'class') {
+        populateEventCourses().then(() => {
+            const courseSelect = document.getElementById('eventCourseId');
+            if (courseSelect) courseSelect.value = event.courseId || '';
+        });
+        const locInput = document.getElementById('eventLocation');
+        if (locInput) locInput.value = event.location || '';
+    } else if (event.eventType === 'work') {
+        const wpInput = document.getElementById('eventWorkPlace');
+        if (wpInput) wpInput.value = event.workPlace || '';
+        const ttInput = document.getElementById('eventTravelTime');
+        if (ttInput) ttInput.value = event.travelTime || '';
+    } else if (event.eventType === 'task') {
+        // For task events in edit mode, show the existing task selector with the linked task
+        populateEventTasks().then(() => {
+            const taskSelect = document.getElementById('eventTaskId');
+            if (taskSelect) taskSelect.value = event.taskId || '';
+        });
+        // Hide "New Task" option in edit mode — lock to existing
+        document.querySelectorAll('.task-source-btn').forEach(b => b.classList.remove('active'));
+        document.querySelector('.task-source-btn[data-source="existing"]')?.classList.add('active');
+        document.getElementById('taskExistingFields')?.classList.remove('hidden');
+        document.getElementById('taskNewFields')?.classList.add('hidden');
+    } else if (event.eventType === 'personal') {
+        const ptSelect = document.getElementById('eventPersonalType');
+        if (ptSelect) ptSelect.value = event.type || 'Other';
+        const descInput = document.getElementById('eventDescription');
+        if (descInput) descInput.value = event.description || '';
+    }
+
+    // Populate courses (needed for class events)
     populateEventCourses();
 
     openModal('eventModal');
@@ -454,6 +621,13 @@ function updateEventFormFields(type) {
     document.getElementById('eventClassFields')?.classList.toggle('hidden', type !== 'class');
     document.getElementById('eventWorkFields')?.classList.toggle('hidden', type !== 'work');
     document.getElementById('eventPersonalFields')?.classList.toggle('hidden', type !== 'personal');
+    document.getElementById('eventTaskFields')?.classList.toggle('hidden', type !== 'task');
+
+    if (type === 'task') {
+        populateEventTasks();
+        populateTaskCourses();
+        setupTaskSourceToggle();
+    }
 }
 
 async function populateEventCourses() {
@@ -464,6 +638,42 @@ async function populateEventCourses() {
         select.innerHTML = '<option value="">Select course...</option>' +
             courses.map(c => `<option value="${c.courseId}">${c.courseName}</option>`).join('');
     } catch { /* silent */ }
+}
+
+async function populateEventTasks() {
+    const select = document.getElementById('eventTaskId');
+    if (!select) return;
+    try {
+        const tasks = await api.getTasks({ completed: false });
+        select.innerHTML = '<option value="">Select a task...</option>' +
+            tasks.map(t => `<option value="${t.taskId}">${t.title}${t.courseName ? ' (' + t.courseName + ')' : ''}</option>`).join('');
+    } catch { /* silent */ }
+}
+
+async function populateTaskCourses() {
+    const select = document.getElementById('eventTaskCourseId');
+    if (!select || select.options.length > 1) return;
+    try {
+        const courses = await api.getCourses();
+        select.innerHTML = '<option value="">Select course...</option>' +
+            courses.map(c => `<option value="${c.courseId}">${c.courseName}</option>`).join('');
+    } catch { /* silent */ }
+}
+
+let taskSourceToggleSetup = false;
+function setupTaskSourceToggle() {
+    if (taskSourceToggleSetup) return;
+    taskSourceToggleSetup = true;
+
+    document.querySelectorAll('.task-source-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            document.querySelectorAll('.task-source-btn').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            const source = btn.dataset.source;
+            document.getElementById('taskExistingFields')?.classList.toggle('hidden', source !== 'existing');
+            document.getElementById('taskNewFields')?.classList.toggle('hidden', source !== 'new');
+        });
+    });
 }
 
 /* ---- Event Details Popup ---- */
@@ -496,6 +706,7 @@ function showEventDetails(eventId, targetEl) {
             ${event.status ? `<div><strong>Status:</strong> ${event.status}</div>` : ''}
         </div>
         <div class="cal-event-popup__actions">
+            <button class="btn btn-sm btn-secondary cal-event-edit" data-event-id="${eventId}">Edit</button>
             <button class="btn btn-sm btn-ghost cal-event-delete" data-event-id="${eventId}">Delete</button>
         </div>
     `;
@@ -506,6 +717,12 @@ function showEventDetails(eventId, targetEl) {
     popup.querySelector('.cal-event-popup__close').addEventListener('click', (e) => {
         e.stopPropagation();
         popup.remove();
+    });
+
+    popup.querySelector('.cal-event-edit')?.addEventListener('click', (e) => {
+        e.stopPropagation();
+        popup.remove();
+        openEventModalForEdit(event);
     });
 
     popup.querySelector('.cal-event-delete')?.addEventListener('click', async (e) => {

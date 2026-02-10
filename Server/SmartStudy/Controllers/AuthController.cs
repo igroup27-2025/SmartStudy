@@ -69,6 +69,14 @@ public class AuthController : ControllerBase
         });
     }
 
+    [HttpPost("logout")]
+    public IActionResult Logout()
+    {
+        // JWT is stateless — client-side token removal is sufficient.
+        // This endpoint exists for API completeness.
+        return Ok(new { message = "Logged out successfully" });
+    }
+
     private string GenerateToken(User user)
     {
         var jwtKey = _config["Jwt:Key"] ?? "SmartStudySuperSecretKey2026ForJwtTokenGeneration!";

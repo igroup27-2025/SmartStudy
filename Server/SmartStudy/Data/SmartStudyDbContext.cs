@@ -20,6 +20,7 @@ public class SmartStudyDbContext : DbContext
     public DbSet<TaskEvent> TaskEvents => Set<TaskEvent>();
     public DbSet<WorkEvent> WorkEvents => Set<WorkEvent>();
     public DbSet<PersonalEvent> PersonalEvents => Set<PersonalEvent>();
+    public DbSet<StudyConnection> StudyConnections => Set<StudyConnection>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -191,6 +192,28 @@ public class SmartStudyDbContext : DbContext
             entity.ToTable("SmartStudy_PersonalEvents");
             entity.Property(e => e.Type).HasColumnName("Type").HasMaxLength(50);
             entity.Property(e => e.Description).HasColumnName("Description");
+        });
+
+        // ===== StudyConnections =====
+        modelBuilder.Entity<StudyConnection>(entity =>
+        {
+            entity.ToTable("SmartStudy_StudyConnections");
+            entity.HasKey(e => e.ConnectionId);
+            entity.Property(e => e.RequesterEmail).HasMaxLength(255).IsRequired();
+            entity.Property(e => e.ReceiverEmail).HasMaxLength(255).IsRequired();
+            entity.Property(e => e.Status).HasMaxLength(20).HasDefaultValue("Pending");
+            entity.Property(e => e.CreatedAt);
+            entity.Property(e => e.AcceptedAt);
+
+            entity.HasOne(e => e.Requester)
+                .WithMany(u => u.SentConnections)
+                .HasForeignKey(e => e.RequesterEmail)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasOne(e => e.Receiver)
+                .WithMany(u => u.ReceivedConnections)
+                .HasForeignKey(e => e.ReceiverEmail)
+                .OnDelete(DeleteBehavior.NoAction);
         });
     }
 }

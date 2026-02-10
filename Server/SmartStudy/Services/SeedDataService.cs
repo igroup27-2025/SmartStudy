@@ -24,12 +24,36 @@ public static class SeedDataService
             LastName = "Rotel",
             Password = BCryptSimple("Test123")
         };
-        db.Users.AddRange(user1, user2);
+        var user3 = new User
+        {
+            Email = "sarah.cohen@uni.ac.il",
+            FirstName = "Sarah",
+            LastName = "Cohen",
+            Password = BCryptSimple("Demo123")
+        };
+        var user4 = new User
+        {
+            Email = "david.levi@uni.ac.il",
+            FirstName = "David",
+            LastName = "Levi",
+            Password = BCryptSimple("Demo123")
+        };
+        var user5 = new User
+        {
+            Email = "maya.alon@uni.ac.il",
+            FirstName = "Maya",
+            LastName = "Alon",
+            Password = BCryptSimple("Demo123")
+        };
+        db.Users.AddRange(user1, user2, user3, user4, user5);
 
         // === Notification Settings ===
         db.NotificationSettings.AddRange(
             new NotificationSettings { Email = user1.Email, NotifyBeforeTask = true, DailyMorningSummary = true },
-            new NotificationSettings { Email = user2.Email, NotifyBeforeTask = true }
+            new NotificationSettings { Email = user2.Email, NotifyBeforeTask = true },
+            new NotificationSettings { Email = user3.Email },
+            new NotificationSettings { Email = user4.Email },
+            new NotificationSettings { Email = user5.Email }
         );
 
         // === Instructors ===
@@ -153,6 +177,13 @@ public static class SeedDataService
             new PersonalEvent { Email = user1.Email, From = monday.AddDays(4).AddHours(7), To = monday.AddDays(4).AddHours(8), Recurring = true, Type = "Exercise", Description = "Morning gym session" },
             new PersonalEvent { Email = user1.Email, From = monday.AddDays(3).AddHours(18), To = monday.AddDays(3).AddHours(20), Recurring = true, Type = "Social", Description = "Study group meeting" },
             new PersonalEvent { Email = user1.Email, From = monday.AddDays(6).AddHours(10), To = monday.AddDays(6).AddHours(12), Recurring = false, Type = "Errand", Description = "Doctor appointment" }
+        );
+
+        // === Study Connections ===
+        db.StudyConnections.AddRange(
+            new StudyConnection { RequesterEmail = user1.Email, ReceiverEmail = user3.Email, Status = "Accepted", CreatedAt = new DateTime(2026, 1, 15), AcceptedAt = new DateTime(2026, 1, 15) },
+            new StudyConnection { RequesterEmail = user1.Email, ReceiverEmail = user4.Email, Status = "Accepted", CreatedAt = new DateTime(2026, 1, 22), AcceptedAt = new DateTime(2026, 1, 22) },
+            new StudyConnection { RequesterEmail = user5.Email, ReceiverEmail = user1.Email, Status = "Pending", CreatedAt = new DateTime(2026, 2, 5) }
         );
 
         db.SaveChanges();
