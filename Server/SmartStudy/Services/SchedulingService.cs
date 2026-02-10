@@ -58,10 +58,8 @@ public class SchedulingService
             await _db.SaveChangesAsync();
         }
 
-        // Reload events without the cleared task events
-        var fixedEvents = await _db.Events
-            .Where(e => e.Email == email && e.To >= scheduleStart && e.From <= scheduleEnd)
-            .ToListAsync();
+        // Reload events without the cleared task events (include recurring for expansion)
+        var fixedEvents = await GetExpandedEvents(email, scheduleStart, scheduleEnd);
 
         // 4. Sort tasks by priority score
         var scoredTasks = tasks.Select(t =>
@@ -243,9 +241,7 @@ public class SchedulingService
                 && te.Status == "Scheduled")
             .ToListAsync();
 
-        var fixedEvents = await _db.Events
-            .Where(e => e.Email == email && e.To >= scheduleStart && e.From <= scheduleEnd)
-            .ToListAsync();
+        var fixedEvents = await GetExpandedEvents(email, scheduleStart, scheduleEnd);
 
         var result = new SchedulingStatusDto
         {
@@ -368,5 +364,49 @@ public class SchedulingService
                 var to = e.To > dayEnd ? dayEnd : e.To;
                 return Math.Max(0, (to - from).TotalHours);
             });
+    }
+
+    /// <summary>
+    /// Fetches events for a user and expands recurring events into weekly copies
+    /// so the scheduler never places tasks on top of recurring classes/work.
+    /// </summary>
+    private async Task<List<Event>> GetExpandedEvents(
+        string email, DateTime rangeStart, DateTime rangeEnd)
+    {
+        var events = await _db.Events
+            .Where(e => e.Email == email &&
+                ((e.From < rangeEnd && e.To > rangeStart) || e.Recurring))
+            .OrderBy(e => e.From)
+            .ToListAsync();
+
+        var expanded = new List<Event>();
+        foreach (var evt in events)
+        {
+            if (evt.From < rangeEnd && evt.To > rangeStart)
+                expanded.Add(evt);
+
+            if (evt.Recurring)
+            {
+                var duration = evt.To - evt.From;
+                var nextFrom = evt.From.AddDays(7);
+                while (nextFrom < rangeEnd)
+                {
+                    var nextTo = nextFrom.Add(duration);
+                    if (nextTo > rangeStart)
+                    {
+                        expanded.Add(new Event
+                        {
+                            Email = email,
+                            From = nextFrom,
+                            To = nextTo,
+                            Recurring = true
+                        });
+                    }
+                    nextFrom = nextFrom.AddDays(7);
+                }
+            }
+        }
+
+        return expanded;
     }
 }
