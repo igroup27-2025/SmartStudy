@@ -15,5 +15,5 @@ public class StudentTask
     // Navigation properties
     public Course Course { get; set; } = null!;
     public User User { get; set; } = null!;
-    public TaskEvent? TaskEvent { get; set; }
+    public ICollection<TaskEvent> TaskEvents { get; set; } = new List<TaskEvent>();
 }

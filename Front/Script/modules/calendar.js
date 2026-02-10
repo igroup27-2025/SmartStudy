@@ -1,8 +1,9 @@
 import { api } from './api.js';
-import { showToast } from './modals.js';
+import { openModal, closeModal, showToast } from './modals.js';
 
 let currentView = window.innerWidth <= 768 ? '3day' : 'weekly'; // 'monthly' | 'weekly' | '3day'
 let currentDate = new Date();
+let cachedEvents = [];
 
 const EVENT_COLORS = {
     class: { bg: '#E0F7FA', border: '#00BCD4', text: '#006064' },
@@ -22,7 +23,13 @@ export async function initCalendar() {
 
     setupViewToggle();
     setupNavigation();
+    setupEventCreation();
     await navigate();
+
+    // Auto-open event creation modal if ?add=1
+    if (params.get('add') === '1') {
+        openEventModal(dateParam || null);
+    }
 }
 
 /* ---- View Toggle ---- */
@@ -52,6 +59,11 @@ function setupNavigation() {
     document.getElementById('calToday')?.addEventListener('click', () => {
         currentDate = new Date();
         navigate();
+    });
+
+    // Add event button
+    document.getElementById('calAddEvent')?.addEventListener('click', () => {
+        openEventModal(null);
     });
 }
 
@@ -100,14 +112,14 @@ async function navigate() {
     const { from, to } = getDateRange();
 
     try {
-        const events = await api.getEvents(from, to);
+        cachedEvents = await api.getEvents(from, to);
 
         if (currentView === 'monthly') {
-            renderMonthlyGrid(events, from, to);
+            renderMonthlyGrid(cachedEvents, from, to);
         } else if (currentView === 'weekly') {
-            renderTimeGrid(events, from, 7);
+            renderTimeGrid(cachedEvents, from, 7);
         } else {
-            renderTimeGrid(events, from, 3);
+            renderTimeGrid(cachedEvents, from, 3);
         }
     } catch (err) {
         showToast('Failed to load events', 'error');
@@ -158,19 +170,9 @@ function renderTimeGrid(events, startDate, dayCount) {
 
     days.forEach((day) => {
         const isToday = day.getTime() === today.getTime();
-        html += `<div class="cal-day-col ${isToday ? 'today' : ''}">`;
-        html += `<div class="cal-day-header ${isToday ? 'today' : ''}">
-            <span class="cal-day-name">${dayNames[day.getDay()]}</span>
-            <span class="cal-day-num">${day.getDate()}</span>
-        </div>`;
-        html += '<div class="cal-day-body">';
+        const dateStr = `${day.getFullYear()}-${String(day.getMonth() + 1).padStart(2, '0')}-${String(day.getDate()).padStart(2, '0')}`;
 
-        // Hour cells
-        for (let h = 7; h <= 22; h++) {
-            html += '<div class="cal-cell"></div>';
-        }
-
-        // Events for this day
+        // Calculate daily workload for overload indicator
         const dayEvents = events.filter(e => {
             const eDate = new Date(e.from);
             return eDate.getDate() === day.getDate() &&
@@ -178,6 +180,25 @@ function renderTimeGrid(events, startDate, dayCount) {
                    eDate.getFullYear() === day.getFullYear();
         });
 
+        const taskHours = dayEvents
+            .filter(e => e.eventType === 'task')
+            .reduce((sum, e) => sum + (new Date(e.to) - new Date(e.from)) / 3600000, 0);
+        const isOverloaded = taskHours > 8;
+
+        html += `<div class="cal-day-col ${isToday ? 'today' : ''} ${isOverloaded ? 'cal-day-col--overloaded' : ''}">`;
+        html += `<div class="cal-day-header ${isToday ? 'today' : ''}" data-date="${dateStr}">
+            <span class="cal-day-name">${dayNames[day.getDay()]}</span>
+            <span class="cal-day-num">${day.getDate()}</span>
+            ${isOverloaded ? '<span class="cal-overload-badge">!</span>' : ''}
+        </div>`;
+        html += '<div class="cal-day-body">';
+
+        // Hour cells (clickable for event creation)
+        for (let h = 7; h <= 22; h++) {
+            html += `<div class="cal-cell" data-date="${dateStr}" data-hour="${h}"></div>`;
+        }
+
+        // Events for this day
         dayEvents.forEach(e => {
             const from = new Date(e.from);
             const to = new Date(e.to);
@@ -186,9 +207,9 @@ function renderTimeGrid(events, startDate, dayCount) {
             const top = (startHour - 7) * 50;
             const height = Math.max(25, (endHour - startHour) * 50);
             const colors = EVENT_COLORS[e.eventType] || EVENT_COLORS.personal;
-            const label = e.courseName || e.workPlace || e.description || e.type || 'Event';
+            const label = e.courseName || e.taskTitle || e.workPlace || e.description || e.type || 'Event';
 
-            html += `<div class="cal-event" style="top:${top}px;height:${height}px;background:${colors.bg};border-left:3px solid ${colors.border};color:${colors.text}">
+            html += `<div class="cal-event" data-event-id="${e.eventId}" style="top:${top}px;height:${height}px;background:${colors.bg};border-left:3px solid ${colors.border};color:${colors.text}">
                 <div class="cal-event-title">${label}</div>
                 <div class="cal-event-time">${formatTime(from)} - ${formatTime(to)}</div>
             </div>`;
@@ -204,10 +225,33 @@ function renderTimeGrid(events, startDate, dayCount) {
             }
         }
 
+        // Overload indicator bar at bottom
+        if (isOverloaded) {
+            html += `<div class="cal-overload-bar">Overloaded: ${taskHours.toFixed(1)}h scheduled</div>`;
+        }
+
         html += '</div></div>';
     });
 
     grid.innerHTML = html;
+
+    // Click on empty cell to create event
+    grid.querySelectorAll('.cal-cell').forEach(cell => {
+        cell.addEventListener('click', () => {
+            const date = cell.dataset.date;
+            const hour = cell.dataset.hour;
+            openEventModal(date, parseInt(hour));
+        });
+    });
+
+    // Click on event for details popup
+    grid.querySelectorAll('.cal-event').forEach(el => {
+        el.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const eventId = parseInt(el.dataset.eventId);
+            showEventDetails(eventId, el);
+        });
+    });
 }
 
 /* ---- Monthly Grid ---- */
@@ -248,9 +292,17 @@ function renderMonthlyGrid(events, gridStart, gridEnd) {
                        eDate.getFullYear() === day.getFullYear();
             });
 
+            // Calculate workload for color coding
+            const taskHours = dayEvents
+                .filter(e => e.eventType === 'task')
+                .reduce((sum, e) => sum + (new Date(e.to) - new Date(e.from)) / 3600000, 0);
+
             const classes = ['cal-month-day'];
             if (isOutside) classes.push('outside');
             if (isToday) classes.push('today');
+            if (taskHours > 8) classes.push('cal-month-day--overloaded');
+            else if (taskHours > 5) classes.push('cal-month-day--heavy');
+            else if (taskHours > 2) classes.push('cal-month-day--moderate');
 
             html += `<div class="${classes.join(' ')}" data-date="${dateStr}">`;
             html += `<div class="cal-month-day__num">${day.getDate()}</div>`;
@@ -259,7 +311,7 @@ function renderMonthlyGrid(events, gridStart, gridEnd) {
             const maxShow = 3;
             dayEvents.slice(0, maxShow).forEach(e => {
                 const colors = EVENT_COLORS[e.eventType] || EVENT_COLORS.personal;
-                const label = e.courseName || e.workPlace || e.description || e.type || 'Event';
+                const label = e.courseName || e.taskTitle || e.workPlace || e.description || e.type || 'Event';
                 html += `<div class="cal-month-event" style="background:${colors.bg};border-left-color:${colors.border};color:${colors.text}">${label}</div>`;
             });
 
@@ -301,6 +353,181 @@ function renderMonthlyGrid(events, gridStart, gridEnd) {
             }
         });
     });
+}
+
+/* ---- Event Creation ---- */
+function setupEventCreation() {
+    const form = document.getElementById('eventForm');
+    if (!form) return;
+
+    // Type switcher
+    const typeSelect = document.getElementById('eventTypeSelect');
+    typeSelect?.addEventListener('change', () => {
+        updateEventFormFields(typeSelect.value);
+    });
+
+    form.addEventListener('submit', async (e) => {
+        e.preventDefault();
+
+        const type = document.getElementById('eventTypeSelect').value;
+        const fromDate = document.getElementById('eventFromDate').value;
+        const fromTime = document.getElementById('eventFromTime').value;
+        const toDate = document.getElementById('eventToDate').value;
+        const toTime = document.getElementById('eventToTime').value;
+        const recurring = document.getElementById('eventRecurring')?.checked || false;
+
+        if (!fromDate || !fromTime || !toDate || !toTime) {
+            showToast('Please fill in date and time fields', 'error');
+            return;
+        }
+
+        const from = new Date(`${fromDate}T${fromTime}`);
+        const to = new Date(`${toDate}T${toTime}`);
+
+        if (to <= from) {
+            showToast('End time must be after start time', 'error');
+            return;
+        }
+
+        try {
+            if (type === 'class') {
+                await api.createClassEvent({
+                    from: from.toISOString(),
+                    to: to.toISOString(),
+                    recurring,
+                    courseId: parseInt(document.getElementById('eventCourseId').value),
+                    location: document.getElementById('eventLocation')?.value || null,
+                    duration: (to - from) / 3600000
+                });
+            } else if (type === 'work') {
+                await api.createWorkEvent({
+                    from: from.toISOString(),
+                    to: to.toISOString(),
+                    recurring,
+                    workPlace: document.getElementById('eventWorkPlace')?.value || null,
+                    travelTime: parseInt(document.getElementById('eventTravelTime')?.value) || null
+                });
+            } else {
+                await api.createPersonalEvent({
+                    from: from.toISOString(),
+                    to: to.toISOString(),
+                    recurring,
+                    type: document.getElementById('eventPersonalType')?.value || null,
+                    description: document.getElementById('eventDescription')?.value || null
+                });
+            }
+
+            showToast('Event created');
+            closeModal('eventModal');
+            await navigate(); // Refresh calendar
+        } catch (err) {
+            showToast(err.message || 'Failed to create event', 'error');
+        }
+    });
+}
+
+function openEventModal(dateStr, hour) {
+    const form = document.getElementById('eventForm');
+    if (!form) return;
+    form.reset();
+
+    // Pre-fill date/time if provided
+    if (dateStr) {
+        document.getElementById('eventFromDate').value = dateStr;
+        document.getElementById('eventToDate').value = dateStr;
+    }
+    if (hour !== undefined) {
+        document.getElementById('eventFromTime').value = `${String(hour).padStart(2, '0')}:00`;
+        document.getElementById('eventToTime').value = `${String(hour + 1).padStart(2, '0')}:00`;
+    }
+
+    updateEventFormFields('personal');
+    document.getElementById('eventTypeSelect').value = 'personal';
+
+    // Populate course select
+    populateEventCourses();
+
+    openModal('eventModal');
+}
+
+function updateEventFormFields(type) {
+    document.getElementById('eventClassFields')?.classList.toggle('hidden', type !== 'class');
+    document.getElementById('eventWorkFields')?.classList.toggle('hidden', type !== 'work');
+    document.getElementById('eventPersonalFields')?.classList.toggle('hidden', type !== 'personal');
+}
+
+async function populateEventCourses() {
+    const select = document.getElementById('eventCourseId');
+    if (!select || select.options.length > 1) return;
+    try {
+        const courses = await api.getCourses();
+        select.innerHTML = '<option value="">Select course...</option>' +
+            courses.map(c => `<option value="${c.courseId}">${c.courseName}</option>`).join('');
+    } catch { /* silent */ }
+}
+
+/* ---- Event Details Popup ---- */
+function showEventDetails(eventId, targetEl) {
+    // Remove existing popup
+    document.querySelector('.cal-event-popup')?.remove();
+
+    const event = cachedEvents.find(e => e.eventId === eventId);
+    if (!event) return;
+
+    const from = new Date(event.from);
+    const to = new Date(event.to);
+    const colors = EVENT_COLORS[event.eventType] || EVENT_COLORS.personal;
+    const label = event.courseName || event.taskTitle || event.workPlace || event.description || event.type || 'Event';
+
+    const popup = document.createElement('div');
+    popup.className = 'cal-event-popup';
+    popup.innerHTML = `
+        <div class="cal-event-popup__header" style="border-left: 4px solid ${colors.border}">
+            <strong>${label}</strong>
+            <button class="cal-event-popup__close">&times;</button>
+        </div>
+        <div class="cal-event-popup__body">
+            <div><strong>Type:</strong> ${event.eventType}</div>
+            <div><strong>Time:</strong> ${formatTime(from)} - ${formatTime(to)}</div>
+            <div><strong>Date:</strong> ${from.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}</div>
+            ${event.location ? `<div><strong>Location:</strong> ${event.location}</div>` : ''}
+            ${event.workPlace ? `<div><strong>Workplace:</strong> ${event.workPlace}</div>` : ''}
+            ${event.description ? `<div><strong>Description:</strong> ${event.description}</div>` : ''}
+            ${event.status ? `<div><strong>Status:</strong> ${event.status}</div>` : ''}
+        </div>
+        <div class="cal-event-popup__actions">
+            <button class="btn btn-sm btn-ghost cal-event-delete" data-event-id="${eventId}">Delete</button>
+        </div>
+    `;
+
+    targetEl.style.position = 'relative';
+    targetEl.appendChild(popup);
+
+    popup.querySelector('.cal-event-popup__close').addEventListener('click', (e) => {
+        e.stopPropagation();
+        popup.remove();
+    });
+
+    popup.querySelector('.cal-event-delete')?.addEventListener('click', async (e) => {
+        e.stopPropagation();
+        try {
+            await api.deleteEvent(eventId);
+            showToast('Event deleted');
+            popup.remove();
+            await navigate();
+        } catch {
+            showToast('Failed to delete event', 'error');
+        }
+    });
+
+    // Close on outside click
+    const closeOnOutside = (e) => {
+        if (!popup.contains(e.target) && e.target !== targetEl) {
+            popup.remove();
+            document.removeEventListener('click', closeOnOutside);
+        }
+    };
+    setTimeout(() => document.addEventListener('click', closeOnOutside), 0);
 }
 
 /* ---- Utilities ---- */

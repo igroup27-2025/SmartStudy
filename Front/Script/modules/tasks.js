@@ -11,6 +11,7 @@ export async function initTasks() {
         populateCourseFilter();
         setupFilters();
         setupAddTask();
+        setupReschedule();
     } catch (err) {
         showToast('Failed to load tasks', 'error');
     }
@@ -33,6 +34,21 @@ function renderTasks(tasks) {
         const dueDate = t.dueDate ? new Date(t.dueDate) : null;
         const daysLeft = dueDate ? Math.ceil((dueDate - new Date()) / (1000 * 60 * 60 * 24)) : null;
         const isOverdue = daysLeft !== null && daysLeft < 0 && !t.isCompleted;
+
+        // Scheduling badge
+        let scheduleBadge = '';
+        if (!t.isCompleted && t.schedulingStatus) {
+            if (t.schedulingStatus === 'Scheduled' && t.scheduledDate) {
+                const sd = new Date(t.scheduledDate);
+                const dateStr = sd.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+                scheduleBadge = `<span class="badge badge-scheduled">Scheduled: ${dateStr}</span>`;
+            } else if (t.schedulingStatus === 'Partial') {
+                scheduleBadge = '<span class="badge badge-partial">Partially Scheduled</span>';
+            } else if (t.schedulingStatus === 'Unscheduled') {
+                scheduleBadge = '<span class="badge badge-unscheduled">Not Scheduled</span>';
+            }
+        }
+
         return `
         <div class="task-card ${t.isCompleted ? 'completed' : ''}" data-id="${t.taskId}">
             <div class="task-checkbox">
@@ -44,6 +60,7 @@ function renderTasks(tasks) {
                     <span class="task-course-tag">${t.courseName}</span>
                     <span class="task-type">${t.type}</span>
                     ${t.estimatedHours ? `<span class="task-hours">${t.estimatedHours}h</span>` : ''}
+                    ${scheduleBadge}
                 </div>
             </div>
             <div class="task-right">
@@ -154,6 +171,27 @@ function setupAddTask() {
             renderTasks(applyFilters());
         } catch (err) {
             showToast(err.message || 'Failed to save task', 'error');
+        }
+    });
+}
+
+function setupReschedule() {
+    const btn = document.getElementById('rescheduleBtn');
+    if (!btn) return;
+    btn.addEventListener('click', async () => {
+        try {
+            btn.disabled = true;
+            btn.textContent = 'Scheduling...';
+            const result = await api.runScheduling();
+            showToast(`Scheduled ${result.scheduledCount} task(s)${result.unscheduledCount ? `, ${result.unscheduledCount} could not be scheduled` : ''}`);
+            // Refresh task list
+            allTasks = await api.getTasks();
+            renderTasks(applyFilters());
+        } catch (err) {
+            showToast('Failed to reschedule', 'error');
+        } finally {
+            btn.disabled = false;
+            btn.textContent = 'Reschedule All';
         }
     });
 }

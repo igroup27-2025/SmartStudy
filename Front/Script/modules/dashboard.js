@@ -10,6 +10,9 @@ export async function initDashboard() {
         renderProgress(data);
         renderAlerts(data);
         renderStats(data);
+        renderWorkload(data);
+        renderUnscheduled(data);
+        renderSuggestion(data);
         renderMiniCalendar();
         renderReview(data);
     } catch (err) {
@@ -116,6 +119,18 @@ function renderAlerts(data) {
         }
     });
 
+    // Overload warnings
+    const overloaded = data.overloadedDays || [];
+    if (overloaded.length > 0) {
+        pills.push(`<span class="dash-pill dash-pill--danger">${overloaded.length} overloaded day${overloaded.length > 1 ? 's' : ''} this week</span>`);
+    }
+
+    // Unscheduled warnings
+    const unscheduled = data.unscheduledTaskCount ?? 0;
+    if (unscheduled > 0) {
+        pills.push(`<span class="dash-pill dash-pill--warning">${unscheduled} task${unscheduled > 1 ? 's' : ''} not scheduled</span>`);
+    }
+
     el.innerHTML = pills.length ? pills.join('') : '';
 }
 
@@ -156,7 +171,139 @@ function renderStats(data) {
     `;
 }
 
-/* ---- Section 6: Task Review ---- */
+/* ---- Section: Workload Overview ---- */
+function renderWorkload(data) {
+    const el = document.getElementById('dashWorkload');
+    if (!el) return;
+
+    const workload = data.dailyWorkload || [];
+    if (!workload.length) {
+        el.innerHTML = '';
+        return;
+    }
+
+    // Show next 7 days
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const week = workload.filter(d => {
+        const date = new Date(d.date);
+        return date >= today && date < new Date(today.getTime() + 7 * 24 * 60 * 60 * 1000);
+    }).slice(0, 7);
+
+    if (!week.length) {
+        el.innerHTML = '';
+        return;
+    }
+
+    const maxHours = 10;
+    const todayHours = data.todayWorkloadHours ?? 0;
+    const weeklyHours = data.weeklyWorkloadHours ?? 0;
+
+    let html = `
+        <div class="dash-workload__header">
+            <h3 class="dash-workload__title">Workload Overview</h3>
+            <div class="dash-workload__summary">
+                <span class="dash-workload__today">Today: ${todayHours}h</span>
+                <span class="dash-workload__weekly">This week: ${weeklyHours}h</span>
+            </div>
+        </div>
+        <div class="dash-workload__chart">
+    `;
+
+    week.forEach(d => {
+        const date = new Date(d.date);
+        const isToday = date.getTime() === today.getTime();
+        const dayName = date.toLocaleDateString('en', { weekday: 'short' });
+        const pct = Math.min(100, (d.scheduledHours / maxHours) * 100);
+        const colorClass = d.isOverloaded ? 'overloaded' : d.scheduledHours > 6 ? 'heavy' : d.scheduledHours > 3 ? 'moderate' : 'light';
+
+        html += `
+            <div class="dash-workload__bar-group ${isToday ? 'today' : ''}">
+                <div class="dash-workload__bar-track">
+                    <div class="dash-workload__bar dash-workload__bar--${colorClass}" style="height:${pct}%"></div>
+                </div>
+                <span class="dash-workload__bar-label">${dayName}</span>
+                <span class="dash-workload__bar-value">${d.scheduledHours}h</span>
+            </div>
+        `;
+    });
+
+    html += '</div>';
+    el.innerHTML = html;
+}
+
+/* ---- Section: Unscheduled Tasks Alert ---- */
+function renderUnscheduled(data) {
+    const el = document.getElementById('dashUnscheduled');
+    if (!el) return;
+
+    const count = data.unscheduledTaskCount ?? 0;
+    if (count === 0) {
+        el.innerHTML = '';
+        return;
+    }
+
+    // Find unscheduled tasks from upcoming deadlines
+    const unscheduled = (data.upcomingDeadlines || [])
+        .filter(t => t.schedulingStatus === 'Unscheduled' || t.schedulingStatus === 'Partial');
+
+    el.innerHTML = `
+        <div class="dash-unscheduled__card">
+            <div class="dash-unscheduled__header">
+                <span class="dash-unscheduled__icon">&#9888;</span>
+                <h3 class="dash-unscheduled__title">${count} Unscheduled Task${count > 1 ? 's' : ''}</h3>
+            </div>
+            ${unscheduled.length ? `
+                <ul class="dash-unscheduled__list">
+                    ${unscheduled.map(t => `
+                        <li>
+                            <span class="dash-unscheduled__task-name">${t.title}</span>
+                            ${t.dueDate ? `<span class="dash-unscheduled__due">Due: ${new Date(t.dueDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</span>` : ''}
+                        </li>
+                    `).join('')}
+                </ul>
+            ` : ''}
+            <p class="dash-unscheduled__hint">These tasks couldn't fit in your schedule. Consider extending deadlines or reducing workload.</p>
+        </div>
+    `;
+}
+
+/* ---- Section: Suggestion Card ---- */
+function renderSuggestion(data) {
+    const el = document.getElementById('dashSuggestion');
+    if (!el) return;
+
+    const task = data.nextSuggestedTask;
+    if (!task) {
+        el.innerHTML = '';
+        return;
+    }
+
+    const priorityClass = (task.priority || 'medium').toLowerCase();
+    const dueStr = task.dueDate
+        ? new Date(task.dueDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+        : '';
+
+    el.innerHTML = `
+        <div class="dash-suggestion__card">
+            <div class="dash-suggestion__header">
+                <span class="dash-suggestion__label">Next task to work on</span>
+            </div>
+            <div class="dash-suggestion__body">
+                <div class="dash-suggestion__title">${task.title}</div>
+                <div class="dash-suggestion__meta">
+                    <span class="dash-suggestion__course">${task.courseName}</span>
+                    <span class="badge badge-priority-${priorityClass}">${task.priority || 'Medium'}</span>
+                    ${dueStr ? `<span class="dash-suggestion__due">Due: ${dueStr}</span>` : ''}
+                    ${task.estimatedHours ? `<span class="dash-suggestion__hours">${task.estimatedHours}h</span>` : ''}
+                </div>
+            </div>
+            <a href="/Pages/Tasks.html" class="btn btn-sm btn-primary">View Tasks</a>
+        </div>
+    `;
+}
+
+/* ---- Section: Task Review ---- */
 function renderReview(data) {
     const el = document.getElementById('dashReview');
     if (!el) return;
@@ -182,6 +329,17 @@ function renderReview(data) {
         const dateStr = due.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
         const priorityClass = (t.priority || 'medium').toLowerCase();
 
+        // Scheduling info
+        let scheduleInfo = '';
+        if (t.schedulingStatus === 'Scheduled' && t.scheduledDate) {
+            const sd = new Date(t.scheduledDate);
+            scheduleInfo = `<span class="badge badge-scheduled">Scheduled: ${sd.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</span>`;
+        } else if (t.schedulingStatus === 'Partial') {
+            scheduleInfo = '<span class="badge badge-partial">Partially Scheduled</span>';
+        } else if (t.schedulingStatus === 'Unscheduled') {
+            scheduleInfo = '<span class="badge badge-unscheduled">Not Scheduled</span>';
+        }
+
         return `
             <div class="dash-task-card">
                 <div class="dash-task-card__body">
@@ -189,9 +347,12 @@ function renderReview(data) {
                         <span class="dash-task-card__title">${t.title}</span>
                         <span class="dash-task-card__priority dash-task-card__priority--${priorityClass}">${t.priority || 'Medium'}</span>
                     </div>
-                    <span class="dash-task-card__status ${isOverdue ? 'dash-task-card__status--overdue' : ''}">
-                        ${isOverdue ? 'Overdue - needs rescheduling' : 'Due: ' + dateStr}
-                    </span>
+                    <div class="dash-task-card__bottom">
+                        <span class="dash-task-card__status ${isOverdue ? 'dash-task-card__status--overdue' : ''}">
+                            ${isOverdue ? 'Overdue - needs rescheduling' : 'Due: ' + dateStr}
+                        </span>
+                        ${scheduleInfo}
+                    </div>
                 </div>
                 <div class="dash-task-card__actions">
                     <button class="btn btn-sm btn-primary dash-approve-btn" data-task-id="${t.taskId}">Approve</button>
@@ -217,6 +378,9 @@ function renderReview(data) {
                 renderProgress(freshData);
                 renderAlerts(freshData);
                 renderStats(freshData);
+                renderWorkload(freshData);
+                renderUnscheduled(freshData);
+                renderSuggestion(freshData);
                 renderReview(freshData);
             } catch (err) {
                 showToast('Failed to approve task', 'error');
@@ -227,7 +391,7 @@ function renderReview(data) {
     });
 }
 
-/* ---- Section 7: Dashboard 3-Day Calendar ---- */
+/* ---- Section: Dashboard 3-Day Calendar ---- */
 const MINI_CAL_COLORS = {
     class: { bg: '#E0F7FA', border: '#00BCD4', text: '#006064' },
     task: { bg: '#FFF3E0', border: '#F28D35', text: '#E65100' },
@@ -304,7 +468,7 @@ async function renderMiniCalendar() {
         } else {
             dayEvents.slice(0, 4).forEach(e => {
                 const colors = MINI_CAL_COLORS[e.eventType] || MINI_CAL_COLORS.personal;
-                const label = e.courseName || e.workPlace || e.description || e.type || 'Event';
+                const label = e.courseName || e.taskTitle || e.workPlace || e.description || e.type || 'Event';
                 const time = new Date(e.from);
                 const timeStr = `${time.getHours().toString().padStart(2, '0')}:${time.getMinutes().toString().padStart(2, '0')}`;
                 html += `<div class="mini-cal__event" style="background:${colors.bg};border-left:3px solid ${colors.border};color:${colors.text}">`;

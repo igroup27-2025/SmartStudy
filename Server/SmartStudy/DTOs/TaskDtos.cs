@@ -11,6 +11,17 @@ public class TaskDto
     public DateTime? DueDate { get; set; }
     public bool IsCompleted { get; set; }
     public string? Priority { get; set; }
+
+    // Scheduling fields
+    public DateTime? ScheduledDate { get; set; }
+    public string SchedulingStatus { get; set; } = "Unscheduled"; // "Scheduled" | "Unscheduled" | "Partial"
+    public List<TaskSlotDto>? ScheduledSlots { get; set; }
+}
+
+public class TaskSlotDto
+{
+    public DateTime From { get; set; }
+    public DateTime To { get; set; }
 }
 
 public class CreateTaskDto

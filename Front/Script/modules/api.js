@@ -82,6 +82,10 @@ export const api = {
     createPersonalEvent: (data) => request('POST', '/events/personal', data),
     deleteEvent: (id) => request('DELETE', `/events/${id}`),
 
+    // Scheduling
+    runScheduling: () => request('POST', '/scheduling/run'),
+    getSchedulingStatus: () => request('GET', '/scheduling/status'),
+
     // Stress
     getStressScore: () => request('GET', '/stress/score'),
     getWeeklyStress: () => request('GET', '/stress/weekly'),

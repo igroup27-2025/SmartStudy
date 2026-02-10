@@ -16,6 +16,7 @@
             </div>
             <div class="cal-header-actions">
                 <button class="btn btn-sm" id="calToday">Today</button>
+                <button class="btn btn-sm btn-primary" id="calAddEvent">+ Event</button>
                 <div class="cal-view-toggle">
                     <button class="cal-view-btn active" data-view="weekly">Week</button>
                     <button class="cal-view-btn" data-view="3day">3 Day</button>
@@ -35,6 +36,100 @@
             <span class="legend-item"><span class="legend-dot" style="background:#F28D35"></span> Tasks</span>
             <span class="legend-item"><span class="legend-dot" style="background:#9B76FF"></span> Work</span>
             <span class="legend-item"><span class="legend-dot" style="background:#F2C777"></span> Personal</span>
+        </div>
+
+        <!-- Event Creation Modal -->
+        <div class="modal-overlay" id="eventModal">
+            <div class="modal">
+                <div class="modal-header">
+                    <h3>Add Event</h3>
+                    <button class="modal-close" data-close-modal>&times;</button>
+                </div>
+                <form id="eventForm">
+                    <div class="modal-body">
+                        <div class="form-group">
+                            <label for="eventTypeSelect">Event Type</label>
+                            <select id="eventTypeSelect" class="form-input">
+                                <option value="personal">Personal</option>
+                                <option value="class">Class</option>
+                                <option value="work">Work</option>
+                            </select>
+                        </div>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="eventFromDate">Start Date *</label>
+                                <input type="date" id="eventFromDate" class="form-input" required>
+                            </div>
+                            <div class="form-group">
+                                <label for="eventFromTime">Start Time *</label>
+                                <input type="time" id="eventFromTime" class="form-input" required>
+                            </div>
+                        </div>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="eventToDate">End Date *</label>
+                                <input type="date" id="eventToDate" class="form-input" required>
+                            </div>
+                            <div class="form-group">
+                                <label for="eventToTime">End Time *</label>
+                                <input type="time" id="eventToTime" class="form-input" required>
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-checkbox-label">
+                                <input type="checkbox" id="eventRecurring"> Recurring weekly
+                            </label>
+                        </div>
+
+                        <!-- Class-specific fields -->
+                        <div id="eventClassFields" class="hidden">
+                            <div class="form-group">
+                                <label for="eventCourseId">Course</label>
+                                <select id="eventCourseId" class="form-input">
+                                    <option value="">Select course...</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label for="eventLocation">Location</label>
+                                <input type="text" id="eventLocation" class="form-input" placeholder="e.g. Room 101">
+                            </div>
+                        </div>
+
+                        <!-- Work-specific fields -->
+                        <div id="eventWorkFields" class="hidden">
+                            <div class="form-group">
+                                <label for="eventWorkPlace">Workplace</label>
+                                <input type="text" id="eventWorkPlace" class="form-input" placeholder="e.g. Tech Startup Inc.">
+                            </div>
+                            <div class="form-group">
+                                <label for="eventTravelTime">Travel Time (min)</label>
+                                <input type="number" id="eventTravelTime" class="form-input" min="0">
+                            </div>
+                        </div>
+
+                        <!-- Personal-specific fields -->
+                        <div id="eventPersonalFields">
+                            <div class="form-group">
+                                <label for="eventPersonalType">Category</label>
+                                <select id="eventPersonalType" class="form-input">
+                                    <option value="Exercise">Exercise</option>
+                                    <option value="Social">Social</option>
+                                    <option value="Errand">Errand</option>
+                                    <option value="Other">Other</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label for="eventDescription">Description</label>
+                                <input type="text" id="eventDescription" class="form-input" placeholder="What is this event?">
+                            </div>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-close-modal>Cancel</button>
+                        <button type="submit" class="btn btn-primary">Create Event</button>
+                    </div>
+                </form>
+            </div>
         </div>
     </div>
     <script type="module" src="/Script/main.js"></script>

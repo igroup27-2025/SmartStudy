@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using SmartStudy.Data;
 using SmartStudy.DTOs;
+using SmartStudy.Models;
 using SmartStudy.Services;
 
 namespace SmartStudy.Controllers;
@@ -15,11 +16,13 @@ public class DashboardController : ControllerBase
 {
     private readonly SmartStudyDbContext _db;
     private readonly StressService _stressService;
+    private readonly SchedulingService _schedulingService;
 
-    public DashboardController(SmartStudyDbContext db, StressService stressService)
+    public DashboardController(SmartStudyDbContext db, StressService stressService, SchedulingService schedulingService)
     {
         _db = db;
         _stressService = stressService;
+        _schedulingService = schedulingService;
     }
 
     private string GetEmail() => User.FindFirst(ClaimTypes.Email)!.Value;
@@ -111,6 +114,55 @@ public class DashboardController : ControllerBase
             todayEventDtos.Add(dto);
         }
 
+        // Scheduling data
+        var schedulingStatus = await _schedulingService.GetSchedulingStatusAsync(email);
+
+        var incompleteTasks = tasks.Where(t => !t.IsCompleted).ToList();
+        var tasksWithEvents = await _db.Tasks.Include(t => t.TaskEvents).Include(t => t.Course)
+            .Where(t => t.Email == email && !t.IsCompleted)
+            .ToListAsync();
+
+        var unscheduledCount = tasksWithEvents.Count(t => !t.TaskEvents.Any());
+
+        // Today's workload
+        var todayWorkload = schedulingStatus.DailyWorkload
+            .FirstOrDefault(d => d.Date.Date == today);
+
+        // Weekly workload (next 7 days)
+        var weeklyWorkload = schedulingStatus.DailyWorkload
+            .Where(d => d.Date >= today && d.Date < today.AddDays(7))
+            .Sum(d => d.ScheduledHours);
+
+        // Next suggested task: highest priority, soonest deadline, not completed
+        TaskDto? nextSuggested = null;
+        var suggested = tasksWithEvents
+            .Where(t => t.DueDate.HasValue && t.DueDate > now)
+            .OrderByDescending(t => t.Priority == "High" ? 3 : t.Priority == "Medium" ? 2 : 1)
+            .ThenBy(t => t.DueDate)
+            .FirstOrDefault();
+
+        if (suggested != null)
+        {
+            var suggestedEvents = suggested.TaskEvents?
+                .Where(te => te.Status == "Scheduled" || te.Status == "Partial").ToList()
+                ?? new List<TaskEvent>();
+
+            nextSuggested = new TaskDto
+            {
+                TaskId = suggested.TaskId,
+                CourseId = suggested.CourseId,
+                CourseName = suggested.Course?.CourseName ?? "",
+                Title = suggested.Title,
+                Type = suggested.Type,
+                EstimatedHours = suggested.EstimatedHours,
+                DueDate = suggested.DueDate,
+                IsCompleted = suggested.IsCompleted,
+                Priority = suggested.Priority,
+                ScheduledDate = suggestedEvents.OrderBy(te => te.From).FirstOrDefault()?.From,
+                SchedulingStatus = suggestedEvents.Any() ? "Scheduled" : "Unscheduled"
+            };
+        }
+
         return Ok(new DashboardDto
         {
             Stress = stress,
@@ -121,7 +173,13 @@ public class DashboardController : ControllerBase
             TotalCourses = courseIds.Count,
             UpcomingDeadlines = upcomingDeadlines,
             NextExams = exams,
-            TodayEvents = todayEventDtos
+            TodayEvents = todayEventDtos,
+            UnscheduledTaskCount = unscheduledCount,
+            TodayWorkloadHours = todayWorkload?.ScheduledHours ?? 0,
+            WeeklyWorkloadHours = Math.Round(weeklyWorkload, 1),
+            DailyWorkload = schedulingStatus.DailyWorkload,
+            OverloadedDays = schedulingStatus.OverloadedDays,
+            NextSuggestedTask = nextSuggested
         });
     }
 }

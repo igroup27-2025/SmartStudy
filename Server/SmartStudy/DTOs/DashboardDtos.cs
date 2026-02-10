@@ -11,6 +11,14 @@ public class DashboardDto
     public List<TaskDto> UpcomingDeadlines { get; set; } = new();
     public List<ExamDto> NextExams { get; set; } = new();
     public List<EventDto> TodayEvents { get; set; } = new();
+
+    // Scheduling data
+    public int UnscheduledTaskCount { get; set; }
+    public double TodayWorkloadHours { get; set; }
+    public double WeeklyWorkloadHours { get; set; }
+    public List<DailyWorkloadDto> DailyWorkload { get; set; } = new();
+    public List<string> OverloadedDays { get; set; } = new();
+    public TaskDto? NextSuggestedTask { get; set; }
 }
 
 public class StressScoreDto

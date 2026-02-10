@@ -35,6 +35,7 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
 
 builder.Services.AddAuthorization();
 builder.Services.AddScoped<StressService>();
+builder.Services.AddScoped<SchedulingService>();
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
@@ -94,6 +95,20 @@ using (var scope = app.Services.CreateScope())
     conn.Close();
 
     SeedDataService.SeedDatabase(db);
+
+    // Drop unique index on TaskEvents.TaskId if it exists (allow 1:N task splitting)
+    conn.Open();
+    using (var fixCmd = conn.CreateCommand())
+    {
+        fixCmd.CommandText = @"
+            IF EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'IX_SmartStudy_TaskEvents_TaskId' AND object_id = OBJECT_ID('SmartStudy_TaskEvents'))
+            BEGIN
+                DROP INDEX IX_SmartStudy_TaskEvents_TaskId ON SmartStudy_TaskEvents;
+                CREATE NONCLUSTERED INDEX IX_SmartStudy_TaskEvents_TaskId ON SmartStudy_TaskEvents(TaskId);
+            END";
+        fixCmd.ExecuteNonQuery();
+    }
+    conn.Close();
 }
 
 if (app.Environment.IsDevelopment())

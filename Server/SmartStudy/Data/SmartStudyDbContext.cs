@@ -172,11 +172,9 @@ public class SmartStudyDbContext : DbContext
             entity.Property(e => e.ActualHours).HasColumnType("decimal(5,2)");
             entity.Property(e => e.Status).HasColumnName("Status").HasMaxLength(50);
 
-            entity.HasIndex(e => e.TaskId).IsUnique();
-
             entity.HasOne(e => e.StudentTask)
-                .WithOne(t => t.TaskEvent)
-                .HasForeignKey<TaskEvent>(e => e.TaskId)
+                .WithMany(t => t.TaskEvents)
+                .HasForeignKey(e => e.TaskId)
                 .OnDelete(DeleteBehavior.Cascade);
         });
 
