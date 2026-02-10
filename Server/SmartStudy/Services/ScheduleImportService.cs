@@ -118,8 +118,8 @@ public class ScheduleImportService
             // Find boundary helpers: headers adjacent to our targets
             var rightOfRoom = row.Where(w => w.X > roomW.X + roomW.Width)
                                  .OrderBy(w => w.X).FirstOrDefault();
-            var rightOfCourse = row.Where(w => w.X > courseW.X + courseW.Width)
-                                   .OrderBy(w => w.X).FirstOrDefault();
+            // Find the "#" header to mark the row-number column boundary
+            var hashW = row.FirstOrDefault(w => w.Text == "#");
 
             return new ColumnLayout
             {
@@ -131,10 +131,10 @@ public class ScheduleImportService
                     : instrW.X - 30,
                 InstructorMaxX = (instrW.X + instrW.Width + courseW.X) / 2,
                 CourseMinX = (instrW.X + instrW.Width + courseW.X) / 2,
-                // Extend course column to page right edge — course codes and row numbers
-                // are already filtered by ShouldFilterWord, so won't contaminate
-                CourseMaxX = rightOfCourse != null
-                    ? rightOfCourse.X + rightOfCourse.Width + 100
+                // Extend through course code area (codes are pattern-filtered)
+                // but stop before the row-number "#" column
+                CourseMaxX = hashW != null
+                    ? hashW.X - 2
                     : 1000
             };
         }
@@ -310,7 +310,7 @@ public class ScheduleImportService
         if (Regex.IsMatch(t, @"^\d{2}/\d{2}/\d{4}$")) return true; // date
         if (Regex.IsMatch(t, @"^\d{1,2}:\d{2}$")) return true;    // time
         if (Regex.IsMatch(t, @"^\d+\.\d{2}$")) return true;       // hours decimal
-        if (Regex.IsMatch(t, @"^\d$")) return true;               // single-digit row numbers
+        // Row numbers are excluded by column X-position, not pattern filtering
         if (IsHebrewDatePart(t)) return true;
         if (t.Length == 1 && "אבגדהוש".Contains(t[0])) return true; // day-of-week letters
         if (t.Contains("סה\"כ") || t == "שעות" || t == ":") return true;
@@ -496,7 +496,9 @@ public class ScheduleImportService
         if (string.IsNullOrEmpty(text) || !ContainsHebrew(text)) return text;
         var chars = text.ToCharArray();
         Array.Reverse(chars);
-        return new string(chars);
+        // Re-reverse digit sequences that got backwards from the full reversal
+        return Regex.Replace(new string(chars), @"\d+", m =>
+            new string(m.Value.Reverse().ToArray()));
     }
 
     /// <summary>
