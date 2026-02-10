@@ -1076,6 +1076,7 @@ hr {
   opacity: 0;
   visibility: hidden;
   transition: all var(--transition-base);
+  overflow-y: auto;
 }
 
 .modal-overlay.open {
@@ -1138,7 +1139,9 @@ hr {
 .modal-body {
   padding: 0 var(--space-6) var(--space-6);
   overflow-y: auto;
-  flex: 1;
+  flex: 1 1 0;
+  min-height: 0;
+  max-height: calc(90vh - 150px);
 }
 
 .modal-footer {
@@ -1149,6 +1152,25 @@ hr {
   padding: var(--space-4) var(--space-6);
   border-top: 1px solid var(--border-color);
   flex-shrink: 0;
+}
+
+/* Task source toggle in event modal */
+.task-source-toggle {
+  display: flex;
+  gap: var(--space-2);
+}
+.task-source-btn {
+  flex: 1;
+  text-align: center;
+  border: 1px solid var(--border-color);
+  background: var(--bg-secondary);
+  color: var(--text-secondary);
+  transition: all 0.2s;
+}
+.task-source-btn.active {
+  background: var(--primary);
+  color: #fff;
+  border-color: var(--primary);
 }
 
 
@@ -4225,12 +4247,12 @@ body[data-layout="onboarding"] {
   /* Modals */
   .modal-overlay {
     padding: var(--space-4);
-    align-items: flex-end;
+    align-items: center;
   }
 
   .modal {
     max-height: 85vh;
-    border-radius: var(--radius-xl) var(--radius-xl) 0 0;
+    border-radius: var(--radius-xl);
   }
 
   /* Form rows */
