@@ -279,6 +279,17 @@ async function openSafeZone(connectionId, name) {
 
 /* ── Shared Tasks ── */
 
+function getPartner(task, myEmail) {
+    const members = task.members || [];
+    const other = members.find(m => m.email.toLowerCase() !== myEmail);
+    return other || { email: '', name: '' };
+}
+
+function getMyMember(task, myEmail) {
+    const members = task.members || [];
+    return members.find(m => m.email.toLowerCase() === myEmail);
+}
+
 function renderSharedTasks() {
     const section = document.getElementById('sharedTasksSection');
     const list = document.getElementById('sharedTasksList');
@@ -286,7 +297,7 @@ function renderSharedTasks() {
     if (!section || !list) return;
 
     // Filter out cancelled tasks
-    const visible = sharedTasks.filter(t => t.responseStatus !== 'Cancelled');
+    const visible = sharedTasks.filter(t => t.sharedStatus !== 'Cancelled');
 
     if (!visible.length) {
         section.style.display = 'none';
@@ -299,8 +310,8 @@ function renderSharedTasks() {
     const user = getUser();
     const myEmail = user ? user.email.toLowerCase() : '';
 
-    const pending = visible.filter(t => t.responseStatus === 'Pending');
-    const confirmed = visible.filter(t => t.responseStatus === 'Confirmed');
+    const pending = visible.filter(t => t.sharedStatus === 'Pending');
+    const confirmed = visible.filter(t => t.sharedStatus === 'Confirmed');
 
     let html = '';
 
@@ -308,19 +319,20 @@ function renderSharedTasks() {
         html += `<div class="shared-tasks-group">
             <h4 class="shared-tasks-group-title">Pending Invitations</h4>
             ${pending.map(t => {
-                const isReceiver = t.partnerEmail?.toLowerCase() === myEmail;
-                const partnerName = isReceiver ? t.ownerName || t.ownerEmail : t.partnerName || t.partnerEmail;
+                const partner = getPartner(t, myEmail);
+                const myMember = getMyMember(t, myEmail);
+                const iNeedToRespond = myMember && myMember.responseStatus === 'Pending';
                 return `
                 <div class="shared-task-card" data-task-id="${t.taskId}">
                     <div class="shared-task-card__body">
                         <div class="shared-task-card__title">${escapeHtml(t.taskTitle || 'Untitled Task')}</div>
                         <div class="shared-task-card__meta">
                             ${t.courseName ? `<span>${escapeHtml(t.courseName)}</span> · ` : ''}
-                            <span>${isReceiver ? 'From' : 'To'}: ${escapeHtml(partnerName)}</span>
+                            <span>${iNeedToRespond ? 'From' : 'To'}: ${escapeHtml(partner.name || partner.email)}</span>
                         </div>
                     </div>
                     <div class="shared-task-card__actions">
-                        ${isReceiver ? `
+                        ${iNeedToRespond ? `
                             <button class="btn btn-primary btn-sm shared-task-accept" data-task-id="${t.taskId}">Accept</button>
                             <button class="btn btn-secondary btn-sm shared-task-decline" data-task-id="${t.taskId}">Decline</button>
                         ` : `
@@ -336,16 +348,14 @@ function renderSharedTasks() {
         html += `<div class="shared-tasks-group">
             <h4 class="shared-tasks-group-title">Active Shared Tasks</h4>
             ${confirmed.map(t => {
-                const partnerName = t.partnerEmail?.toLowerCase() === myEmail
-                    ? t.ownerName || t.ownerEmail
-                    : t.partnerName || t.partnerEmail;
+                const partner = getPartner(t, myEmail);
                 return `
                 <div class="shared-task-card shared-task-card--confirmed" data-task-id="${t.taskId}">
                     <div class="shared-task-card__body">
                         <div class="shared-task-card__title">${escapeHtml(t.taskTitle || 'Untitled Task')}</div>
                         <div class="shared-task-card__meta">
                             ${t.courseName ? `<span>${escapeHtml(t.courseName)}</span> · ` : ''}
-                            <span>With: ${escapeHtml(partnerName)}</span>
+                            <span>With: ${escapeHtml(partner.name || partner.email)}</span>
                         </div>
                     </div>
                     <div class="shared-task-card__actions">
@@ -390,7 +400,11 @@ async function openShareTaskModal(friendEmail, friendName) {
     // Filter out already-shared tasks with this friend
     const alreadyShared = new Set(
         sharedTasks
-            .filter(st => st.partnerEmail?.toLowerCase() === friendEmail.toLowerCase() && st.responseStatus !== 'Cancelled')
+            .filter(st => {
+                const members = st.members || [];
+                const hasFriend = members.some(m => m.email.toLowerCase() === friendEmail.toLowerCase());
+                return hasFriend && st.sharedStatus !== 'Cancelled';
+            })
             .map(st => st.taskId)
     );
     const available = tasks.filter(t => !t.isCompleted && !alreadyShared.has(t.taskId));
@@ -464,28 +478,29 @@ async function openSharedTaskDetail(taskId) {
         return;
     }
 
-    const statusClass = detail.responseStatus === 'Confirmed' ? 'low' : detail.responseStatus === 'Pending' ? 'medium' : 'high';
+    const statusClass = detail.sharedStatus === 'Confirmed' ? 'low' : detail.sharedStatus === 'Pending' ? 'medium' : 'high';
+    const members = detail.members || [];
 
     content.innerHTML = `
         <div class="shared-task-detail">
             <div class="shared-task-detail__header">
                 <h4>${escapeHtml(detail.taskTitle || 'Untitled Task')}</h4>
-                <span class="badge badge-${statusClass}">${detail.responseStatus}</span>
+                <span class="badge badge-${statusClass}">${detail.sharedStatus}</span>
             </div>
             ${detail.courseName ? `<p class="shared-task-card__meta">Course: ${escapeHtml(detail.courseName)}</p>` : ''}
             ${detail.dueDate ? `<p class="shared-task-card__meta">Due: ${formatDate(detail.dueDate)}</p>` : ''}
             <div class="shared-task-detail__members">
                 <h5 style="margin: var(--space-4) 0 var(--space-2);">Members</h5>
-                <div class="shared-task-member">
-                    <span class="friend-request-avatar" style="width:32px;height:32px;font-size:var(--fs-xs);">${getInitials(detail.ownerName || detail.ownerEmail)}</span>
-                    <span>${escapeHtml(detail.ownerName || detail.ownerEmail)}</span>
-                    <span class="badge badge-low">Owner</span>
-                </div>
-                <div class="shared-task-member">
-                    <span class="friend-request-avatar" style="width:32px;height:32px;font-size:var(--fs-xs);">${getInitials(detail.partnerName || detail.partnerEmail)}</span>
-                    <span>${escapeHtml(detail.partnerName || detail.partnerEmail)}</span>
-                    <span class="badge badge-${statusClass}">${detail.responseStatus}</span>
-                </div>
+                ${members.map(m => {
+                    const isOwner = m.email.toLowerCase() === detail.createdByEmail?.toLowerCase();
+                    const mStatusClass = m.responseStatus === 'Accepted' ? 'low' : m.responseStatus === 'Pending' ? 'medium' : 'high';
+                    return `
+                    <div class="shared-task-member">
+                        <span class="friend-request-avatar" style="width:32px;height:32px;font-size:var(--fs-xs);">${getInitials(m.name || m.email)}</span>
+                        <span>${escapeHtml(m.name || m.email)}</span>
+                        <span class="badge badge-${mStatusClass}">${isOwner ? 'Owner' : m.responseStatus}</span>
+                    </div>`;
+                }).join('')}
             </div>
         </div>
     `;
