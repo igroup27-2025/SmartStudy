@@ -67,3 +67,10 @@ public class CreatePersonalEventDto
     public string? Type { get; set; }
     public string? Description { get; set; }
 }
+
+public class CheckConflictDto
+{
+    public DateTime From { get; set; }
+    public DateTime To { get; set; }
+    public int? ExcludeEventId { get; set; }
+}

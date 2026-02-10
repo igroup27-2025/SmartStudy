@@ -24,6 +24,7 @@ public class SmartStudyDbContext : DbContext
     public DbSet<Friendship> Friendships => Set<Friendship>();
     public DbSet<SharedTask> SharedTasks => Set<SharedTask>();
     public DbSet<SharedTaskMember> SharedTaskMembers => Set<SharedTaskMember>();
+    public DbSet<Notification> Notifications => Set<Notification>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -38,6 +39,9 @@ public class SmartStudyDbContext : DbContext
             entity.Property(e => e.FirstName).HasMaxLength(100).IsRequired();
             entity.Property(e => e.LastName).HasMaxLength(100).IsRequired();
             entity.Property(e => e.Password).HasColumnName("Password").HasMaxLength(255).IsRequired();
+            entity.Property(e => e.ResetToken).HasMaxLength(50);
+            entity.Property(e => e.ResetTokenExpiry);
+            entity.Property(e => e.AuthProvider).HasMaxLength(20);
         });
 
         // ===== NotificationSettings =====
@@ -50,6 +54,8 @@ public class SmartStudyDbContext : DbContext
             entity.Property(e => e.DailyMorningSummary).HasColumnName("Daily_morning_summary").HasDefaultValue(false);
             entity.Property(e => e.WeeklyPlanReminder).HasColumnName("Weekly_plan_reminder").HasDefaultValue(false);
             entity.Property(e => e.EnablePushNotification).HasColumnName("Enable_push_notification").HasDefaultValue(false);
+            entity.Property(e => e.QuietHoursStart).HasColumnName("Quiet_hours_start");
+            entity.Property(e => e.QuietHoursEnd).HasColumnName("Quiet_hours_end");
 
             entity.HasOne(e => e.User)
                 .WithOne(u => u.NotificationSettings)
@@ -94,6 +100,8 @@ public class SmartStudyDbContext : DbContext
                 .HasForeignKey(e => e.Email)
                 .OnDelete(DeleteBehavior.Cascade);
 
+            entity.Property(e => e.StudyPartnerEmail).HasMaxLength(255);
+
             entity.HasOne(e => e.Course)
                 .WithMany(c => c.UserCourses)
                 .HasForeignKey(e => e.CourseId)
@@ -126,7 +134,14 @@ public class SmartStudyDbContext : DbContext
             entity.Property(e => e.DueDate);
             entity.Property(e => e.IsCompleted).HasDefaultValue(false);
             entity.Property(e => e.Priority).HasMaxLength(20);
+            entity.Property(e => e.ActualHours).HasColumnType("decimal(5,2)");
+            entity.Property(e => e.ParentTaskId);
             entity.Property(e => e.Email).HasMaxLength(255).IsRequired();
+
+            entity.HasOne(e => e.ParentTask)
+                .WithMany(e => e.SubTasks)
+                .HasForeignKey(e => e.ParentTaskId)
+                .OnDelete(DeleteBehavior.NoAction);
 
             entity.HasOne(e => e.Course)
                 .WithMany(c => c.Tasks)
@@ -288,6 +303,28 @@ public class SmartStudyDbContext : DbContext
                 .WithMany(u => u.SharedTaskMemberships)
                 .HasForeignKey(e => e.Email)
                 .OnDelete(DeleteBehavior.NoAction);
+        });
+
+        // ===== Notifications =====
+        modelBuilder.Entity<Notification>(entity =>
+        {
+            entity.ToTable("SmartStudy_Notifications");
+            entity.HasKey(e => e.NotificationId);
+            entity.Property(e => e.Email).HasMaxLength(255).IsRequired();
+            entity.Property(e => e.Type).HasMaxLength(50).IsRequired();
+            entity.Property(e => e.Title).HasMaxLength(200).IsRequired();
+            entity.Property(e => e.Message).HasMaxLength(1000).IsRequired();
+            entity.Property(e => e.IsRead).HasDefaultValue(false);
+            entity.Property(e => e.CreatedAt);
+            entity.Property(e => e.RelatedEntityId);
+            entity.Property(e => e.RelatedEntityType).HasMaxLength(50);
+
+            entity.HasOne(e => e.User)
+                .WithMany(u => u.Notifications)
+                .HasForeignKey(e => e.Email)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasIndex(e => new { e.Email, e.CreatedAt });
         });
     }
 }

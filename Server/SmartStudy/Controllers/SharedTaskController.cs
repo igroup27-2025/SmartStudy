@@ -5,6 +5,7 @@ using Microsoft.EntityFrameworkCore;
 using SmartStudy.Data;
 using SmartStudy.DTOs;
 using SmartStudy.Models;
+using SmartStudy.Services;
 
 namespace SmartStudy.Controllers;
 
@@ -14,8 +15,15 @@ namespace SmartStudy.Controllers;
 public class SharedTaskController : ControllerBase
 {
     private readonly SmartStudyDbContext _db;
+    private readonly NotificationService _notifications;
+    private readonly SchedulingService _scheduling;
 
-    public SharedTaskController(SmartStudyDbContext db) => _db = db;
+    public SharedTaskController(SmartStudyDbContext db, NotificationService notifications, SchedulingService scheduling)
+    {
+        _db = db;
+        _notifications = notifications;
+        _scheduling = scheduling;
+    }
 
     private string GetEmail() => User.FindFirst(ClaimTypes.Email)!.Value;
 
@@ -125,6 +133,11 @@ public class SharedTaskController : ControllerBase
 
         await _db.SaveChangesAsync();
 
+        // Notify the partner
+        var sender = await _db.Users.FindAsync(email);
+        var senderName = sender != null ? $"{sender.FirstName} {sender.LastName}" : email;
+        await _notifications.CreateSharedTaskInviteNotificationAsync(dto.PartnerEmail, senderName, dto.TaskId, task.Title);
+
         return CreatedAtAction(nameof(GetById), new { taskId = dto.TaskId }, new { taskId = dto.TaskId, status = "Pending" });
     }
 
@@ -164,6 +177,27 @@ public class SharedTaskController : ControllerBase
         }
 
         await _db.SaveChangesAsync();
+
+        // Notify the creator about the response
+        var responder = await _db.Users.FindAsync(email);
+        var responderName = responder != null ? $"{responder.FirstName} {responder.LastName}" : email;
+        var task = await _db.Tasks.FindAsync(taskId);
+        var taskTitle = task?.Title ?? "Task";
+        await _notifications.CreateSharedTaskResponseNotificationAsync(
+            member.SharedTask.CreatedByEmail, responderName, taskId, taskTitle, dto.Accept);
+
+        // When confirmed, reschedule for both users
+        if (member.SharedTask.SharedStatus == "Confirmed")
+        {
+            var allMembers = await _db.SharedTaskMembers
+                .Where(m => m.TaskId == taskId)
+                .Select(m => m.Email)
+                .ToListAsync();
+            foreach (var memberEmail in allMembers)
+            {
+                await _scheduling.ScheduleAllTasksAsync(memberEmail);
+            }
+        }
 
         return Ok(new { taskId, status = member.SharedTask.SharedStatus });
     }

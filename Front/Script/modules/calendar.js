@@ -66,6 +66,11 @@ function setupNavigation() {
         openEventModal(null);
     });
 
+    // Add constraint button
+    document.getElementById('calAddConstraint')?.addEventListener('click', () => {
+        openConstraintModal();
+    });
+
     // Import schedule button
     const importBtn = document.getElementById('calImportSchedule');
     const fileInput = document.getElementById('scheduleFileInput');
@@ -232,8 +237,12 @@ function renderTimeGrid(events, startDate, dayCount) {
             const height = Math.max(25, (endHour - startHour) * 50);
             const colors = EVENT_COLORS[e.eventType] || EVENT_COLORS.personal;
             const label = e.courseName || e.taskTitle || e.workPlace || e.description || e.type || 'Event';
+            const isAutoScheduled = e.eventType === 'task' && e.status === 'Scheduled';
 
-            html += `<div class="cal-event" data-event-id="${e.eventId}" style="top:${top}px;height:${height}px;background:${colors.bg};border-left:3px solid ${colors.border};color:${colors.text}">
+            html += `<div class="cal-event ${!isAutoScheduled ? 'cal-event--draggable' : ''}"
+                data-event-id="${e.eventId}" data-event-type="${e.eventType}"
+                ${!isAutoScheduled ? 'draggable="true"' : ''}
+                style="top:${top}px;height:${height}px;background:${colors.bg};border-left:3px solid ${colors.border};color:${colors.text}">
                 <div class="cal-event-title">${label}</div>
                 <div class="cal-event-time">${formatTime(from)} - ${formatTime(to)}</div>
             </div>`;
@@ -275,6 +284,134 @@ function renderTimeGrid(events, startDate, dayCount) {
             const eventId = parseInt(el.dataset.eventId);
             showEventDetails(eventId, el);
         });
+    });
+
+    // Setup drag-and-drop for moveable events
+    setupDragAndDrop(grid);
+
+    // Setup drag-to-create (mousedown on cells)
+    setupDragToCreate(grid);
+}
+
+/* ---- Drag-and-Drop (move events) ---- */
+function setupDragAndDrop(grid) {
+    grid.querySelectorAll('.cal-event--draggable').forEach(el => {
+        el.addEventListener('dragstart', (e) => {
+            e.dataTransfer.setData('text/plain', el.dataset.eventId);
+            e.dataTransfer.effectAllowed = 'move';
+            el.classList.add('dragging');
+        });
+        el.addEventListener('dragend', () => {
+            el.classList.remove('dragging');
+            grid.querySelectorAll('.cal-cell').forEach(c => c.classList.remove('drag-over'));
+        });
+    });
+
+    grid.querySelectorAll('.cal-cell').forEach(cell => {
+        cell.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            e.dataTransfer.dropEffect = 'move';
+            cell.classList.add('drag-over');
+        });
+        cell.addEventListener('dragleave', () => {
+            cell.classList.remove('drag-over');
+        });
+        cell.addEventListener('drop', async (e) => {
+            e.preventDefault();
+            cell.classList.remove('drag-over');
+            const eventId = parseInt(e.dataTransfer.getData('text/plain'));
+            const event = cachedEvents.find(ev => ev.eventId === eventId);
+            if (!event) return;
+
+            const newDate = cell.dataset.date;
+            const newHour = parseInt(cell.dataset.hour);
+            const oldFrom = new Date(event.from);
+            const oldTo = new Date(event.to);
+            const duration = oldTo - oldFrom;
+
+            const newFrom = new Date(`${newDate}T${String(newHour).padStart(2, '0')}:00`);
+            const newTo = new Date(newFrom.getTime() + duration);
+
+            try {
+                const data = {
+                    from: newFrom.toISOString(),
+                    to: newTo.toISOString(),
+                    recurring: event.recurring,
+                };
+
+                if (event.eventType === 'class') {
+                    data.courseId = event.courseId;
+                    data.location = event.location;
+                    data.duration = duration / 3600000;
+                    await api.updateClassEvent(eventId, data);
+                } else if (event.eventType === 'work') {
+                    data.workPlace = event.workPlace;
+                    await api.updateWorkEvent(eventId, data);
+                } else if (event.eventType === 'personal') {
+                    data.type = event.type;
+                    data.description = event.description;
+                    await api.updatePersonalEvent(eventId, data);
+                }
+
+                showToast('Event moved');
+                await navigate();
+            } catch {
+                showToast('Failed to move event', 'error');
+            }
+        });
+    });
+}
+
+/* ---- Drag-to-Create (select time range) ---- */
+let dragCreateState = null;
+
+function setupDragToCreate(grid) {
+    grid.querySelectorAll('.cal-cell').forEach(cell => {
+        cell.addEventListener('mousedown', (e) => {
+            if (e.button !== 0) return;
+            // Don't start drag-to-create if clicking on an event
+            if (e.target.closest('.cal-event')) return;
+
+            dragCreateState = {
+                startDate: cell.dataset.date,
+                startHour: parseInt(cell.dataset.hour),
+                endHour: parseInt(cell.dataset.hour),
+            };
+            cell.classList.add('cal-cell-selecting');
+        });
+
+        cell.addEventListener('mouseenter', () => {
+            if (!dragCreateState) return;
+            if (cell.dataset.date !== dragCreateState.startDate) return;
+            const hour = parseInt(cell.dataset.hour);
+            dragCreateState.endHour = hour;
+
+            // Highlight range
+            grid.querySelectorAll('.cal-cell').forEach(c => {
+                if (c.dataset.date !== dragCreateState.startDate) return;
+                const h = parseInt(c.dataset.hour);
+                const minH = Math.min(dragCreateState.startHour, dragCreateState.endHour);
+                const maxH = Math.max(dragCreateState.startHour, dragCreateState.endHour);
+                c.classList.toggle('cal-cell-selecting', h >= minH && h <= maxH);
+            });
+        });
+    });
+
+    document.addEventListener('mouseup', () => {
+        if (!dragCreateState) return;
+
+        const { startDate, startHour, endHour } = dragCreateState;
+        const minH = Math.min(startHour, endHour);
+        const maxH = Math.max(startHour, endHour) + 1;
+
+        // Clear selection highlight
+        grid.querySelectorAll('.cal-cell-selecting').forEach(c => c.classList.remove('cal-cell-selecting'));
+        dragCreateState = null;
+
+        // Only trigger if range is > 0 cells
+        if (maxH > minH + 1 || maxH === minH + 1) {
+            openEventModal(startDate, minH, maxH);
+        }
     });
 }
 
@@ -382,6 +519,7 @@ function renderMonthlyGrid(events, gridStart, gridEnd) {
 /* ---- Event Creation / Editing ---- */
 let editingEventId = null;
 let editingEventType = null;
+let conflictsConfirmed = false;
 
 function setupEventCreation() {
     const form = document.getElementById('eventForm');
@@ -415,6 +553,21 @@ function setupEventCreation() {
             showToast('End time must be after start time', 'error');
             return;
         }
+
+        // Check for conflicts before creating (if not already confirmed)
+        if (!conflictsConfirmed && !editingEventId) {
+            try {
+                const conflicts = await api.checkConflicts({
+                    from: from.toISOString(),
+                    to: to.toISOString(),
+                });
+                if (conflicts && conflicts.length > 0) {
+                    showConflictWarning(conflicts);
+                    return;
+                }
+            } catch { /* proceed if check fails */ }
+        }
+        conflictsConfirmed = false;
 
         try {
             const isEditing = editingEventId !== null;
@@ -501,7 +654,74 @@ function setupEventCreation() {
     });
 }
 
-function openEventModal(dateStr, hour) {
+/* ---- Conflict Warning ---- */
+function showConflictWarning(conflicts) {
+    const el = document.getElementById('conflictWarning');
+    if (!el) return;
+
+    const list = conflicts.map(c => {
+        const from = new Date(c.from);
+        const to = new Date(c.to);
+        const label = c.courseName || c.taskTitle || c.workPlace || c.description || c.type || 'Event';
+        return `<li>${label} (${formatTime(from)} - ${formatTime(to)})</li>`;
+    }).join('');
+
+    el.innerHTML = `
+        <div class="conflict-warning__icon">&#9888;</div>
+        <div class="conflict-warning__body">
+            <strong>Time conflict detected!</strong>
+            <ul>${list}</ul>
+            <div class="conflict-warning__actions">
+                <button type="button" class="btn btn-sm btn-primary" id="conflictCreateAnyway">Create Anyway</button>
+                <button type="button" class="btn btn-sm btn-secondary" id="conflictCancel">Cancel</button>
+            </div>
+        </div>
+    `;
+    el.style.display = 'flex';
+
+    document.getElementById('conflictCreateAnyway')?.addEventListener('click', () => {
+        conflictsConfirmed = true;
+        el.style.display = 'none';
+        // Re-trigger form submit
+        document.getElementById('eventForm')?.requestSubmit();
+    });
+
+    document.getElementById('conflictCancel')?.addEventListener('click', () => {
+        el.style.display = 'none';
+    });
+}
+
+/* ---- Constraint Modal ---- */
+function openConstraintModal() {
+    const form = document.getElementById('eventForm');
+    if (!form) return;
+    form.reset();
+
+    editingEventId = null;
+    editingEventType = null;
+
+    const title = document.querySelector('#eventModal .modal-header h3');
+    const submitBtn = document.getElementById('eventSubmitBtn');
+    if (title) title.textContent = 'Add Fixed Constraint';
+    if (submitBtn) submitBtn.textContent = 'Create Constraint';
+
+    // Pre-set type to work and recurring
+    const typeSelect = document.getElementById('eventTypeSelect');
+    if (typeSelect) {
+        typeSelect.value = 'work';
+        typeSelect.disabled = false;
+    }
+    updateEventFormFields('work');
+    document.getElementById('eventRecurring').checked = true;
+
+    // Hide conflict warning
+    const cw = document.getElementById('conflictWarning');
+    if (cw) cw.style.display = 'none';
+
+    openModal('eventModal');
+}
+
+function openEventModal(dateStr, hour, endHour) {
     const form = document.getElementById('eventForm');
     if (!form) return;
     form.reset();
@@ -509,12 +729,17 @@ function openEventModal(dateStr, hour) {
     // Reset editing state
     editingEventId = null;
     editingEventType = null;
+    conflictsConfirmed = false;
 
     // Update modal title and button
     const title = document.querySelector('#eventModal .modal-header h3');
-    const submitBtn = document.querySelector('#eventModal button[type="submit"]');
+    const submitBtn = document.getElementById('eventSubmitBtn');
     if (title) title.textContent = 'Add Event';
     if (submitBtn) submitBtn.textContent = 'Create Event';
+
+    // Hide conflict warning
+    const cw = document.getElementById('conflictWarning');
+    if (cw) cw.style.display = 'none';
 
     // Enable type selector for new events
     const typeSelect = document.getElementById('eventTypeSelect');
@@ -527,7 +752,8 @@ function openEventModal(dateStr, hour) {
     }
     if (hour !== undefined) {
         document.getElementById('eventFromTime').value = `${String(hour).padStart(2, '0')}:00`;
-        document.getElementById('eventToTime').value = `${String(hour + 1).padStart(2, '0')}:00`;
+        const end = endHour !== undefined ? endHour : hour + 1;
+        document.getElementById('eventToTime').value = `${String(end).padStart(2, '0')}:00`;
     }
 
     updateEventFormFields('personal');
@@ -552,12 +778,17 @@ function openEventModalForEdit(event) {
 
     editingEventId = event.eventId;
     editingEventType = event.eventType;
+    conflictsConfirmed = false;
 
     // Update modal title and button
     const title = document.querySelector('#eventModal .modal-header h3');
-    const submitBtn = document.querySelector('#eventModal button[type="submit"]');
+    const submitBtn = document.getElementById('eventSubmitBtn');
     if (title) title.textContent = 'Edit Event';
     if (submitBtn) submitBtn.textContent = 'Save Changes';
+
+    // Hide conflict warning
+    const cw = document.getElementById('conflictWarning');
+    if (cw) cw.style.display = 'none';
 
     // Set type (disable changing type on edit)
     const typeSelect = document.getElementById('eventTypeSelect');
@@ -594,12 +825,10 @@ function openEventModalForEdit(event) {
         const ttInput = document.getElementById('eventTravelTime');
         if (ttInput) ttInput.value = event.travelTime || '';
     } else if (event.eventType === 'task') {
-        // For task events in edit mode, show the existing task selector with the linked task
         populateEventTasks().then(() => {
             const taskSelect = document.getElementById('eventTaskId');
             if (taskSelect) taskSelect.value = event.taskId || '';
         });
-        // Hide "New Task" option in edit mode — lock to existing
         document.querySelectorAll('.task-source-btn').forEach(b => b.classList.remove('active'));
         document.querySelector('.task-source-btn[data-source="existing"]')?.classList.add('active');
         document.getElementById('taskExistingFields')?.classList.remove('hidden');

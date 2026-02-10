@@ -11,6 +11,19 @@ public class TaskDto
     public DateTime? DueDate { get; set; }
     public bool IsCompleted { get; set; }
     public string? Priority { get; set; }
+    public decimal? ActualHours { get; set; }
+
+    // Sub-task fields
+    public int? ParentTaskId { get; set; }
+    public List<TaskDto>? SubTasks { get; set; }
+    public int SubTaskCount { get; set; }
+    public int CompletedSubTaskCount { get; set; }
+    public double SubTaskProgress { get; set; }
+
+    // Shared task fields
+    public bool IsShared { get; set; }
+    public string? SharedStatus { get; set; }
+    public string? SharedWithName { get; set; }
 
     // Scheduling fields
     public DateTime? ScheduledDate { get; set; }
@@ -32,6 +45,24 @@ public class CreateTaskDto
     public decimal? EstimatedHours { get; set; }
     public DateTime? DueDate { get; set; }
     public string? Priority { get; set; }
+    public int? ParentTaskId { get; set; }
+}
+
+public class CompleteTaskDto
+{
+    public decimal? ActualHours { get; set; }
+}
+
+public class SplitTaskDto
+{
+    public List<SubTaskDefinition> SubTasks { get; set; } = new();
+}
+
+public class SubTaskDefinition
+{
+    public string Title { get; set; } = null!;
+    public decimal? EstimatedHours { get; set; }
+    public DateTime? DueDate { get; set; }
 }
 
 public class UpdateTaskDto

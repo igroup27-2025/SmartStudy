@@ -37,7 +37,9 @@ public class SettingsController : ControllerBase
                 NotifyBeforeTask = user.NotificationSettings.NotifyBeforeTask,
                 DailyMorningSummary = user.NotificationSettings.DailyMorningSummary,
                 WeeklyPlanReminder = user.NotificationSettings.WeeklyPlanReminder,
-                EnablePushNotification = user.NotificationSettings.EnablePushNotification
+                EnablePushNotification = user.NotificationSettings.EnablePushNotification,
+                QuietHoursStart = user.NotificationSettings.QuietHoursStart?.ToString(@"hh\:mm"),
+                QuietHoursEnd = user.NotificationSettings.QuietHoursEnd?.ToString(@"hh\:mm")
             } : null
         });
     }
@@ -71,6 +73,16 @@ public class SettingsController : ControllerBase
         settings.DailyMorningSummary = dto.DailyMorningSummary;
         settings.WeeklyPlanReminder = dto.WeeklyPlanReminder;
         settings.EnablePushNotification = dto.EnablePushNotification;
+
+        if (dto.QuietHoursStart != null && TimeSpan.TryParse(dto.QuietHoursStart, out var qStart))
+            settings.QuietHoursStart = qStart;
+        else
+            settings.QuietHoursStart = null;
+
+        if (dto.QuietHoursEnd != null && TimeSpan.TryParse(dto.QuietHoursEnd, out var qEnd))
+            settings.QuietHoursEnd = qEnd;
+        else
+            settings.QuietHoursEnd = null;
 
         await _db.SaveChangesAsync();
         return Ok(dto);

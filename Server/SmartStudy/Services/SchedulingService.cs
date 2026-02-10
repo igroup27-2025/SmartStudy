@@ -26,12 +26,15 @@ public class SchedulingService
         var now = DateTime.Now;
         var result = new SchedulingResultDto();
 
-        // 1. Get all incomplete tasks with due dates
-        var tasks = await _db.Tasks
+        // 1. Get all incomplete tasks with due dates (only leaf tasks - no parents with children)
+        var allTasks = await _db.Tasks
             .Include(t => t.Course)
             .Include(t => t.TaskEvents)
+            .Include(t => t.SubTasks)
             .Where(t => t.Email == email && !t.IsCompleted && t.DueDate.HasValue && t.DueDate > now)
             .ToListAsync();
+        // Only schedule leaf tasks (no sub-tasks) to avoid double-counting
+        var tasks = allTasks.Where(t => !t.SubTasks.Any()).ToList();
 
         // 2. Get all existing non-task events (class, work, personal) for the scheduling window
         var maxDueDate = tasks.Any() ? tasks.Max(t => t.DueDate!.Value) : now.AddDays(14);

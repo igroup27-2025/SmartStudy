@@ -38,6 +38,8 @@ builder.Services.AddScoped<StressService>();
 builder.Services.AddScoped<SchedulingService>();
 builder.Services.AddScoped<ScheduleImportService>();
 builder.Services.AddScoped<SafeZoneService>();
+builder.Services.AddScoped<NotificationService>();
+builder.Services.AddScoped<WeeklySuggestionService>();
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
@@ -201,6 +203,64 @@ using (var scope = app.Services.CreateScope())
                 );
             END";
         migrateCmd.ExecuteNonQuery();
+    }
+
+    // Phase 1-12 migrations: ActualHours, ParentTaskId, QuietHours, Notifications, StudyPartner, ResetToken, AuthProvider
+    using (var phase1Cmd = conn.CreateCommand())
+    {
+        phase1Cmd.CommandText = @"
+            -- Add ActualHours to Tasks
+            IF COL_LENGTH('SmartStudy_Tasks', 'ActualHours') IS NULL
+                ALTER TABLE SmartStudy_Tasks ADD ActualHours DECIMAL(5,2) NULL;
+
+            -- Add ParentTaskId to Tasks (sub-tasks)
+            IF COL_LENGTH('SmartStudy_Tasks', 'ParentTaskId') IS NULL
+            BEGIN
+                ALTER TABLE SmartStudy_Tasks ADD ParentTaskId INT NULL;
+                ALTER TABLE SmartStudy_Tasks ADD CONSTRAINT FK_Tasks_ParentTask
+                    FOREIGN KEY (ParentTaskId) REFERENCES SmartStudy_Tasks(TaskId);
+                CREATE NONCLUSTERED INDEX IX_Tasks_ParentTaskId ON SmartStudy_Tasks(ParentTaskId);
+            END
+
+            -- Add QuietHours to NotificationSettings
+            IF COL_LENGTH('SmartStudy_NotificationSettings', 'Quiet_hours_start') IS NULL
+                ALTER TABLE SmartStudy_NotificationSettings ADD Quiet_hours_start TIME NULL;
+            IF COL_LENGTH('SmartStudy_NotificationSettings', 'Quiet_hours_end') IS NULL
+                ALTER TABLE SmartStudy_NotificationSettings ADD Quiet_hours_end TIME NULL;
+
+            -- Create Notifications table
+            IF OBJECT_ID('SmartStudy_Notifications','U') IS NULL
+            BEGIN
+                CREATE TABLE SmartStudy_Notifications (
+                    NotificationId INT IDENTITY(1,1) PRIMARY KEY,
+                    Email NVARCHAR(255) NOT NULL,
+                    Type NVARCHAR(50) NOT NULL,
+                    Title NVARCHAR(200) NOT NULL,
+                    Message NVARCHAR(1000) NOT NULL,
+                    IsRead BIT NOT NULL DEFAULT 0,
+                    CreatedAt DATETIME2 NOT NULL,
+                    RelatedEntityId INT NULL,
+                    RelatedEntityType NVARCHAR(50) NULL,
+                    CONSTRAINT FK_Notifications_User FOREIGN KEY (Email) REFERENCES SmartStudy_Users(Email) ON DELETE CASCADE
+                );
+                CREATE NONCLUSTERED INDEX IX_Notifications_Email_CreatedAt ON SmartStudy_Notifications(Email, CreatedAt DESC);
+            END
+
+            -- Add StudyPartnerEmail to UserCourses
+            IF COL_LENGTH('SmartStudy_UserCourses', 'StudyPartnerEmail') IS NULL
+                ALTER TABLE SmartStudy_UserCourses ADD StudyPartnerEmail NVARCHAR(255) NULL;
+
+            -- Add ResetToken fields to Users
+            IF COL_LENGTH('SmartStudy_Users', 'ResetToken') IS NULL
+                ALTER TABLE SmartStudy_Users ADD ResetToken NVARCHAR(50) NULL;
+            IF COL_LENGTH('SmartStudy_Users', 'ResetTokenExpiry') IS NULL
+                ALTER TABLE SmartStudy_Users ADD ResetTokenExpiry DATETIME2 NULL;
+
+            -- Add AuthProvider to Users
+            IF COL_LENGTH('SmartStudy_Users', 'AuthProvider') IS NULL
+                ALTER TABLE SmartStudy_Users ADD AuthProvider NVARCHAR(20) NULL;
+        ";
+        phase1Cmd.ExecuteNonQuery();
     }
     conn.Close();
 }

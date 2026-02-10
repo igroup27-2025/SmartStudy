@@ -23,17 +23,27 @@ public class CoursesController : ControllerBase
     public async Task<IActionResult> GetAll()
     {
         var email = GetEmail();
-        var courseIds = await _db.UserCourses
+        var userCourses = await _db.UserCourses
             .Where(uc => uc.Email == email)
-            .Select(uc => uc.CourseId)
             .ToListAsync();
+        var courseIds = userCourses.Select(uc => uc.CourseId).ToList();
 
         var courses = await _db.Courses
             .Include(c => c.Instructor)
             .Include(c => c.Tasks)
             .Include(c => c.Exams)
             .Where(c => courseIds.Contains(c.CourseId))
-            .Select(c => new CourseDto
+            .ToListAsync();
+
+        // Resolve partner names
+        var partnerEmails = userCourses.Where(uc => uc.StudyPartnerEmail != null).Select(uc => uc.StudyPartnerEmail!).Distinct().ToList();
+        var partners = await _db.Users.Where(u => partnerEmails.Contains(u.Email))
+            .ToDictionaryAsync(u => u.Email, u => $"{u.FirstName} {u.LastName}");
+
+        var result = courses.Select(c =>
+        {
+            var uc = userCourses.FirstOrDefault(x => x.CourseId == c.CourseId);
+            return new CourseDto
             {
                 CourseId = c.CourseId,
                 CourseName = c.CourseName,
@@ -41,13 +51,15 @@ public class CoursesController : ControllerBase
                 Credits = c.Credits,
                 Semester = c.Semester,
                 InstructorId = c.InstructorId,
-                InstructorName = c.Instructor != null ? c.Instructor.InstructorName : null,
+                InstructorName = c.Instructor?.InstructorName,
                 TaskCount = c.Tasks.Count(t => t.Email == email),
-                ExamCount = c.Exams.Count
-            })
-            .ToListAsync();
+                ExamCount = c.Exams.Count,
+                StudyPartnerEmail = uc?.StudyPartnerEmail,
+                StudyPartnerName = uc?.StudyPartnerEmail != null && partners.ContainsKey(uc.StudyPartnerEmail) ? partners[uc.StudyPartnerEmail] : null
+            };
+        }).ToList();
 
-        return Ok(courses);
+        return Ok(result);
     }
 
     [HttpGet("{id}")]
@@ -138,6 +150,31 @@ public class CoursesController : ControllerBase
             InstructorId = course.InstructorId
         });
     }
+
+    [HttpPut("{id}/partner")]
+    public async Task<IActionResult> SetStudyPartner(int id, [FromBody] SetStudyPartnerDto dto)
+    {
+        var email = GetEmail();
+        var uc = await _db.UserCourses.FirstOrDefaultAsync(x => x.Email == email && x.CourseId == id);
+        if (uc == null) return NotFound();
+
+        if (!string.IsNullOrEmpty(dto.Email))
+        {
+            // Validate friendship
+            var (e1, e2) = NormalizePair(email, dto.Email);
+            var isFriend = await _db.Friendships.AnyAsync(f => f.Email1 == e1 && f.Email2 == e2 && f.IsActive);
+            if (!isFriend)
+                return BadRequest(new { message = "You must be friends to set as study partner" });
+        }
+
+        uc.StudyPartnerEmail = string.IsNullOrEmpty(dto.Email) ? null : dto.Email;
+        await _db.SaveChangesAsync();
+
+        return Ok(new { courseId = id, studyPartnerEmail = uc.StudyPartnerEmail });
+    }
+
+    private static (string, string) NormalizePair(string a, string b) =>
+        string.Compare(a, b, StringComparison.OrdinalIgnoreCase) < 0 ? (a, b) : (b, a);
 
     [HttpDelete("{id}")]
     public async Task<IActionResult> Delete(int id)

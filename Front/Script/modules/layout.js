@@ -67,6 +67,21 @@ export function initLayout() {
         <button class="sidebar-toggle" id="sidebarToggle">&#9776;</button>
         <h1 class="topbar-title">${pageTitles[currentPage] || 'SmartStudy'}</h1>
         <div class="topbar-actions">
+            <div class="notif-wrapper">
+                <button class="notif-bell" id="notifBell" title="Notifications">
+                    &#128276;
+                    <span class="notif-badge" id="notifBadge" style="display:none">0</span>
+                </button>
+                <div class="notif-dropdown" id="notifDropdown">
+                    <div class="notif-dropdown__header">
+                        <span class="notif-dropdown__title">Notifications</span>
+                        <button class="btn btn-ghost btn-sm" id="notifMarkAll">Mark all read</button>
+                    </div>
+                    <div class="notif-dropdown__list" id="notifList">
+                        <div class="notif-empty">Loading...</div>
+                    </div>
+                </div>
+            </div>
             <div class="topbar-user">
                 <div class="topbar-avatar" id="userMenuBtn">${user ? user.firstName[0] : 'U'}</div>
                 <div class="topbar-dropdown" id="userDropdown">

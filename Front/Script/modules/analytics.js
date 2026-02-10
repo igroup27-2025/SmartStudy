@@ -13,6 +13,8 @@ export async function initAnalytics() {
         renderWeeklyChart(weekly);
         renderWorkloadByCourse(tasks, courses);
         renderTaskStats(tasks);
+        renderEstimatedVsActual(tasks, courses);
+        renderLearningInsights();
     } catch (err) {
         showToast('Failed to load analytics', 'error');
     }
@@ -48,8 +50,6 @@ function renderStressOverview(stress) {
 function renderWeeklyChart(weekly) {
     const el = document.getElementById('weeklyChart');
     if (!el) return;
-
-    const maxScore = Math.max(...weekly.map(d => d.score), 1);
 
     el.innerHTML = `
         <div class="bar-chart">
@@ -119,4 +119,103 @@ function renderTaskStats(tasks) {
             </div>
         </div>
     `;
+}
+
+function renderEstimatedVsActual(tasks, courses) {
+    const el = document.getElementById('estimatedVsActual');
+    if (!el) return;
+
+    // Only show completed tasks with both estimated and actual hours
+    const completedWithHours = tasks.filter(t => t.isCompleted && t.estimatedHours && t.actualHours);
+
+    if (!completedWithHours.length) {
+        el.innerHTML = '<p class="text-muted">Complete tasks with actual hours to see comparison data.</p>';
+        return;
+    }
+
+    // Group by course
+    const courseColors = ['#00BCD4', '#F28D35', '#9B76FF', '#F2C777', '#FF607E', '#54BFB5'];
+    const courseMap = {};
+    completedWithHours.forEach(t => {
+        const key = t.courseId;
+        if (!courseMap[key]) {
+            courseMap[key] = { courseName: t.courseName || 'Unknown', estimated: 0, actual: 0 };
+        }
+        courseMap[key].estimated += t.estimatedHours;
+        courseMap[key].actual += t.actualHours;
+    });
+
+    const entries = Object.values(courseMap);
+    const maxHours = Math.max(...entries.flatMap(e => [e.estimated, e.actual]), 1);
+
+    el.innerHTML = `
+        <div class="est-vs-actual-chart">
+            ${entries.map((e, i) => {
+                const estPct = Math.round((e.estimated / maxHours) * 100);
+                const actPct = Math.round((e.actual / maxHours) * 100);
+                const color = courseColors[i % courseColors.length];
+                const accuracy = e.estimated > 0 ? Math.round((e.actual / e.estimated) * 100) : 0;
+                return `
+                    <div class="est-vs-actual-row">
+                        <span class="est-vs-actual-label">${e.courseName}</span>
+                        <div class="est-vs-actual-bars">
+                            <div class="est-vs-actual-bar">
+                                <div class="est-vs-actual-fill est-vs-actual-fill--est" style="width:${estPct}%;background:${color};opacity:0.5"></div>
+                                <span class="est-vs-actual-value">${e.estimated.toFixed(1)}h est</span>
+                            </div>
+                            <div class="est-vs-actual-bar">
+                                <div class="est-vs-actual-fill est-vs-actual-fill--act" style="width:${actPct}%;background:${color}"></div>
+                                <span class="est-vs-actual-value">${e.actual.toFixed(1)}h actual</span>
+                            </div>
+                        </div>
+                        <span class="est-vs-actual-accuracy ${accuracy > 120 ? 'text-danger' : accuracy < 80 ? 'text-warning' : 'text-success'}">${accuracy}%</span>
+                    </div>
+                `;
+            }).join('')}
+        </div>
+        <div class="est-vs-actual-legend">
+            <span class="legend-item"><span class="legend-dot" style="background:#ccc;opacity:0.5"></span> Estimated</span>
+            <span class="legend-item"><span class="legend-dot" style="background:#ccc"></span> Actual</span>
+        </div>
+    `;
+}
+
+async function renderLearningInsights() {
+    const el = document.getElementById('learningInsights');
+    if (!el) return;
+
+    try {
+        const insights = await api.getLearningInsights();
+
+        if (!insights || !insights.length) {
+            el.innerHTML = '<p class="text-muted">Complete more tasks with actual hours to see learning insights.</p>';
+            return;
+        }
+
+        el.innerHTML = insights.map(i => {
+            const accuracy = i.adjustmentFactor ? Math.round(i.adjustmentFactor * 100) : 100;
+            const isOver = accuracy > 110;
+            const isUnder = accuracy < 90;
+            const barColor = isOver ? '#E74C3C' : isUnder ? '#F28D35' : '#27AE60';
+            const label = isOver ? 'Takes longer than estimated' : isUnder ? 'Finishes faster than estimated' : 'On track';
+
+            return `
+                <div class="learning-insight-item">
+                    <div class="learning-insight-header">
+                        <span class="learning-insight-course">${i.courseName}</span>
+                        <span class="learning-insight-factor" style="color:${barColor}">${accuracy}% ${label}</span>
+                    </div>
+                    <div class="progress-bar-track">
+                        <div class="progress-bar-fill" style="width:${Math.min(accuracy, 200) / 2}%;background:${barColor}"></div>
+                    </div>
+                    <div class="learning-insight-meta">
+                        <span>${i.completedTasks} tasks completed</span>
+                        <span>Avg: ${i.avgEstimated?.toFixed(1) || 0}h est / ${i.avgActual?.toFixed(1) || 0}h actual</span>
+                    </div>
+                </div>
+            `;
+        }).join('');
+    } catch {
+        el.innerHTML = '<p class="text-muted">Failed to load learning insights.</p>';
+    }
 }

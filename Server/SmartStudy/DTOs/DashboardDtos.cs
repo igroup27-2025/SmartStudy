@@ -47,6 +47,8 @@ public class NotificationSettingsDto
     public bool DailyMorningSummary { get; set; }
     public bool WeeklyPlanReminder { get; set; }
     public bool EnablePushNotification { get; set; }
+    public string? QuietHoursStart { get; set; }
+    public string? QuietHoursEnd { get; set; }
 }
 
 public class UserProfileDto

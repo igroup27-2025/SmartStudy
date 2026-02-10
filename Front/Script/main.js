@@ -29,6 +29,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     initLayout();
     initModals();
 
+    // Initialize notifications (bell icon in topbar)
+    const { initNotifications } = await import('./modules/notifications.js');
+    initNotifications();
+
     // Initialize page-specific module
     switch (page) {
         case 'dashboard': {

@@ -72,9 +72,86 @@ public class AuthController : ControllerBase
     [HttpPost("logout")]
     public IActionResult Logout()
     {
-        // JWT is stateless — client-side token removal is sufficient.
-        // This endpoint exists for API completeness.
         return Ok(new { message = "Logged out successfully" });
+    }
+
+    [HttpPost("forgot-password")]
+    public async Task<IActionResult> ForgotPassword([FromBody] ForgotPasswordDto dto)
+    {
+        var user = await _db.Users.FindAsync(dto.Email);
+        if (user == null)
+            return Ok(new { message = "If the email exists, a reset token has been generated.", token = (string?)null });
+
+        // Generate 8-char reset token
+        var token = Guid.NewGuid().ToString("N")[..8].ToUpper();
+        user.ResetToken = token;
+        user.ResetTokenExpiry = DateTime.UtcNow.AddHours(1);
+        await _db.SaveChangesAsync();
+
+        // In production this would be sent via email. For demo, return it directly.
+        return Ok(new { message = "Reset token generated.", token });
+    }
+
+    [HttpPost("reset-password")]
+    public async Task<IActionResult> ResetPassword([FromBody] ResetPasswordDto dto)
+    {
+        var user = await _db.Users.FindAsync(dto.Email);
+        if (user == null)
+            return BadRequest(new { message = "Invalid email or token" });
+
+        if (user.ResetToken != dto.Token || user.ResetTokenExpiry < DateTime.UtcNow)
+            return BadRequest(new { message = "Invalid or expired token" });
+
+        user.Password = HashPassword(dto.NewPassword);
+        user.ResetToken = null;
+        user.ResetTokenExpiry = null;
+        await _db.SaveChangesAsync();
+
+        return Ok(new { message = "Password reset successfully" });
+    }
+
+    [HttpPost("google")]
+    public async Task<IActionResult> GoogleLogin([FromBody] GoogleLoginDto dto)
+    {
+        try
+        {
+            var payload = await Google.Apis.Auth.GoogleJsonWebSignature.ValidateAsync(dto.IdToken, new Google.Apis.Auth.GoogleJsonWebSignature.ValidationSettings
+            {
+                Audience = new[] { _config["Google:ClientId"] ?? "" }
+            });
+
+            var email = payload.Email;
+            var user = await _db.Users.FirstOrDefaultAsync(u => u.Email == email);
+
+            if (user == null)
+            {
+                // Create new user from Google profile
+                user = new User
+                {
+                    Email = email,
+                    FirstName = payload.GivenName ?? "User",
+                    LastName = payload.FamilyName ?? "",
+                    Password = HashPassword(Guid.NewGuid().ToString()),
+                    AuthProvider = "Google"
+                };
+                _db.Users.Add(user);
+                _db.NotificationSettings.Add(new NotificationSettings { Email = email });
+                await _db.SaveChangesAsync();
+            }
+
+            var token = GenerateToken(user);
+            return Ok(new AuthResponseDto
+            {
+                Token = token,
+                Email = user.Email,
+                FirstName = user.FirstName,
+                LastName = user.LastName
+            });
+        }
+        catch (Exception)
+        {
+            return BadRequest(new { message = "Invalid Google token" });
+        }
     }
 
     private string GenerateToken(User user)

@@ -13,6 +13,7 @@ export async function initDashboard() {
         renderWorkload(data);
         renderUnscheduled(data);
         renderSuggestion(data);
+        renderWeeklySuggestions();
         renderMiniCalendar();
         renderReview(data);
     } catch (err) {
@@ -389,6 +390,83 @@ function renderReview(data) {
             }
         });
     });
+}
+
+/* ---- Section: Weekly Insights ---- */
+async function renderWeeklySuggestions() {
+    const el = document.getElementById('dashWeeklyInsights');
+    if (!el) return;
+
+    try {
+        const data = await api.getWeeklySuggestions();
+        if (!data || (!data.suggestions?.length && !data.focusTasks?.length)) {
+            el.innerHTML = '';
+            return;
+        }
+
+        const typeIcons = {
+            warning: '&#9888;',
+            overload: '&#128293;',
+            positive: '&#9989;',
+            danger: '&#128680;',
+            urgent: '&#9200;',
+            info: '&#128161;',
+        };
+
+        const typeClasses = {
+            warning: 'suggestion--warning',
+            overload: 'suggestion--danger',
+            positive: 'suggestion--success',
+            danger: 'suggestion--danger',
+            urgent: 'suggestion--warning',
+            info: 'suggestion--info',
+        };
+
+        let html = '<div class="card"><div class="card-header"><h3 class="card-title">Weekly Insights</h3></div><div class="card-body">';
+
+        // Summary
+        if (data.totalStudyHours !== undefined) {
+            html += `<div class="weekly-summary">
+                <span>Available study time: <strong>${data.availableHours || 0}h</strong></span>
+                <span>Needed: <strong>${data.totalStudyHours || 0}h</strong></span>
+            </div>`;
+        }
+
+        // Suggestion cards
+        if (data.suggestions?.length) {
+            html += '<div class="suggestion-list">';
+            data.suggestions.forEach(s => {
+                const icon = typeIcons[s.type] || typeIcons.info;
+                const cls = typeClasses[s.type] || 'suggestion--info';
+                html += `<div class="suggestion-card ${cls}">
+                    <span class="suggestion-card__icon">${icon}</span>
+                    <span class="suggestion-card__text">${s.message}</span>
+                </div>`;
+            });
+            html += '</div>';
+        }
+
+        // Focus tasks
+        if (data.focusTasks?.length) {
+            html += '<h4 class="weekly-focus-title">Top Focus Tasks</h4>';
+            html += '<div class="focus-task-list">';
+            data.focusTasks.forEach(t => {
+                const priorityClass = (t.priority || 'medium').toLowerCase();
+                html += `<div class="focus-task-item">
+                    <span class="focus-task-item__title">${t.title}</span>
+                    <span class="badge badge-priority-${priorityClass}">${t.priority || 'Medium'}</span>
+                    ${t.dueDate ? `<span class="focus-task-item__due">Due ${new Date(t.dueDate).toLocaleDateString('en', { month: 'short', day: 'numeric' })}</span>` : ''}
+                    ${t.estimatedHours ? `<span class="focus-task-item__hours">${t.estimatedHours}h</span>` : ''}
+                </div>`;
+            });
+            html += '</div>';
+        }
+
+        html += '</div></div>';
+        el.innerHTML = html;
+    } catch {
+        el.innerHTML = '';
+    }
 }
 
 /* ---- Section: Dashboard 3-Day Calendar ---- */

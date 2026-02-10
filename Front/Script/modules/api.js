@@ -37,9 +37,13 @@ export const api = {
     login: (email, password) => request('POST', '/auth/login', { email, password }),
     register: (data) => request('POST', '/auth/register', data),
     logout: () => request('POST', '/auth/logout'),
+    forgotPassword: (email) => request('POST', '/auth/forgot-password', { email }),
+    resetPassword: (data) => request('POST', '/auth/reset-password', data),
+    googleLogin: (idToken) => request('POST', '/auth/google', { idToken }),
 
     // Dashboard
     getDashboard: () => request('GET', '/dashboard'),
+    getWeeklySuggestions: () => request('GET', '/dashboard/weekly-suggestions'),
 
     // Courses
     getCourses: () => request('GET', '/courses'),
@@ -47,6 +51,7 @@ export const api = {
     createCourse: (data) => request('POST', '/courses', data),
     updateCourse: (id, data) => request('PUT', `/courses/${id}`, data),
     deleteCourse: (id) => request('DELETE', `/courses/${id}`),
+    setStudyPartner: (courseId, email) => request('PUT', `/courses/${courseId}/partner`, { email }),
 
     // Tasks
     getTasks: (params = {}) => {
@@ -60,7 +65,14 @@ export const api = {
     createTask: (data) => request('POST', '/tasks', data),
     updateTask: (id, data) => request('PUT', `/tasks/${id}`, data),
     deleteTask: (id) => request('DELETE', `/tasks/${id}`),
-    completeTask: (id) => request('POST', `/tasks/${id}/complete`),
+    completeTask: (id, data = {}) => request('POST', `/tasks/${id}/complete`, data),
+    splitTask: (id, data) => request('POST', `/tasks/${id}/split`, data),
+    getSuggestedHours: (courseId, estimatedHours) => {
+        const qs = new URLSearchParams({ courseId });
+        if (estimatedHours) qs.set('estimatedHours', estimatedHours);
+        return request('GET', `/tasks/suggest-hours?${qs.toString()}`);
+    },
+    getLearningInsights: () => request('GET', '/tasks/learning-insights'),
 
     // Exams
     getExams: () => request('GET', '/exams'),
@@ -85,6 +97,7 @@ export const api = {
     updateWorkEvent: (id, data) => request('PUT', `/events/work/${id}`, data),
     updatePersonalEvent: (id, data) => request('PUT', `/events/personal/${id}`, data),
     deleteEvent: (id) => request('DELETE', `/events/${id}`),
+    checkConflicts: (data) => request('POST', '/events/check-conflicts', data),
 
     // Schedule Import
     importSchedule: async (file) => {
@@ -132,6 +145,13 @@ export const api = {
     createSharedTask: (data) => request('POST', '/shared-tasks', data),
     respondSharedTask: (taskId, accept) => request('POST', `/shared-tasks/${taskId}/respond`, { accept }),
     cancelSharedTask: (taskId) => request('POST', `/shared-tasks/${taskId}/cancel`),
+
+    // Notifications
+    getNotifications: () => request('GET', '/notifications'),
+    getUnreadCount: () => request('GET', '/notifications/unread-count'),
+    markNotificationsRead: (ids) => request('POST', '/notifications/mark-read', { notificationIds: ids }),
+    markAllNotificationsRead: () => request('POST', '/notifications/mark-all-read'),
+    generateNotifications: () => request('POST', '/notifications/generate'),
 
     // Settings
     getProfile: () => request('GET', '/settings/profile'),

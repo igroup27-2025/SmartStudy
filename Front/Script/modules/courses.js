@@ -3,12 +3,19 @@ import { openModal, closeModal, showToast } from './modals.js';
 
 let courses = [];
 let instructors = [];
+let friends = [];
 
 const COURSE_COLORS = ['#00BCD4', '#F28D35', '#9B76FF', '#F2C777', '#FF607E', '#54BFB5'];
 
 export async function initCourses() {
     try {
         [courses, instructors] = await Promise.all([api.getCourses(), api.getInstructors()]);
+        // Load friends for study partner selection
+        try {
+            const connections = await api.getConnections();
+            friends = (connections.friends || []);
+        } catch { friends = []; }
+
         renderCourses();
         setupAddCourse();
     } catch (err) {
@@ -59,6 +66,7 @@ function renderCourses() {
                     </div>
                 </div>
                 ${c.semester ? `<div class="course-semester">Semester: ${c.semester}</div>` : ''}
+                ${c.studyPartnerName ? `<div class="course-partner">Study Partner: ${c.studyPartnerName}</div>` : ''}
             </div>
         </div>
     `).join('');
@@ -91,10 +99,18 @@ function setupAddCourse() {
             instructors.map(i => `<option value="${i.instructorId}">${i.instructorName}</option>`).join('');
     }
 
+    // Populate study partner dropdown
+    const partnerSelect = document.getElementById('courseStudyPartner');
+    if (partnerSelect) {
+        partnerSelect.innerHTML = '<option value="">None</option>' +
+            friends.map(f => `<option value="${f.email}">${f.firstName} ${f.lastName}</option>`).join('');
+    }
+
     document.getElementById('addCourseBtn')?.addEventListener('click', () => {
         document.getElementById('courseForm')?.reset();
         document.getElementById('courseModalTitle').textContent = 'Add Course';
         document.getElementById('courseId').value = '';
+        if (partnerSelect) partnerSelect.value = '';
         openModal('courseModal');
     });
 
@@ -120,7 +136,22 @@ function setupAddCourse() {
                 courses.push(created);
                 showToast('Course added');
             }
+
+            // Save study partner if selected
+            const partnerEmail = document.getElementById('courseStudyPartner')?.value;
+            const targetCourseId = courseId ? parseInt(courseId) : courses[courses.length - 1]?.courseId;
+            if (targetCourseId) {
+                const currentPartner = courses.find(c => c.courseId === targetCourseId)?.studyPartnerEmail;
+                if (partnerEmail !== (currentPartner || '')) {
+                    try {
+                        await api.setStudyPartner(targetCourseId, partnerEmail || null);
+                    } catch { /* silent - partner set is optional */ }
+                }
+            }
+
             closeModal('courseModal');
+            // Refresh courses to get updated partner info
+            courses = await api.getCourses();
             renderCourses();
         } catch (err) {
             showToast(err.message || 'Failed to save course', 'error');
@@ -139,5 +170,12 @@ function editCourse(id) {
     document.getElementById('courseCredits').value = course.credits || '';
     document.getElementById('courseSemester').value = course.semester || '';
     document.getElementById('courseInstructorId').value = course.instructorId || '';
+
+    // Set study partner
+    const partnerSelect = document.getElementById('courseStudyPartner');
+    if (partnerSelect) {
+        partnerSelect.value = course.studyPartnerEmail || '';
+    }
+
     openModal('courseModal');
 }

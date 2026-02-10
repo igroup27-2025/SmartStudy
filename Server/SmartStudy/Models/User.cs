@@ -6,6 +6,9 @@ public class User
     public string FirstName { get; set; } = null!;
     public string LastName { get; set; } = null!;
     public string Password { get; set; } = null!;
+    public string? ResetToken { get; set; }
+    public DateTime? ResetTokenExpiry { get; set; }
+    public string? AuthProvider { get; set; }
 
     // Navigation properties
     public NotificationSettings? NotificationSettings { get; set; }
@@ -17,4 +20,5 @@ public class User
     public ICollection<Friendship> FriendshipsAsUser1 { get; set; } = new List<Friendship>();
     public ICollection<Friendship> FriendshipsAsUser2 { get; set; } = new List<Friendship>();
     public ICollection<SharedTaskMember> SharedTaskMemberships { get; set; } = new List<SharedTaskMember>();
+    public ICollection<Notification> Notifications { get; set; } = new List<Notification>();
 }

@@ -17,12 +17,14 @@ public class DashboardController : ControllerBase
     private readonly SmartStudyDbContext _db;
     private readonly StressService _stressService;
     private readonly SchedulingService _schedulingService;
+    private readonly WeeklySuggestionService _weeklySuggestionService;
 
-    public DashboardController(SmartStudyDbContext db, StressService stressService, SchedulingService schedulingService)
+    public DashboardController(SmartStudyDbContext db, StressService stressService, SchedulingService schedulingService, WeeklySuggestionService weeklySuggestionService)
     {
         _db = db;
         _stressService = stressService;
         _schedulingService = schedulingService;
+        _weeklySuggestionService = weeklySuggestionService;
     }
 
     private string GetEmail() => User.FindFirst(ClaimTypes.Email)!.Value;
@@ -181,5 +183,13 @@ public class DashboardController : ControllerBase
             OverloadedDays = schedulingStatus.OverloadedDays,
             NextSuggestedTask = nextSuggested
         });
+    }
+
+    [HttpGet("weekly-suggestions")]
+    public async Task<IActionResult> GetWeeklySuggestions()
+    {
+        var email = GetEmail();
+        var suggestions = await _weeklySuggestionService.GetWeeklySuggestionsAsync(email);
+        return Ok(suggestions);
     }
 }

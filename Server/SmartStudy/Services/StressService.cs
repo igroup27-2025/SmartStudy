@@ -18,8 +18,11 @@ public class StressService
         var now = DateTime.Now;
 
         var incompleteTasks = await _db.Tasks
+            .Include(t => t.SubTasks)
             .Where(t => t.Email == email && !t.IsCompleted && t.DueDate != null)
             .ToListAsync();
+        // Only count leaf tasks to avoid double-counting parents
+        incompleteTasks = incompleteTasks.Where(t => !t.SubTasks.Any()).ToList();
 
         var userCourseIds = await _db.UserCourses
             .Where(uc => uc.Email == email)

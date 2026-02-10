@@ -255,6 +255,65 @@ public class EventsController : ControllerBase
         return Ok(new { evt.EventId, eventType = "personal" });
     }
 
+    [HttpPost("check-conflicts")]
+    public async Task<IActionResult> CheckConflicts([FromBody] CheckConflictDto dto)
+    {
+        var email = GetEmail();
+
+        // Get all events in the time range (including recurring expansion)
+        var events = await _db.Events
+            .Where(e => e.Email == email &&
+                ((e.To > dto.From && e.From < dto.To) || e.Recurring))
+            .OrderBy(e => e.From)
+            .ToListAsync();
+
+        var eventIds = events.Select(e => e.EventId).ToList();
+        var classEvents = await _db.ClassEvents.Include(ce => ce.Course)
+            .Where(ce => eventIds.Contains(ce.EventId)).ToDictionaryAsync(ce => ce.EventId);
+        var taskEvents = await _db.TaskEvents.Include(te => te.StudentTask)
+            .Where(te => eventIds.Contains(te.EventId)).ToDictionaryAsync(te => te.EventId);
+        var workEvents = await _db.WorkEvents
+            .Where(we => eventIds.Contains(we.EventId)).ToDictionaryAsync(we => we.EventId);
+        var personalEvents = await _db.PersonalEvents
+            .Where(pe => eventIds.Contains(pe.EventId)).ToDictionaryAsync(pe => pe.EventId);
+
+        var conflicts = new List<EventDto>();
+
+        foreach (var evt in events)
+        {
+            // Skip the event being edited
+            if (dto.ExcludeEventId.HasValue && evt.EventId == dto.ExcludeEventId.Value) continue;
+
+            // Check direct overlap
+            if (evt.From < dto.To && evt.To > dto.From)
+            {
+                conflicts.Add(BuildDto(evt, classEvents, taskEvents, workEvents, personalEvents));
+            }
+
+            // Check recurring copies
+            if (evt.Recurring)
+            {
+                var duration = evt.To - evt.From;
+                var nextFrom = evt.From.AddDays(7);
+                for (int i = 0; i < 52 && nextFrom < dto.To.AddDays(7); i++)
+                {
+                    var nextTo = nextFrom.Add(duration);
+                    if (nextFrom < dto.To && nextTo > dto.From)
+                    {
+                        if (dto.ExcludeEventId.HasValue && evt.EventId == dto.ExcludeEventId.Value) continue;
+                        var virtualDto = BuildDto(evt, classEvents, taskEvents, workEvents, personalEvents);
+                        virtualDto.From = nextFrom;
+                        virtualDto.To = nextTo;
+                        conflicts.Add(virtualDto);
+                    }
+                    nextFrom = nextFrom.AddDays(7);
+                }
+            }
+        }
+
+        return Ok(new { hasConflicts = conflicts.Any(), conflicts });
+    }
+
     [HttpDelete("{id}")]
     public async Task<IActionResult> Delete(int id)
     {

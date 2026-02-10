@@ -7,6 +7,8 @@ public class NotificationSettings
     public bool DailyMorningSummary { get; set; }
     public bool WeeklyPlanReminder { get; set; }
     public bool EnablePushNotification { get; set; }
+    public TimeSpan? QuietHoursStart { get; set; }
+    public TimeSpan? QuietHoursEnd { get; set; }
 
     // Navigation property
     public User User { get; set; } = null!;
