@@ -23,6 +23,7 @@ obj/
 *.png
 *.jpg
 *.jpeg
+!Front/Images/**
 
 # Documents
 *.pdf
