@@ -296,7 +296,15 @@ using (var scope = app.Services.CreateScope())
                 END
             END
 
-            -- Drop old scheduling columns from Users if they exist
+            -- Drop old scheduling columns from Users (must drop default constraints first)
+            DECLARE @sql NVARCHAR(MAX) = '';
+            SELECT @sql = @sql + 'ALTER TABLE SmartStudy_Users DROP CONSTRAINT ' + QUOTENAME(dc.name) + '; '
+            FROM sys.default_constraints dc
+            JOIN sys.columns c ON dc.parent_object_id = c.object_id AND dc.parent_column_id = c.column_id
+            WHERE dc.parent_object_id = OBJECT_ID('SmartStudy_Users')
+              AND c.name IN ('MaxDailyStudyHours','MaxContinuousMinutes','DayStartHour','DayEndHour','SleepHoursPerDay','LunchBreakStart','LunchBreakEnd');
+            IF @sql <> '' EXEC sp_executesql @sql;
+
             IF COL_LENGTH('SmartStudy_Users', 'MaxDailyStudyHours') IS NOT NULL
                 ALTER TABLE SmartStudy_Users DROP COLUMN MaxDailyStudyHours;
             IF COL_LENGTH('SmartStudy_Users', 'MaxContinuousMinutes') IS NOT NULL
