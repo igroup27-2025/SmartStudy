@@ -20,18 +20,23 @@
         </div>
         <div class="onboarding-card">
             <h1 class="onboarding-title">You're All Set!</h1>
-            <p class="onboarding-subtitle">Your SmartStudy dashboard is ready. Start managing your academic life smarter.</p>
-            <div class="onboarding-illustration">&#127891;</div>
-            <div class="onboarding-summary">
-                <div class="onboarding-summary-item">&#128200; View your stress score on the Dashboard</div>
-                <div class="onboarding-summary-item">&#128197; Check your schedule on the Calendar</div>
-                <div class="onboarding-summary-item">&#128202; Analyze trends in Analytics</div>
+            <p class="onboarding-subtitle">Here's a summary of your settings. Click "Go to Dashboard" to save and start.</p>
+
+            <div class="onboarding-summary" id="onboardingSummary">
+                <div class="onboarding-summary-item" id="summaryStudy"></div>
+                <div class="onboarding-summary-item" id="summaryWindow"></div>
+                <div class="onboarding-summary-item" id="summarySleep"></div>
+                <div class="onboarding-summary-item" id="summaryLunch"></div>
+                <div class="onboarding-summary-item" id="summaryNotif"></div>
+                <div class="onboarding-summary-item" id="summaryConstraints"></div>
             </div>
         </div>
         <div class="onboarding-actions">
+            <button class="btn btn-ghost" id="onboardingBack">&larr; Back</button>
             <button class="btn btn-primary btn-lg" id="onboardingNext">Go to Dashboard</button>
         </div>
     </div>
+    <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
     <script type="module" src="/Script/main.js"></script>
 </body>
 </html>

@@ -4,6 +4,8 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using SmartStudy.Data;
 using SmartStudy.DTOs;
+using SmartStudy.Models;
+using SmartStudy.Services;
 
 namespace SmartStudy.Controllers;
 
@@ -65,7 +67,7 @@ public class SettingsController : ControllerBase
         var settings = await _db.NotificationSettings.FindAsync(email);
         if (settings == null)
         {
-            settings = new Models.NotificationSettings { Email = email };
+            settings = new NotificationSettings { Email = email };
             _db.NotificationSettings.Add(settings);
         }
 
@@ -86,6 +88,151 @@ public class SettingsController : ControllerBase
 
         await _db.SaveChangesAsync();
         return Ok(dto);
+    }
+
+    [HttpGet("scheduling")]
+    public async Task<IActionResult> GetSchedulingPrefs()
+    {
+        var email = GetEmail();
+        var user = await _db.Users.FindAsync(email);
+        if (user == null) return NotFound();
+
+        return Ok(new SchedulingPreferencesDto
+        {
+            MaxDailyStudyHours = user.MaxDailyStudyHours,
+            MaxContinuousMinutes = user.MaxContinuousMinutes,
+            DayStartHour = user.DayStartHour,
+            DayEndHour = user.DayEndHour,
+            SleepHoursPerDay = user.SleepHoursPerDay,
+            LunchBreakStart = user.LunchBreakStart?.ToString(@"hh\:mm"),
+            LunchBreakEnd = user.LunchBreakEnd?.ToString(@"hh\:mm")
+        });
+    }
+
+    [HttpPut("scheduling")]
+    public async Task<IActionResult> UpdateSchedulingPrefs([FromBody] SchedulingPreferencesDto dto)
+    {
+        var email = GetEmail();
+        var user = await _db.Users.FindAsync(email);
+        if (user == null) return NotFound();
+
+        user.MaxDailyStudyHours = Math.Clamp(dto.MaxDailyStudyHours, 2, 12);
+        user.MaxContinuousMinutes = Math.Clamp(dto.MaxContinuousMinutes, 30, 120);
+        user.DayStartHour = Math.Clamp(dto.DayStartHour, 5, 12);
+        user.DayEndHour = Math.Clamp(dto.DayEndHour, 16, 23);
+        user.SleepHoursPerDay = Math.Clamp(dto.SleepHoursPerDay, 5, 10);
+
+        if (dto.LunchBreakStart != null && TimeSpan.TryParse(dto.LunchBreakStart, out var lStart))
+            user.LunchBreakStart = lStart;
+        else
+            user.LunchBreakStart = null;
+
+        if (dto.LunchBreakEnd != null && TimeSpan.TryParse(dto.LunchBreakEnd, out var lEnd))
+            user.LunchBreakEnd = lEnd;
+        else
+            user.LunchBreakEnd = null;
+
+        await _db.SaveChangesAsync();
+        return Ok(dto);
+    }
+
+    [HttpPut("onboarding")]
+    public async Task<IActionResult> SaveOnboarding([FromBody] OnboardingDto dto)
+    {
+        var email = GetEmail();
+        var user = await _db.Users.FindAsync(email);
+        if (user == null) return NotFound();
+
+        // Save scheduling preferences
+        if (dto.SchedulingPreferences != null)
+        {
+            var p = dto.SchedulingPreferences;
+            user.MaxDailyStudyHours = Math.Clamp(p.MaxDailyStudyHours, 2, 12);
+            user.MaxContinuousMinutes = Math.Clamp(p.MaxContinuousMinutes, 30, 120);
+            user.DayStartHour = Math.Clamp(p.DayStartHour, 5, 12);
+            user.DayEndHour = Math.Clamp(p.DayEndHour, 16, 23);
+            user.SleepHoursPerDay = Math.Clamp(p.SleepHoursPerDay, 5, 10);
+
+            if (p.LunchBreakStart != null && TimeSpan.TryParse(p.LunchBreakStart, out var lStart))
+                user.LunchBreakStart = lStart;
+            if (p.LunchBreakEnd != null && TimeSpan.TryParse(p.LunchBreakEnd, out var lEnd))
+                user.LunchBreakEnd = lEnd;
+        }
+
+        // Save notification settings
+        if (dto.NotificationSettings != null)
+        {
+            var ns = dto.NotificationSettings;
+            var settings = await _db.NotificationSettings.FindAsync(email);
+            if (settings == null)
+            {
+                settings = new NotificationSettings { Email = email };
+                _db.NotificationSettings.Add(settings);
+            }
+
+            settings.NotifyBeforeTask = ns.NotifyBeforeTask;
+            settings.DailyMorningSummary = ns.DailyMorningSummary;
+            settings.WeeklyPlanReminder = ns.WeeklyPlanReminder;
+            settings.EnablePushNotification = ns.EnablePushNotification;
+
+            if (ns.QuietHoursStart != null && TimeSpan.TryParse(ns.QuietHoursStart, out var qStart))
+                settings.QuietHoursStart = qStart;
+            if (ns.QuietHoursEnd != null && TimeSpan.TryParse(ns.QuietHoursEnd, out var qEnd))
+                settings.QuietHoursEnd = qEnd;
+        }
+
+        // Create recurring constraint events
+        if (dto.Constraints != null)
+        {
+            foreach (var c in dto.Constraints)
+            {
+                if (!TimeSpan.TryParse(c.StartTime, out var cStart)) continue;
+                if (!TimeSpan.TryParse(c.EndTime, out var cEnd)) continue;
+
+                foreach (var dayOfWeek in c.Days)
+                {
+                    // Find the next occurrence of this day of week
+                    var today = DateTime.Now.Date;
+                    var daysUntil = ((dayOfWeek - (int)today.DayOfWeek) + 7) % 7;
+                    var eventDate = today.AddDays(daysUntil);
+                    var eventFrom = eventDate.Add(cStart);
+                    var eventTo = eventDate.Add(cEnd);
+
+                    if (c.Type == "work")
+                    {
+                        _db.WorkEvents.Add(new WorkEvent
+                        {
+                            Email = email,
+                            From = eventFrom,
+                            To = eventTo,
+                            Recurring = true,
+                            WorkPlace = c.Name
+                        });
+                    }
+                    else
+                    {
+                        _db.PersonalEvents.Add(new PersonalEvent
+                        {
+                            Email = email,
+                            From = eventFrom,
+                            To = eventTo,
+                            Recurring = true,
+                            Type = "Constraint",
+                            Description = c.Name
+                        });
+                    }
+                }
+            }
+        }
+
+        user.OnboardingCompleted = true;
+        await _db.SaveChangesAsync();
+
+        // Trigger rescheduling
+        var scheduler = new SchedulingService(_db);
+        await scheduler.ScheduleAllTasksAsync(email);
+
+        return Ok(new { message = "Onboarding completed" });
     }
 
     [HttpGet("instructors")]

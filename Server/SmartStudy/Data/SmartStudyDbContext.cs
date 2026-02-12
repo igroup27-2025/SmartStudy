@@ -42,6 +42,16 @@ public class SmartStudyDbContext : DbContext
             entity.Property(e => e.ResetToken).HasMaxLength(50);
             entity.Property(e => e.ResetTokenExpiry);
             entity.Property(e => e.AuthProvider).HasMaxLength(20);
+
+            // Scheduling preferences
+            entity.Property(e => e.MaxDailyStudyHours).HasDefaultValue(6.0);
+            entity.Property(e => e.MaxContinuousMinutes).HasDefaultValue(90);
+            entity.Property(e => e.DayStartHour).HasDefaultValue(8);
+            entity.Property(e => e.DayEndHour).HasDefaultValue(22);
+            entity.Property(e => e.SleepHoursPerDay).HasDefaultValue(8.0);
+            entity.Property(e => e.LunchBreakStart);
+            entity.Property(e => e.LunchBreakEnd);
+            entity.Property(e => e.OnboardingCompleted).HasDefaultValue(false);
         });
 
         // ===== NotificationSettings =====

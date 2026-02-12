@@ -5,6 +5,7 @@ using Microsoft.EntityFrameworkCore;
 using SmartStudy.Data;
 using SmartStudy.DTOs;
 using SmartStudy.Models;
+using SmartStudy.Services;
 
 namespace SmartStudy.Controllers;
 
@@ -148,6 +149,7 @@ public class EventsController : ControllerBase
         };
         _db.ClassEvents.Add(evt);
         await _db.SaveChangesAsync();
+        await new SchedulingService(_db).ScheduleAllTasksAsync(email);
         return CreatedAtAction(nameof(GetAll), new { }, new { evt.EventId, eventType = "class" });
     }
 
@@ -185,6 +187,7 @@ public class EventsController : ControllerBase
         };
         _db.WorkEvents.Add(evt);
         await _db.SaveChangesAsync();
+        await new SchedulingService(_db).ScheduleAllTasksAsync(email);
         return CreatedAtAction(nameof(GetAll), new { }, new { evt.EventId, eventType = "work" });
     }
 
@@ -203,6 +206,7 @@ public class EventsController : ControllerBase
         };
         _db.PersonalEvents.Add(evt);
         await _db.SaveChangesAsync();
+        await new SchedulingService(_db).ScheduleAllTasksAsync(email);
         return CreatedAtAction(nameof(GetAll), new { }, new { evt.EventId, eventType = "personal" });
     }
 
@@ -220,6 +224,7 @@ public class EventsController : ControllerBase
         evt.Location = dto.Location;
         evt.Duration = dto.Duration;
         await _db.SaveChangesAsync();
+        await new SchedulingService(_db).ScheduleAllTasksAsync(email);
         return Ok(new { evt.EventId, eventType = "class" });
     }
 
@@ -236,6 +241,7 @@ public class EventsController : ControllerBase
         evt.TravelTime = dto.TravelTime;
         evt.WorkPlace = dto.WorkPlace;
         await _db.SaveChangesAsync();
+        await new SchedulingService(_db).ScheduleAllTasksAsync(email);
         return Ok(new { evt.EventId, eventType = "work" });
     }
 
@@ -252,6 +258,7 @@ public class EventsController : ControllerBase
         evt.Type = dto.Type;
         evt.Description = dto.Description;
         await _db.SaveChangesAsync();
+        await new SchedulingService(_db).ScheduleAllTasksAsync(email);
         return Ok(new { evt.EventId, eventType = "personal" });
     }
 
@@ -323,6 +330,7 @@ public class EventsController : ControllerBase
 
         _db.Events.Remove(evt);
         await _db.SaveChangesAsync();
+        await new SchedulingService(_db).ScheduleAllTasksAsync(email);
         return NoContent();
     }
 }

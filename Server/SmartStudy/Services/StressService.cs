@@ -17,6 +17,10 @@ public class StressService
     {
         var now = DateTime.Now;
 
+        // Load user preferences
+        var user = await _db.Users.FirstAsync(u => u.Email == email);
+        double sleepHours = user.SleepHoursPerDay;
+
         var incompleteTasks = await _db.Tasks
             .Include(t => t.SubTasks)
             .Where(t => t.Email == email && !t.IsCompleted && t.DueDate != null)
@@ -62,8 +66,15 @@ public class StressService
         {
             double totalHoursUntilDeadline = (nearestDeadline.Value - now).TotalHours;
             double daysUntilDeadline = totalHoursUntilDeadline / 24.0;
-            double sleepHours = daysUntilDeadline * 8.0;
-            availableHours = Math.Max(1, totalHoursUntilDeadline - sleepHours);
+            double sleepTotal = daysUntilDeadline * sleepHours;
+
+            // Subtract existing events from available hours
+            var events = await _db.Events
+                .Where(e => e.Email == email && e.From > now && e.From < nearestDeadline.Value)
+                .ToListAsync();
+            double eventHours = events.Sum(e => (e.To - e.From).TotalHours);
+
+            availableHours = Math.Max(1, totalHoursUntilDeadline - sleepTotal - eventHours);
         }
         else
         {
@@ -90,6 +101,10 @@ public class StressService
         var startOfWeek = now.Date.AddDays(-(int)now.DayOfWeek);
         var result = new List<WeeklyStressDto>();
 
+        // Load user preferences
+        var user = await _db.Users.FirstAsync(u => u.Email == email);
+        double wakingHours = 24 - user.SleepHoursPerDay;
+
         var userCourseIds = await _db.UserCourses
             .Where(uc => uc.Email == email)
             .Select(uc => uc.CourseId)
@@ -107,15 +122,17 @@ public class StressService
 
             var dayEvents = await _db.Events
                 .Where(e => e.Email == email && e.From >= day && e.From < dayEnd)
-                .CountAsync();
+                .ToListAsync();
 
             var dayExams = await _db.Exams
                 .Where(e => userCourseIds.Contains(e.CourseId)
                     && e.Date >= day && e.Date < dayEnd)
                 .CountAsync();
 
+            // Subtract event hours from available time
+            double eventHours = dayEvents.Sum(e => (e.To - e.From).TotalHours);
             double dayHours = dayTasks * 2.0 + dayExams * 10.0;
-            double dayAvailable = 16.0;
+            double dayAvailable = Math.Max(1, wakingHours - eventHours);
             double dayScore = dayAvailable > 0
                 ? Math.Min(100, (dayHours / dayAvailable) * 100)
                 : 0;
@@ -128,7 +145,7 @@ public class StressService
                 Level = GetStressLevel(dayScore),
                 Color = GetStressColor(dayScore),
                 TaskCount = dayTasks,
-                EventCount = dayEvents
+                EventCount = dayEvents.Count
             });
         }
 

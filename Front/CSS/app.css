@@ -4175,6 +4175,105 @@ body[data-layout="onboarding"] {
 }
 
 
+/* ---- Onboarding Forms ---- */
+.onboarding-form {
+  text-align: left;
+  margin-top: var(--space-4);
+}
+
+.onboarding-field {
+  margin-bottom: var(--space-4);
+}
+
+.onboarding-field__label {
+  display: block;
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-semibold);
+  color: var(--text-primary);
+  margin-bottom: var(--space-1);
+}
+
+.onboarding-field__range-wrap {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.onboarding-range {
+  flex: 1;
+  accent-color: var(--color-primary);
+  height: 6px;
+}
+
+.onboarding-field__value {
+  font-size: var(--fs-base);
+  font-weight: var(--fw-bold);
+  color: var(--color-primary);
+  min-width: 40px;
+  text-align: right;
+}
+
+.onboarding-field__toggle-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.onboarding-section-title {
+  font-size: var(--fs-base);
+  font-weight: var(--fw-bold);
+  color: var(--text-primary);
+  margin-bottom: var(--space-3);
+}
+
+.onboarding-day-picker {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.onboarding-day-chip {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  border-radius: var(--radius-md);
+  background: var(--bg-secondary);
+  font-size: var(--fs-sm);
+  cursor: pointer;
+}
+
+.onboarding-day-chip input { display: none; }
+.onboarding-day-chip:has(input:checked) {
+  background: var(--color-primary);
+  color: #fff;
+}
+
+.onboarding-constraint-form {
+  background: var(--bg-secondary);
+  border-radius: var(--radius-lg);
+  padding: var(--space-4);
+  margin-top: var(--space-3);
+}
+
+.onboarding-constraint-form__actions {
+  display: flex;
+  gap: var(--space-2);
+  margin-top: var(--space-3);
+}
+
+.onboarding-constraint-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: var(--space-2) var(--space-3);
+  background: var(--bg-secondary);
+  border-radius: var(--radius-md);
+  margin-bottom: var(--space-2);
+  font-size: var(--fs-sm);
+}
+
+
 /* ============================================================
    20. BADGES & TAGS
    ============================================================ */

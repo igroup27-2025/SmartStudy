@@ -4,9 +4,13 @@ import { getUser, saveAuth, logout } from './auth.js';
 
 export async function initSettings() {
     try {
-        const profile = await api.getProfile();
+        const [profile, schedPrefs] = await Promise.all([
+            api.getProfile(),
+            api.getSchedulingPrefs().catch(() => null)
+        ]);
         renderProfile(profile);
         renderNotifications(profile.notificationSettings);
+        if (schedPrefs) renderSchedulingPrefs(schedPrefs);
         setupSave();
         loadConstraints();
     } catch (err) {
@@ -36,6 +40,52 @@ function renderNotifications(settings) {
     if (settings.quietHoursEnd) {
         document.getElementById('quietHoursEnd').value = settings.quietHoursEnd;
     }
+}
+
+function renderSchedulingPrefs(prefs) {
+    const maxDaily = document.getElementById('settMaxDaily');
+    const maxDailyVal = document.getElementById('settMaxDailyValue');
+    const sleep = document.getElementById('settSleepHours');
+    const sleepVal = document.getElementById('settSleepHoursValue');
+
+    if (maxDaily) {
+        maxDaily.value = prefs.maxDailyStudyHours;
+        if (maxDailyVal) maxDailyVal.textContent = `${prefs.maxDailyStudyHours}h`;
+        maxDaily.addEventListener('input', () => {
+            if (maxDailyVal) maxDailyVal.textContent = `${maxDaily.value}h`;
+        });
+    }
+
+    if (sleep) {
+        sleep.value = prefs.sleepHoursPerDay;
+        if (sleepVal) sleepVal.textContent = `${prefs.sleepHoursPerDay}h`;
+        sleep.addEventListener('input', () => {
+            if (sleepVal) sleepVal.textContent = `${sleep.value}h`;
+        });
+    }
+
+    const maxCont = document.getElementById('settMaxContinuous');
+    if (maxCont) maxCont.value = prefs.maxContinuousMinutes;
+
+    const dayStart = document.getElementById('settDayStart');
+    if (dayStart) dayStart.value = prefs.dayStartHour;
+
+    const dayEnd = document.getElementById('settDayEnd');
+    if (dayEnd) dayEnd.value = prefs.dayEndHour;
+
+    // Lunch break
+    const lunchEnabled = document.getElementById('settLunchEnabled');
+    const lunchRow = document.getElementById('settLunchTimeRow');
+    const hasLunch = !!prefs.lunchBreakStart;
+    if (lunchEnabled) lunchEnabled.checked = hasLunch;
+    if (lunchRow) lunchRow.style.display = hasLunch ? '' : 'none';
+
+    if (prefs.lunchBreakStart) document.getElementById('settLunchStart').value = prefs.lunchBreakStart;
+    if (prefs.lunchBreakEnd) document.getElementById('settLunchEnd').value = prefs.lunchBreakEnd;
+
+    lunchEnabled?.addEventListener('change', () => {
+        if (lunchRow) lunchRow.style.display = lunchEnabled.checked ? '' : 'none';
+    });
 }
 
 function setupSave() {
@@ -77,6 +127,30 @@ function setupSave() {
             showToast('Notifications updated');
         } catch (err) {
             showToast('Failed to update notifications', 'error');
+        }
+    });
+
+    document.getElementById('schedulingForm')?.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        try {
+            const lunchEnabled = document.getElementById('settLunchEnabled')?.checked;
+            const data = {
+                maxDailyStudyHours: parseFloat(document.getElementById('settMaxDaily').value),
+                maxContinuousMinutes: parseInt(document.getElementById('settMaxContinuous').value),
+                dayStartHour: parseInt(document.getElementById('settDayStart').value),
+                dayEndHour: parseInt(document.getElementById('settDayEnd').value),
+                sleepHoursPerDay: parseFloat(document.getElementById('settSleepHours').value),
+                lunchBreakStart: lunchEnabled ? (document.getElementById('settLunchStart').value || null) : null,
+                lunchBreakEnd: lunchEnabled ? (document.getElementById('settLunchEnd').value || null) : null,
+            };
+            await api.updateSchedulingPrefs(data);
+
+            // Trigger rescheduling
+            await api.runScheduling();
+
+            showToast('Scheduling preferences updated');
+        } catch (err) {
+            showToast('Failed to update scheduling preferences', 'error');
         }
     });
 }

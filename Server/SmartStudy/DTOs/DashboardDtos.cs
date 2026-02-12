@@ -64,3 +64,30 @@ public class UpdateProfileDto
     public string? FirstName { get; set; }
     public string? LastName { get; set; }
 }
+
+public class SchedulingPreferencesDto
+{
+    public double MaxDailyStudyHours { get; set; }
+    public int MaxContinuousMinutes { get; set; }
+    public int DayStartHour { get; set; }
+    public int DayEndHour { get; set; }
+    public double SleepHoursPerDay { get; set; }
+    public string? LunchBreakStart { get; set; }
+    public string? LunchBreakEnd { get; set; }
+}
+
+public class OnboardingDto
+{
+    public SchedulingPreferencesDto? SchedulingPreferences { get; set; }
+    public NotificationSettingsDto? NotificationSettings { get; set; }
+    public List<OnboardingConstraintDto>? Constraints { get; set; }
+}
+
+public class OnboardingConstraintDto
+{
+    public string Type { get; set; } = "work";
+    public string? Name { get; set; }
+    public List<int> Days { get; set; } = new();
+    public string StartTime { get; set; } = null!;
+    public string EndTime { get; set; } = null!;
+}

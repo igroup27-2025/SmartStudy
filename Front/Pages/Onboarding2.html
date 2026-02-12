@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SmartStudy - Add Courses</title>
+    <title>SmartStudy - Study Preferences</title>
     <link rel="stylesheet" href="/CSS/app.css">
 </head>
 <body data-page="onboarding" data-layout="onboarding" data-step="2">
@@ -19,16 +19,95 @@
             <div class="onboarding-progress" id="onboardingProgress"></div>
         </div>
         <div class="onboarding-card">
-            <h1 class="onboarding-title">Add Your Courses</h1>
-            <p class="onboarding-subtitle">Start by adding the courses you're taking this semester. You can always add more later.</p>
-            <div class="onboarding-illustration">&#128218;</div>
-            <p class="onboarding-hint">Go to Courses page after setup to manage your courses.</p>
+            <h1 class="onboarding-title">Study Preferences</h1>
+            <p class="onboarding-subtitle">Help us personalize your schedule. You can change these later in Settings.</p>
+
+            <form id="studyPrefsForm" class="onboarding-form">
+                <div class="onboarding-field">
+                    <label class="onboarding-field__label">Max daily study hours</label>
+                    <div class="onboarding-field__range-wrap">
+                        <input type="range" id="maxDailyStudy" min="2" max="12" step="0.5" value="6" class="onboarding-range">
+                        <span class="onboarding-field__value" id="maxDailyStudyValue">6h</span>
+                    </div>
+                </div>
+
+                <div class="onboarding-field">
+                    <label class="onboarding-field__label">Max continuous study time</label>
+                    <select id="maxContinuous" class="form-input">
+                        <option value="30">30 minutes</option>
+                        <option value="60">60 minutes</option>
+                        <option value="90" selected>90 minutes</option>
+                        <option value="120">120 minutes</option>
+                    </select>
+                </div>
+
+                <div class="onboarding-field">
+                    <label class="onboarding-field__label">Preferred study window</label>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="dayStart">Start</label>
+                            <select id="dayStart" class="form-input">
+                                <option value="5">5:00 AM</option>
+                                <option value="6">6:00 AM</option>
+                                <option value="7">7:00 AM</option>
+                                <option value="8" selected>8:00 AM</option>
+                                <option value="9">9:00 AM</option>
+                                <option value="10">10:00 AM</option>
+                                <option value="11">11:00 AM</option>
+                                <option value="12">12:00 PM</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="dayEnd">End</label>
+                            <select id="dayEnd" class="form-input">
+                                <option value="16">4:00 PM</option>
+                                <option value="17">5:00 PM</option>
+                                <option value="18">6:00 PM</option>
+                                <option value="19">7:00 PM</option>
+                                <option value="20">8:00 PM</option>
+                                <option value="21">9:00 PM</option>
+                                <option value="22" selected>10:00 PM</option>
+                                <option value="23">11:00 PM</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="onboarding-field">
+                    <label class="onboarding-field__label">Sleep hours per day</label>
+                    <div class="onboarding-field__range-wrap">
+                        <input type="range" id="sleepHours" min="5" max="10" step="0.5" value="8" class="onboarding-range">
+                        <span class="onboarding-field__value" id="sleepHoursValue">8h</span>
+                    </div>
+                </div>
+
+                <div class="onboarding-field">
+                    <div class="onboarding-field__toggle-row">
+                        <label class="onboarding-field__label">Lunch break</label>
+                        <label class="toggle-switch">
+                            <input type="checkbox" id="lunchEnabled" checked>
+                            <span class="toggle-slider"></span>
+                        </label>
+                    </div>
+                    <div class="form-row" id="lunchTimeRow">
+                        <div class="form-group">
+                            <label for="lunchStart">From</label>
+                            <input type="time" id="lunchStart" class="form-input" value="12:00">
+                        </div>
+                        <div class="form-group">
+                            <label for="lunchEnd">Until</label>
+                            <input type="time" id="lunchEnd" class="form-input" value="13:00">
+                        </div>
+                    </div>
+                </div>
+            </form>
         </div>
         <div class="onboarding-actions">
             <button class="btn btn-ghost" id="onboardingBack">&larr; Back</button>
             <button class="btn btn-primary btn-lg" id="onboardingNext">Next</button>
         </div>
     </div>
+    <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
     <script type="module" src="/Script/main.js"></script>
 </body>
 </html>

@@ -9,11 +9,6 @@ public class SchedulingService
 {
     private readonly SmartStudyDbContext _db;
 
-    // Scheduling constants
-    private const int DayStartHour = 8;
-    private const int DayEndHour = 22;
-    private const double MaxDailyStudyHours = 8.0;
-    private const double MaxContinuousHoursPerTask = 3.0;
     private const int SlotMinutes = 30;
 
     public SchedulingService(SmartStudyDbContext db)
@@ -26,18 +21,27 @@ public class SchedulingService
         var now = DateTime.Now;
         var result = new SchedulingResultDto();
 
+        // Load user preferences
+        var user = await _db.Users.FirstAsync(u => u.Email == email);
+        int dayStart = user.DayStartHour;
+        int dayEnd = user.DayEndHour;
+        double maxDaily = user.MaxDailyStudyHours;
+        double maxContinuous = user.MaxContinuousMinutes / 60.0;
+
         // 1. Get all incomplete tasks with due dates (only leaf tasks - no parents with children)
+        // Include overdue tasks — treat them as urgent (immediate deadline)
         var allTasks = await _db.Tasks
             .Include(t => t.Course)
             .Include(t => t.TaskEvents)
             .Include(t => t.SubTasks)
-            .Where(t => t.Email == email && !t.IsCompleted && t.DueDate.HasValue && t.DueDate > now)
+            .Where(t => t.Email == email && !t.IsCompleted && t.DueDate.HasValue)
             .ToListAsync();
         // Only schedule leaf tasks (no sub-tasks) to avoid double-counting
         var tasks = allTasks.Where(t => !t.SubTasks.Any()).ToList();
 
         // 2. Get all existing non-task events (class, work, personal) for the scheduling window
         var maxDueDate = tasks.Any() ? tasks.Max(t => t.DueDate!.Value) : now.AddDays(14);
+        if (maxDueDate < now.AddDays(7)) maxDueDate = now.AddDays(7); // At least 7 days for overdue tasks
         var scheduleEnd = maxDueDate.Date.AddDays(1);
         var scheduleStart = now.Date;
 
@@ -64,10 +68,28 @@ public class SchedulingService
         // Reload events without the cleared task events (include recurring for expansion)
         var fixedEvents = await GetExpandedEvents(email, scheduleStart, scheduleEnd);
 
+        // Add lunch break as blocked slots if configured
+        var lunchEvents = new List<Event>();
+        if (user.LunchBreakStart.HasValue && user.LunchBreakEnd.HasValue)
+        {
+            for (var day = scheduleStart; day < scheduleEnd; day = day.AddDays(1))
+            {
+                lunchEvents.Add(new Event
+                {
+                    Email = email,
+                    From = day.Add(user.LunchBreakStart.Value),
+                    To = day.Add(user.LunchBreakEnd.Value),
+                    Recurring = false
+                });
+            }
+            fixedEvents.AddRange(lunchEvents);
+        }
+
         // 4. Sort tasks by priority score
+        // Overdue tasks get the highest urgency (daysUntilDue is clamped to 0.1)
         var scoredTasks = tasks.Select(t =>
         {
-            var daysUntilDue = Math.Max(1, (t.DueDate!.Value - now).TotalDays);
+            var daysUntilDue = Math.Max(0.1, (t.DueDate!.Value - now).TotalDays);
             var priorityWeight = t.Priority?.ToLower() switch
             {
                 "high" => 3,
@@ -83,7 +105,7 @@ public class SchedulingService
         .Select(x => x.Task)
         .ToList();
 
-        // Track scheduled hours per day (to enforce MaxDailyStudyHours)
+        // Track scheduled hours per day (to enforce maxDaily)
         var dailyScheduledHours = new Dictionary<DateTime, double>();
         var newTaskEvents = new List<TaskEvent>();
 
@@ -93,7 +115,8 @@ public class SchedulingService
             var totalHours = (double)(task.EstimatedHours ?? 1);
             var remainingHours = totalHours;
             var slots = new List<ScheduledSlotDto>();
-            var dueDate = task.DueDate!.Value.Date;
+            // For overdue tasks, schedule them within the next 7 days
+            var dueDate = task.DueDate!.Value < now ? now.Date.AddDays(7) : task.DueDate!.Value.Date;
 
             // Iterate day by day from today to due date
             for (var day = scheduleStart; day < dueDate && remainingHours > 0; day = day.AddDays(1))
@@ -102,24 +125,24 @@ public class SchedulingService
                 if (!dailyScheduledHours.ContainsKey(dayKey))
                     dailyScheduledHours[dayKey] = 0;
 
-                var dayAvailable = MaxDailyStudyHours - dailyScheduledHours[dayKey];
+                var dayAvailable = maxDaily - dailyScheduledHours[dayKey];
                 if (dayAvailable <= 0) continue;
 
                 // Build free slots for this day
-                var dayFreeSlots = GetFreeSlots(day, fixedEvents, newTaskEvents);
+                var dayFreeSlots = GetFreeSlots(day, fixedEvents, newTaskEvents, dayStart, dayEnd);
 
                 var taskHoursToday = 0.0;
                 foreach (var freeSlot in dayFreeSlots)
                 {
                     if (remainingHours <= 0) break;
                     if (dayAvailable - taskHoursToday <= 0) break;
-                    if (taskHoursToday >= MaxContinuousHoursPerTask) break;
+                    if (taskHoursToday >= maxContinuous) break;
 
                     var slotDuration = (freeSlot.To - freeSlot.From).TotalHours;
                     var canUse = Math.Min(slotDuration,
                         Math.Min(remainingHours,
                         Math.Min(dayAvailable - taskHoursToday,
-                        MaxContinuousHoursPerTask - taskHoursToday)));
+                        maxContinuous - taskHoursToday)));
 
                     if (canUse < 0.5) continue; // Skip slots smaller than 30 min
 
@@ -201,8 +224,8 @@ public class SchedulingService
         {
             var dayKey = day.Date;
             var scheduledHours = dailyScheduledHours.GetValueOrDefault(dayKey, 0);
-            var availableHours = (DayEndHour - DayStartHour) - GetBlockedHours(day, fixedEvents);
-            var isOverloaded = scheduledHours > MaxDailyStudyHours;
+            var availableHours = (dayEnd - dayStart) - GetBlockedHours(day, fixedEvents, dayStart, dayEnd);
+            var isOverloaded = scheduledHours > maxDaily;
 
             result.DailyWorkload.Add(new DailyWorkloadDto
             {
@@ -226,9 +249,15 @@ public class SchedulingService
     {
         var now = DateTime.Now;
 
+        // Load user preferences
+        var user = await _db.Users.FirstAsync(u => u.Email == email);
+        int dayStart = user.DayStartHour;
+        int dayEnd = user.DayEndHour;
+        double maxDaily = user.MaxDailyStudyHours;
+
         var tasks = await _db.Tasks
             .Include(t => t.TaskEvents)
-            .Where(t => t.Email == email && !t.IsCompleted && t.DueDate.HasValue && t.DueDate > now)
+            .Where(t => t.Email == email && !t.IsCompleted && t.DueDate.HasValue)
             .ToListAsync();
 
         var scheduledCount = tasks.Count(t => t.TaskEvents.Any(te => te.Status == "Scheduled" || te.Status == "Partial"));
@@ -257,8 +286,8 @@ public class SchedulingService
             var dayTaskEvents = taskEvents.Where(te =>
                 te.From.Date == day.Date).ToList();
             var scheduledHours = dayTaskEvents.Sum(te => (te.To - te.From).TotalHours);
-            var availableHours = (DayEndHour - DayStartHour) - GetBlockedHours(day, fixedEvents);
-            var isOverloaded = scheduledHours > MaxDailyStudyHours;
+            var availableHours = (dayEnd - dayStart) - GetBlockedHours(day, fixedEvents, dayStart, dayEnd);
+            var isOverloaded = scheduledHours > maxDaily;
 
             result.DailyWorkload.Add(new DailyWorkloadDto
             {
@@ -276,14 +305,15 @@ public class SchedulingService
     }
 
     /// <summary>
-    /// Returns free time slots for a given day (between DayStartHour and DayEndHour),
+    /// Returns free time slots for a given day (between dayStart and dayEnd),
     /// excluding existing fixed events and already-scheduled task events.
     /// </summary>
     private List<(DateTime From, DateTime To)> GetFreeSlots(
-        DateTime day, List<Event> fixedEvents, List<TaskEvent> newTaskEvents)
+        DateTime day, List<Event> fixedEvents, List<TaskEvent> newTaskEvents,
+        int dayStartHour, int dayEndHour)
     {
-        var dayStart = day.Date.AddHours(DayStartHour);
-        var dayEnd = day.Date.AddHours(DayEndHour);
+        var dayStart = day.Date.AddHours(dayStartHour);
+        var dayEnd = day.Date.AddHours(dayEndHour);
 
         // If the day is today, start from now (rounded up to next 30 min)
         if (day.Date == DateTime.Now.Date)
@@ -354,10 +384,10 @@ public class SchedulingService
     /// <summary>
     /// Returns total blocked (busy) hours for a day from fixed events.
     /// </summary>
-    private double GetBlockedHours(DateTime day, List<Event> fixedEvents)
+    private double GetBlockedHours(DateTime day, List<Event> fixedEvents, int dayStartHour, int dayEndHour)
     {
-        var dayStart = day.Date.AddHours(DayStartHour);
-        var dayEnd = day.Date.AddHours(DayEndHour);
+        var dayStart = day.Date.AddHours(dayStartHour);
+        var dayEnd = day.Date.AddHours(dayEndHour);
 
         return fixedEvents
             .Where(e => e.From < dayEnd && e.To > dayStart)

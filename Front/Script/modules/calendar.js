@@ -136,12 +136,30 @@ function getDateRange() {
 }
 
 /* ---- Main Render Orchestrator ---- */
+let overloadedDays = new Set();
+
 async function navigate() {
     renderHeader();
     const { from, to } = getDateRange();
 
     try {
-        cachedEvents = await api.getEvents(from, to);
+        // Fetch events and scheduling status in parallel
+        const [events, schedStatus] = await Promise.all([
+            api.getEvents(from, to),
+            api.getSchedulingStatus().catch(() => null)
+        ]);
+        cachedEvents = events;
+
+        // Build overloaded days set from scheduling status API
+        overloadedDays = new Set();
+        if (schedStatus && schedStatus.dailyWorkload) {
+            schedStatus.dailyWorkload.forEach(d => {
+                if (d.isOverloaded) {
+                    const date = new Date(d.date);
+                    overloadedDays.add(`${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`);
+                }
+            });
+        }
 
         if (currentView === 'monthly') {
             renderMonthlyGrid(cachedEvents, from, to);
@@ -201,7 +219,6 @@ function renderTimeGrid(events, startDate, dayCount) {
         const isToday = day.getTime() === today.getTime();
         const dateStr = `${day.getFullYear()}-${String(day.getMonth() + 1).padStart(2, '0')}-${String(day.getDate()).padStart(2, '0')}`;
 
-        // Calculate daily workload for overload indicator
         const dayEvents = events.filter(e => {
             const eDate = new Date(e.from);
             return eDate.getDate() === day.getDate() &&
@@ -212,7 +229,7 @@ function renderTimeGrid(events, startDate, dayCount) {
         const taskHours = dayEvents
             .filter(e => e.eventType === 'task')
             .reduce((sum, e) => sum + (new Date(e.to) - new Date(e.from)) / 3600000, 0);
-        const isOverloaded = taskHours > 8;
+        const isOverloaded = overloadedDays.has(dateStr);
 
         html += `<div class="cal-day-col ${isToday ? 'today' : ''} ${isOverloaded ? 'cal-day-col--overloaded' : ''}">`;
         html += `<div class="cal-day-header ${isToday ? 'today' : ''}" data-date="${dateStr}">
@@ -458,10 +475,11 @@ function renderMonthlyGrid(events, gridStart, gridEnd) {
                 .filter(e => e.eventType === 'task')
                 .reduce((sum, e) => sum + (new Date(e.to) - new Date(e.from)) / 3600000, 0);
 
+            const isOverloadedDay = overloadedDays.has(dateStr);
             const classes = ['cal-month-day'];
             if (isOutside) classes.push('outside');
             if (isToday) classes.push('today');
-            if (taskHours > 8) classes.push('cal-month-day--overloaded');
+            if (isOverloadedDay) classes.push('cal-month-day--overloaded');
             else if (taskHours > 5) classes.push('cal-month-day--heavy');
             else if (taskHours > 2) classes.push('cal-month-day--moderate');
 

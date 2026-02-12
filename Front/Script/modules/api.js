@@ -1,4 +1,4 @@
-// API Client module - handles all API calls with authentication
+// API Client module - handles all API calls with authentication (jQuery $.ajax)
 const API_BASE = '/api';
 
 function getToken() {
@@ -12,24 +12,25 @@ function getHeaders() {
     return headers;
 }
 
-async function request(method, path, body = null) {
-    const options = { method, headers: getHeaders() };
-    if (body) options.body = JSON.stringify(body);
-
-    const res = await fetch(`${API_BASE}${path}`, options);
-
-    if (res.status === 401) {
-        localStorage.removeItem('smartstudy_token');
-        localStorage.removeItem('smartstudy_user');
-        window.location.href = '/Pages/Login.html';
-        throw new Error('Unauthorized');
-    }
-
-    if (res.status === 204) return null;
-
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.message || `Request failed: ${res.status}`);
-    return data;
+function request(method, path, body = null) {
+    return new Promise((resolve, reject) => {
+        $.ajax({
+            url: `${API_BASE}${path}`,
+            method: method,
+            headers: getHeaders(),
+            data: body ? JSON.stringify(body) : undefined,
+            contentType: 'application/json',
+            success: (data) => resolve(data),
+            error: (xhr) => {
+                if (xhr.status === 401) {
+                    localStorage.removeItem('smartstudy_token');
+                    localStorage.removeItem('smartstudy_user');
+                    window.location.href = '/Pages/Login.html';
+                }
+                reject(new Error(xhr.responseJSON?.message || `Request failed: ${xhr.status}`));
+            }
+        });
+    });
 }
 
 export const api = {
@@ -100,25 +101,31 @@ export const api = {
     checkConflicts: (data) => request('POST', '/events/check-conflicts', data),
 
     // Schedule Import
-    importSchedule: async (file) => {
-        const formData = new FormData();
-        formData.append('file', file);
-        const token = localStorage.getItem('smartstudy_token');
-        const headers = {};
-        if (token) headers['Authorization'] = `Bearer ${token}`;
-        const res = await fetch(`${API_BASE}/schedule/import`, {
-            method: 'POST',
-            headers,
-            body: formData
+    importSchedule: (file) => {
+        return new Promise((resolve, reject) => {
+            const formData = new FormData();
+            formData.append('file', file);
+            const token = localStorage.getItem('smartstudy_token');
+            const headers = {};
+            if (token) headers['Authorization'] = `Bearer ${token}`;
+
+            $.ajax({
+                url: `${API_BASE}/schedule/import`,
+                method: 'POST',
+                headers: headers,
+                data: formData,
+                processData: false,
+                contentType: false,
+                success: (data) => resolve(data),
+                error: (xhr) => {
+                    if (xhr.status === 401) {
+                        localStorage.removeItem('smartstudy_token');
+                        window.location.href = '/Pages/Login.html';
+                    }
+                    reject(new Error(xhr.responseJSON?.message || 'Import failed'));
+                }
+            });
         });
-        if (res.status === 401) {
-            localStorage.removeItem('smartstudy_token');
-            window.location.href = '/Pages/Login.html';
-            throw new Error('Unauthorized');
-        }
-        const data = await res.json();
-        if (!res.ok) throw new Error(data.message || 'Import failed');
-        return data;
     },
 
     // Scheduling
@@ -158,4 +165,9 @@ export const api = {
     updateProfile: (data) => request('PUT', '/settings/profile', data),
     updateNotifications: (data) => request('PUT', '/settings/notifications', data),
     getInstructors: () => request('GET', '/settings/instructors'),
+
+    // Scheduling Preferences
+    getSchedulingPrefs: () => request('GET', '/settings/scheduling'),
+    updateSchedulingPrefs: (data) => request('PUT', '/settings/scheduling', data),
+    saveOnboarding: (data) => request('PUT', '/settings/onboarding', data),
 };

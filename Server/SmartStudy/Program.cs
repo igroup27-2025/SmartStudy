@@ -262,6 +262,30 @@ using (var scope = app.Services.CreateScope())
         ";
         phase1Cmd.ExecuteNonQuery();
     }
+
+    // Add scheduling preference columns to Users
+    using (var schedCmd = conn.CreateCommand())
+    {
+        schedCmd.CommandText = @"
+            IF COL_LENGTH('SmartStudy_Users', 'MaxDailyStudyHours') IS NULL
+                ALTER TABLE SmartStudy_Users ADD MaxDailyStudyHours FLOAT NOT NULL DEFAULT 6.0;
+            IF COL_LENGTH('SmartStudy_Users', 'MaxContinuousMinutes') IS NULL
+                ALTER TABLE SmartStudy_Users ADD MaxContinuousMinutes INT NOT NULL DEFAULT 90;
+            IF COL_LENGTH('SmartStudy_Users', 'DayStartHour') IS NULL
+                ALTER TABLE SmartStudy_Users ADD DayStartHour INT NOT NULL DEFAULT 8;
+            IF COL_LENGTH('SmartStudy_Users', 'DayEndHour') IS NULL
+                ALTER TABLE SmartStudy_Users ADD DayEndHour INT NOT NULL DEFAULT 22;
+            IF COL_LENGTH('SmartStudy_Users', 'SleepHoursPerDay') IS NULL
+                ALTER TABLE SmartStudy_Users ADD SleepHoursPerDay FLOAT NOT NULL DEFAULT 8.0;
+            IF COL_LENGTH('SmartStudy_Users', 'LunchBreakStart') IS NULL
+                ALTER TABLE SmartStudy_Users ADD LunchBreakStart TIME NULL;
+            IF COL_LENGTH('SmartStudy_Users', 'LunchBreakEnd') IS NULL
+                ALTER TABLE SmartStudy_Users ADD LunchBreakEnd TIME NULL;
+            IF COL_LENGTH('SmartStudy_Users', 'OnboardingCompleted') IS NULL
+                ALTER TABLE SmartStudy_Users ADD OnboardingCompleted BIT NOT NULL DEFAULT 0;
+        ";
+        schedCmd.ExecuteNonQuery();
+    }
     conn.Close();
 }
 

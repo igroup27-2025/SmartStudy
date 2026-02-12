@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SmartStudy - Add Tasks</title>
+    <title>SmartStudy - Notifications & Constraints</title>
     <link rel="stylesheet" href="/CSS/app.css">
 </head>
 <body data-page="onboarding" data-layout="onboarding" data-step="3">
@@ -19,16 +19,110 @@
             <div class="onboarding-progress" id="onboardingProgress"></div>
         </div>
         <div class="onboarding-card">
-            <h1 class="onboarding-title">Track Your Tasks</h1>
-            <p class="onboarding-subtitle">Add homework, assignments, and projects. SmartStudy will calculate your workload and help you stay on track.</p>
-            <div class="onboarding-illustration">&#9745;</div>
-            <p class="onboarding-hint">Set priorities and due dates to get the most out of stress tracking.</p>
+            <h1 class="onboarding-title">Notifications & Constraints</h1>
+            <p class="onboarding-subtitle">Set up notification preferences and add recurring commitments.</p>
+
+            <form id="notifForm" class="onboarding-form">
+                <h3 class="onboarding-section-title">Notifications</h3>
+
+                <div class="onboarding-field">
+                    <div class="onboarding-field__toggle-row">
+                        <label class="onboarding-field__label">Deadline reminders</label>
+                        <label class="toggle-switch">
+                            <input type="checkbox" id="notifyDeadline" checked>
+                            <span class="toggle-slider"></span>
+                        </label>
+                    </div>
+                </div>
+
+                <div class="onboarding-field">
+                    <div class="onboarding-field__toggle-row">
+                        <label class="onboarding-field__label">Daily morning summary</label>
+                        <label class="toggle-switch">
+                            <input type="checkbox" id="notifyMorning">
+                            <span class="toggle-slider"></span>
+                        </label>
+                    </div>
+                </div>
+
+                <div class="onboarding-field">
+                    <div class="onboarding-field__toggle-row">
+                        <label class="onboarding-field__label">Weekly plan reminder</label>
+                        <label class="toggle-switch">
+                            <input type="checkbox" id="notifyWeekly">
+                            <span class="toggle-slider"></span>
+                        </label>
+                    </div>
+                </div>
+
+                <div class="onboarding-field">
+                    <label class="onboarding-field__label">Quiet hours (no notifications)</label>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="quietStart">From</label>
+                            <input type="time" id="quietStart" class="form-input" value="22:00">
+                        </div>
+                        <div class="form-group">
+                            <label for="quietEnd">Until</label>
+                            <input type="time" id="quietEnd" class="form-input" value="07:00">
+                        </div>
+                    </div>
+                </div>
+
+                <h3 class="onboarding-section-title" style="margin-top:20px">Recurring Constraints <span style="font-weight:400;font-size:13px;color:var(--text-muted)">(optional)</span></h3>
+                <p class="onboarding-hint" style="margin-bottom:12px">Block time for work shifts or recurring commitments so the scheduler avoids them.</p>
+
+                <div id="constraintList"></div>
+
+                <button type="button" class="btn btn-secondary btn-sm" id="addConstraintBtn">+ Add Constraint</button>
+
+                <div id="constraintForm" class="onboarding-constraint-form" style="display:none">
+                    <div class="onboarding-field">
+                        <label class="onboarding-field__label">Type</label>
+                        <select id="constraintType" class="form-input">
+                            <option value="work">Work shift</option>
+                            <option value="personal">Personal commitment</option>
+                        </select>
+                    </div>
+                    <div class="onboarding-field">
+                        <label class="onboarding-field__label">Name</label>
+                        <input type="text" id="constraintName" class="form-input" placeholder="e.g., Part-time job">
+                    </div>
+                    <div class="onboarding-field">
+                        <label class="onboarding-field__label">Days</label>
+                        <div class="onboarding-day-picker">
+                            <label class="onboarding-day-chip"><input type="checkbox" value="0"> Sun</label>
+                            <label class="onboarding-day-chip"><input type="checkbox" value="1"> Mon</label>
+                            <label class="onboarding-day-chip"><input type="checkbox" value="2"> Tue</label>
+                            <label class="onboarding-day-chip"><input type="checkbox" value="3"> Wed</label>
+                            <label class="onboarding-day-chip"><input type="checkbox" value="4"> Thu</label>
+                            <label class="onboarding-day-chip"><input type="checkbox" value="5"> Fri</label>
+                            <label class="onboarding-day-chip"><input type="checkbox" value="6"> Sat</label>
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="constraintStart">Start</label>
+                            <input type="time" id="constraintStart" class="form-input" value="17:00">
+                        </div>
+                        <div class="form-group">
+                            <label for="constraintEnd">End</label>
+                            <input type="time" id="constraintEnd" class="form-input" value="20:00">
+                        </div>
+                    </div>
+                    <div class="onboarding-constraint-form__actions">
+                        <button type="button" class="btn btn-primary btn-sm" id="saveConstraintBtn">Save</button>
+                        <button type="button" class="btn btn-ghost btn-sm" id="cancelConstraintBtn">Cancel</button>
+                    </div>
+                </div>
+            </form>
         </div>
         <div class="onboarding-actions">
             <button class="btn btn-ghost" id="onboardingBack">&larr; Back</button>
             <button class="btn btn-primary btn-lg" id="onboardingNext">Next</button>
         </div>
     </div>
+    <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
     <script type="module" src="/Script/main.js"></script>
 </body>
 </html>

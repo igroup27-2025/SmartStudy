@@ -15,6 +15,13 @@ public class NotificationService
 
     public async Task GenerateDeadlineNotificationsAsync(string email)
     {
+        // Check if deadline notifications are enabled
+        var settings = await _db.NotificationSettings.FindAsync(email);
+        if (settings != null && !settings.NotifyBeforeTask) return;
+
+        // Check quiet hours
+        if (IsInQuietHours(settings)) return;
+
         var now = DateTime.Now;
         var in24h = now.AddHours(24);
 
@@ -48,6 +55,10 @@ public class NotificationService
     {
         if (stressScore <= 70) return;
 
+        // Check quiet hours
+        var settings = await _db.NotificationSettings.FindAsync(email);
+        if (IsInQuietHours(settings)) return;
+
         if (await IsDuplicate(email, "overload", null, null))
             return;
 
@@ -66,6 +77,10 @@ public class NotificationService
 
     public async Task CreateSharedTaskInviteNotificationAsync(string recipientEmail, string senderName, int taskId, string taskTitle)
     {
+        // Check quiet hours
+        var settings = await _db.NotificationSettings.FindAsync(recipientEmail);
+        if (IsInQuietHours(settings)) return;
+
         _db.Notifications.Add(new Notification
         {
             Email = recipientEmail,
@@ -82,6 +97,10 @@ public class NotificationService
 
     public async Task CreateSharedTaskResponseNotificationAsync(string recipientEmail, string responderName, int taskId, string taskTitle, bool accepted)
     {
+        // Check quiet hours
+        var settings = await _db.NotificationSettings.FindAsync(recipientEmail);
+        if (IsInQuietHours(settings)) return;
+
         _db.Notifications.Add(new Notification
         {
             Email = recipientEmail,
@@ -94,6 +113,22 @@ public class NotificationService
         });
 
         await _db.SaveChangesAsync();
+    }
+
+    private bool IsInQuietHours(NotificationSettings? settings)
+    {
+        if (settings == null) return false;
+        if (!settings.QuietHoursStart.HasValue || !settings.QuietHoursEnd.HasValue) return false;
+
+        var now = DateTime.Now.TimeOfDay;
+        var start = settings.QuietHoursStart.Value;
+        var end = settings.QuietHoursEnd.Value;
+
+        // Handle overnight quiet hours (e.g. 22:00 - 07:00)
+        if (start > end)
+            return now >= start || now <= end;
+
+        return now >= start && now <= end;
     }
 
     private async Task<bool> IsDuplicate(string email, string type, int? entityId, string? entityType)
