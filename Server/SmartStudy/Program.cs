@@ -93,6 +93,7 @@ using (var scope = app.Services.CreateScope())
             IF OBJECT_ID('SmartStudy_Tasks','U') IS NOT NULL DROP TABLE SmartStudy_Tasks;
             IF OBJECT_ID('SmartStudy_UserCourses','U') IS NOT NULL DROP TABLE SmartStudy_UserCourses;
             IF OBJECT_ID('SmartStudy_Courses','U') IS NOT NULL DROP TABLE SmartStudy_Courses;
+            IF OBJECT_ID('SmartStudy_SchedulingPreferences','U') IS NOT NULL DROP TABLE SmartStudy_SchedulingPreferences;
             IF OBJECT_ID('SmartStudy_NotificationSettings','U') IS NOT NULL DROP TABLE SmartStudy_NotificationSettings;
             IF OBJECT_ID('SmartStudy_Users','U') IS NOT NULL DROP TABLE SmartStudy_Users;
             IF OBJECT_ID('SmartStudy_Instructors','U') IS NOT NULL DROP TABLE SmartStudy_Instructors;";
@@ -263,26 +264,53 @@ using (var scope = app.Services.CreateScope())
         phase1Cmd.ExecuteNonQuery();
     }
 
-    // Add scheduling preference columns to Users
+    // Migrate scheduling preferences to separate table
     using (var schedCmd = conn.CreateCommand())
     {
         schedCmd.CommandText = @"
-            IF COL_LENGTH('SmartStudy_Users', 'MaxDailyStudyHours') IS NULL
-                ALTER TABLE SmartStudy_Users ADD MaxDailyStudyHours FLOAT NOT NULL DEFAULT 6.0;
-            IF COL_LENGTH('SmartStudy_Users', 'MaxContinuousMinutes') IS NULL
-                ALTER TABLE SmartStudy_Users ADD MaxContinuousMinutes INT NOT NULL DEFAULT 90;
-            IF COL_LENGTH('SmartStudy_Users', 'DayStartHour') IS NULL
-                ALTER TABLE SmartStudy_Users ADD DayStartHour INT NOT NULL DEFAULT 8;
-            IF COL_LENGTH('SmartStudy_Users', 'DayEndHour') IS NULL
-                ALTER TABLE SmartStudy_Users ADD DayEndHour INT NOT NULL DEFAULT 22;
-            IF COL_LENGTH('SmartStudy_Users', 'SleepHoursPerDay') IS NULL
-                ALTER TABLE SmartStudy_Users ADD SleepHoursPerDay FLOAT NOT NULL DEFAULT 8.0;
-            IF COL_LENGTH('SmartStudy_Users', 'LunchBreakStart') IS NULL
-                ALTER TABLE SmartStudy_Users ADD LunchBreakStart TIME NULL;
-            IF COL_LENGTH('SmartStudy_Users', 'LunchBreakEnd') IS NULL
-                ALTER TABLE SmartStudy_Users ADD LunchBreakEnd TIME NULL;
+            -- Ensure OnboardingCompleted column exists on Users
             IF COL_LENGTH('SmartStudy_Users', 'OnboardingCompleted') IS NULL
                 ALTER TABLE SmartStudy_Users ADD OnboardingCompleted BIT NOT NULL DEFAULT 0;
+
+            -- Create SchedulingPreferences table if not exists
+            IF OBJECT_ID('SmartStudy_SchedulingPreferences','U') IS NULL
+            BEGIN
+                CREATE TABLE SmartStudy_SchedulingPreferences (
+                    Email NVARCHAR(255) NOT NULL PRIMARY KEY,
+                    MaxDailyStudyHours FLOAT NOT NULL DEFAULT 6.0,
+                    MaxContinuousMinutes INT NOT NULL DEFAULT 90,
+                    DayStartHour INT NOT NULL DEFAULT 8,
+                    DayEndHour INT NOT NULL DEFAULT 22,
+                    SleepHoursPerDay FLOAT NOT NULL DEFAULT 8.0,
+                    LunchBreakStart TIME NULL,
+                    LunchBreakEnd TIME NULL,
+                    CONSTRAINT FK_SchedulingPreferences_User FOREIGN KEY (Email) REFERENCES SmartStudy_Users(Email) ON DELETE CASCADE
+                );
+
+                -- Migrate existing data from Users columns if they exist
+                IF COL_LENGTH('SmartStudy_Users', 'MaxDailyStudyHours') IS NOT NULL
+                BEGIN
+                    INSERT INTO SmartStudy_SchedulingPreferences (Email, MaxDailyStudyHours, MaxContinuousMinutes, DayStartHour, DayEndHour, SleepHoursPerDay, LunchBreakStart, LunchBreakEnd)
+                    SELECT Email, MaxDailyStudyHours, MaxContinuousMinutes, DayStartHour, DayEndHour, SleepHoursPerDay, LunchBreakStart, LunchBreakEnd
+                    FROM SmartStudy_Users;
+                END
+            END
+
+            -- Drop old scheduling columns from Users if they exist
+            IF COL_LENGTH('SmartStudy_Users', 'MaxDailyStudyHours') IS NOT NULL
+                ALTER TABLE SmartStudy_Users DROP COLUMN MaxDailyStudyHours;
+            IF COL_LENGTH('SmartStudy_Users', 'MaxContinuousMinutes') IS NOT NULL
+                ALTER TABLE SmartStudy_Users DROP COLUMN MaxContinuousMinutes;
+            IF COL_LENGTH('SmartStudy_Users', 'DayStartHour') IS NOT NULL
+                ALTER TABLE SmartStudy_Users DROP COLUMN DayStartHour;
+            IF COL_LENGTH('SmartStudy_Users', 'DayEndHour') IS NOT NULL
+                ALTER TABLE SmartStudy_Users DROP COLUMN DayEndHour;
+            IF COL_LENGTH('SmartStudy_Users', 'SleepHoursPerDay') IS NOT NULL
+                ALTER TABLE SmartStudy_Users DROP COLUMN SleepHoursPerDay;
+            IF COL_LENGTH('SmartStudy_Users', 'LunchBreakStart') IS NOT NULL
+                ALTER TABLE SmartStudy_Users DROP COLUMN LunchBreakStart;
+            IF COL_LENGTH('SmartStudy_Users', 'LunchBreakEnd') IS NOT NULL
+                ALTER TABLE SmartStudy_Users DROP COLUMN LunchBreakEnd;
         ";
         schedCmd.ExecuteNonQuery();
     }

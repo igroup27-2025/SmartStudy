@@ -22,11 +22,11 @@ public class SchedulingService
         var result = new SchedulingResultDto();
 
         // Load user preferences
-        var user = await _db.Users.FirstAsync(u => u.Email == email);
-        int dayStart = user.DayStartHour;
-        int dayEnd = user.DayEndHour;
-        double maxDaily = user.MaxDailyStudyHours;
-        double maxContinuous = user.MaxContinuousMinutes / 60.0;
+        var prefs = await _db.SchedulingPreferences.FindAsync(email);
+        int dayStart = prefs?.DayStartHour ?? 8;
+        int dayEnd = prefs?.DayEndHour ?? 22;
+        double maxDaily = prefs?.MaxDailyStudyHours ?? 6.0;
+        double maxContinuous = (prefs?.MaxContinuousMinutes ?? 90) / 60.0;
 
         // 1. Get all incomplete tasks with due dates (only leaf tasks - no parents with children)
         // Include overdue tasks — treat them as urgent (immediate deadline)
@@ -70,15 +70,15 @@ public class SchedulingService
 
         // Add lunch break as blocked slots if configured
         var lunchEvents = new List<Event>();
-        if (user.LunchBreakStart.HasValue && user.LunchBreakEnd.HasValue)
+        if (prefs?.LunchBreakStart != null && prefs?.LunchBreakEnd != null)
         {
             for (var day = scheduleStart; day < scheduleEnd; day = day.AddDays(1))
             {
                 lunchEvents.Add(new Event
                 {
                     Email = email,
-                    From = day.Add(user.LunchBreakStart.Value),
-                    To = day.Add(user.LunchBreakEnd.Value),
+                    From = day.Add(prefs.LunchBreakStart.Value),
+                    To = day.Add(prefs.LunchBreakEnd.Value),
                     Recurring = false
                 });
             }
@@ -250,10 +250,10 @@ public class SchedulingService
         var now = DateTime.Now;
 
         // Load user preferences
-        var user = await _db.Users.FirstAsync(u => u.Email == email);
-        int dayStart = user.DayStartHour;
-        int dayEnd = user.DayEndHour;
-        double maxDaily = user.MaxDailyStudyHours;
+        var prefs = await _db.SchedulingPreferences.FindAsync(email);
+        int dayStart = prefs?.DayStartHour ?? 8;
+        int dayEnd = prefs?.DayEndHour ?? 22;
+        double maxDaily = prefs?.MaxDailyStudyHours ?? 6.0;
 
         var tasks = await _db.Tasks
             .Include(t => t.TaskEvents)

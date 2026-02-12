@@ -94,18 +94,17 @@ public class SettingsController : ControllerBase
     public async Task<IActionResult> GetSchedulingPrefs()
     {
         var email = GetEmail();
-        var user = await _db.Users.FindAsync(email);
-        if (user == null) return NotFound();
+        var prefs = await _db.SchedulingPreferences.FindAsync(email);
 
         return Ok(new SchedulingPreferencesDto
         {
-            MaxDailyStudyHours = user.MaxDailyStudyHours,
-            MaxContinuousMinutes = user.MaxContinuousMinutes,
-            DayStartHour = user.DayStartHour,
-            DayEndHour = user.DayEndHour,
-            SleepHoursPerDay = user.SleepHoursPerDay,
-            LunchBreakStart = user.LunchBreakStart?.ToString(@"hh\:mm"),
-            LunchBreakEnd = user.LunchBreakEnd?.ToString(@"hh\:mm")
+            MaxDailyStudyHours = prefs?.MaxDailyStudyHours ?? 6.0,
+            MaxContinuousMinutes = prefs?.MaxContinuousMinutes ?? 90,
+            DayStartHour = prefs?.DayStartHour ?? 8,
+            DayEndHour = prefs?.DayEndHour ?? 22,
+            SleepHoursPerDay = prefs?.SleepHoursPerDay ?? 8.0,
+            LunchBreakStart = prefs?.LunchBreakStart?.ToString(@"hh\:mm"),
+            LunchBreakEnd = prefs?.LunchBreakEnd?.ToString(@"hh\:mm")
         });
     }
 
@@ -113,24 +112,28 @@ public class SettingsController : ControllerBase
     public async Task<IActionResult> UpdateSchedulingPrefs([FromBody] SchedulingPreferencesDto dto)
     {
         var email = GetEmail();
-        var user = await _db.Users.FindAsync(email);
-        if (user == null) return NotFound();
+        var prefs = await _db.SchedulingPreferences.FindAsync(email);
+        if (prefs == null)
+        {
+            prefs = new SchedulingPreferences { Email = email };
+            _db.SchedulingPreferences.Add(prefs);
+        }
 
-        user.MaxDailyStudyHours = Math.Clamp(dto.MaxDailyStudyHours, 2, 12);
-        user.MaxContinuousMinutes = Math.Clamp(dto.MaxContinuousMinutes, 30, 120);
-        user.DayStartHour = Math.Clamp(dto.DayStartHour, 5, 12);
-        user.DayEndHour = Math.Clamp(dto.DayEndHour, 16, 23);
-        user.SleepHoursPerDay = Math.Clamp(dto.SleepHoursPerDay, 5, 10);
+        prefs.MaxDailyStudyHours = Math.Clamp(dto.MaxDailyStudyHours, 2, 12);
+        prefs.MaxContinuousMinutes = Math.Clamp(dto.MaxContinuousMinutes, 30, 120);
+        prefs.DayStartHour = Math.Clamp(dto.DayStartHour, 5, 12);
+        prefs.DayEndHour = Math.Clamp(dto.DayEndHour, 16, 23);
+        prefs.SleepHoursPerDay = Math.Clamp(dto.SleepHoursPerDay, 5, 10);
 
         if (dto.LunchBreakStart != null && TimeSpan.TryParse(dto.LunchBreakStart, out var lStart))
-            user.LunchBreakStart = lStart;
+            prefs.LunchBreakStart = lStart;
         else
-            user.LunchBreakStart = null;
+            prefs.LunchBreakStart = null;
 
         if (dto.LunchBreakEnd != null && TimeSpan.TryParse(dto.LunchBreakEnd, out var lEnd))
-            user.LunchBreakEnd = lEnd;
+            prefs.LunchBreakEnd = lEnd;
         else
-            user.LunchBreakEnd = null;
+            prefs.LunchBreakEnd = null;
 
         await _db.SaveChangesAsync();
         return Ok(dto);
@@ -147,16 +150,23 @@ public class SettingsController : ControllerBase
         if (dto.SchedulingPreferences != null)
         {
             var p = dto.SchedulingPreferences;
-            user.MaxDailyStudyHours = Math.Clamp(p.MaxDailyStudyHours, 2, 12);
-            user.MaxContinuousMinutes = Math.Clamp(p.MaxContinuousMinutes, 30, 120);
-            user.DayStartHour = Math.Clamp(p.DayStartHour, 5, 12);
-            user.DayEndHour = Math.Clamp(p.DayEndHour, 16, 23);
-            user.SleepHoursPerDay = Math.Clamp(p.SleepHoursPerDay, 5, 10);
+            var prefs = await _db.SchedulingPreferences.FindAsync(email);
+            if (prefs == null)
+            {
+                prefs = new SchedulingPreferences { Email = email };
+                _db.SchedulingPreferences.Add(prefs);
+            }
+
+            prefs.MaxDailyStudyHours = Math.Clamp(p.MaxDailyStudyHours, 2, 12);
+            prefs.MaxContinuousMinutes = Math.Clamp(p.MaxContinuousMinutes, 30, 120);
+            prefs.DayStartHour = Math.Clamp(p.DayStartHour, 5, 12);
+            prefs.DayEndHour = Math.Clamp(p.DayEndHour, 16, 23);
+            prefs.SleepHoursPerDay = Math.Clamp(p.SleepHoursPerDay, 5, 10);
 
             if (p.LunchBreakStart != null && TimeSpan.TryParse(p.LunchBreakStart, out var lStart))
-                user.LunchBreakStart = lStart;
+                prefs.LunchBreakStart = lStart;
             if (p.LunchBreakEnd != null && TimeSpan.TryParse(p.LunchBreakEnd, out var lEnd))
-                user.LunchBreakEnd = lEnd;
+                prefs.LunchBreakEnd = lEnd;
         }
 
         // Save notification settings

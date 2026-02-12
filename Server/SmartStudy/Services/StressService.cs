@@ -18,8 +18,8 @@ public class StressService
         var now = DateTime.Now;
 
         // Load user preferences
-        var user = await _db.Users.FirstAsync(u => u.Email == email);
-        double sleepHours = user.SleepHoursPerDay;
+        var prefs = await _db.SchedulingPreferences.FindAsync(email);
+        double sleepHours = prefs?.SleepHoursPerDay ?? 8.0;
 
         var incompleteTasks = await _db.Tasks
             .Include(t => t.SubTasks)
@@ -102,8 +102,8 @@ public class StressService
         var result = new List<WeeklyStressDto>();
 
         // Load user preferences
-        var user = await _db.Users.FirstAsync(u => u.Email == email);
-        double wakingHours = 24 - user.SleepHoursPerDay;
+        var prefs = await _db.SchedulingPreferences.FindAsync(email);
+        double wakingHours = 24 - (prefs?.SleepHoursPerDay ?? 8.0);
 
         var userCourseIds = await _db.UserCourses
             .Where(uc => uc.Email == email)
