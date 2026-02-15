@@ -6,10 +6,11 @@ let currentDate = new Date();
 let cachedEvents = [];
 
 const EVENT_COLORS = {
-    class: { bg: '#E0F7FA', border: '#00BCD4', text: '#006064' },
-    task: { bg: '#FFF3E0', border: '#F28D35', text: '#E65100' },
-    work: { bg: '#F3E5F5', border: '#9B76FF', text: '#4A148C' },
-    personal: { bg: '#FFF8E1', border: '#F2C777', text: '#F57F17' },
+    class:    { bg: '#E3EEF9', border: '#4A90D9', text: '#2D5A8A' },
+    task:     { bg: '#FFF3E0', border: '#F28D35', text: '#A06020' },
+    work:     { bg: '#F3E5F5', border: '#9B76FF', text: '#5E3DBF' },
+    personal: { bg: '#E6F5EE', border: '#43B88C', text: '#2A7A5A' },
+    exam:     { bg: '#FCE4EC', border: '#E84B6A', text: '#A03050' },
 };
 
 export async function initCalendar() {
@@ -195,12 +196,44 @@ async function navigate() {
     const { from, to } = getDateRange();
 
     try {
-        // Fetch events and scheduling status in parallel
-        const [events, schedStatus] = await Promise.all([
+        // Fetch events, exams, and scheduling status in parallel
+        const [events, exams, schedStatus] = await Promise.all([
             api.getEvents(from, to),
+            api.getExams().catch(() => []),
             api.getSchedulingStatus().catch(() => null)
         ]);
-        cachedEvents = events;
+
+        // Convert exams to event-like objects for calendar rendering
+        const examEvents = (exams || [])
+            .filter(ex => {
+                const examDate = new Date(ex.date);
+                return examDate >= from && examDate <= to;
+            })
+            .map(ex => {
+                const examDate = new Date(ex.date);
+                const timeParts = (ex.time || '09:00:00').split(':');
+                const hours = parseInt(timeParts[0]) || 9;
+                const minutes = parseInt(timeParts[1]) || 0;
+                const fromDate = new Date(examDate);
+                fromDate.setHours(hours, minutes, 0, 0);
+                const durationMs = (ex.duration || 120) * 60000;
+                const toDate = new Date(fromDate.getTime() + durationMs);
+                return {
+                    eventId: `exam-${ex.examId}`,
+                    eventType: 'exam',
+                    from: fromDate.toISOString(),
+                    to: toDate.toISOString(),
+                    recurring: false,
+                    courseName: ex.courseName,
+                    courseId: ex.courseId,
+                    examId: ex.examId,
+                    session: ex.session,
+                    duration: ex.duration,
+                    isExam: true,
+                };
+            });
+
+        cachedEvents = [...events, ...examEvents];
 
         // Build overloaded days set from scheduling status API
         overloadedDays = new Set();
@@ -305,12 +338,13 @@ function renderTimeGrid(events, startDate, dayCount) {
             const top = (startHour - 7) * 50;
             const height = Math.max(25, (endHour - startHour) * 50);
             const colors = EVENT_COLORS[e.eventType] || EVENT_COLORS.personal;
-            const label = e.courseName || e.taskTitle || e.workPlace || e.description || e.type || 'Event';
+            const label = e.isExam ? `Exam: ${e.courseName || 'Exam'}` : (e.courseName || e.taskTitle || e.workPlace || e.description || e.type || 'Event');
             const isAutoScheduled = e.eventType === 'task' && e.status === 'Scheduled';
+            const isDraggable = !isAutoScheduled && !e.isExam;
 
-            html += `<div class="cal-event ${!isAutoScheduled ? 'cal-event--draggable' : ''}"
+            html += `<div class="cal-event ${isDraggable ? 'cal-event--draggable' : ''}"
                 data-event-id="${e.eventId}" data-event-type="${e.eventType}"
-                ${!isAutoScheduled ? 'draggable="true"' : ''}
+                ${isDraggable ? 'draggable="true"' : ''}
                 style="top:${top}px;height:${height}px;background:${colors.bg};border-left:3px solid ${colors.border};color:${colors.text}">
                 <div class="cal-event-title">${label}</div>
                 <div class="cal-event-time">${formatTime(from)} - ${formatTime(to)}</div>
@@ -350,7 +384,8 @@ function renderTimeGrid(events, startDate, dayCount) {
     grid.querySelectorAll('.cal-event').forEach(el => {
         el.addEventListener('click', (e) => {
             e.stopPropagation();
-            const eventId = parseInt(el.dataset.eventId);
+            const rawId = el.dataset.eventId;
+            const eventId = rawId.startsWith('exam-') ? rawId : parseInt(rawId);
             showEventDetails(eventId, el);
         });
     });
@@ -562,7 +597,7 @@ function renderMonthlyGrid(events, gridStart, gridEnd) {
             const maxShow = 3;
             dayEvents.slice(0, maxShow).forEach(e => {
                 const colors = EVENT_COLORS[e.eventType] || EVENT_COLORS.personal;
-                const label = e.courseName || e.taskTitle || e.workPlace || e.description || e.type || 'Event';
+                const label = e.isExam ? `Exam: ${e.courseName || 'Exam'}` : (e.courseName || e.taskTitle || e.workPlace || e.description || e.type || 'Event');
                 html += `<div class="cal-month-event" style="background:${colors.bg};border-left-color:${colors.border};color:${colors.text}">${label}</div>`;
             });
 
@@ -1064,12 +1099,12 @@ function showEventDetails(eventId, targetEl) {
     const from = new Date(event.from);
     const to = new Date(event.to);
     const colors = EVENT_COLORS[event.eventType] || EVENT_COLORS.personal;
-    const label = event.courseName || event.taskTitle || event.workPlace || event.description || event.type || 'Event';
+    const label = event.isExam ? `Exam: ${event.courseName || 'Exam'}` : (event.courseName || event.taskTitle || event.workPlace || event.description || event.type || 'Event');
     const dateStr = from.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
     const durationMin = Math.round((to - from) / 60000);
     const durationStr = durationMin >= 60 ? `${Math.floor(durationMin / 60)}h ${durationMin % 60 ? durationMin % 60 + 'm' : ''}` : `${durationMin}m`;
 
-    const typeLabels = { class: 'Class', task: 'Study Session', work: 'Work', personal: 'Personal' };
+    const typeLabels = { class: 'Class', task: 'Study Session', work: 'Work', personal: 'Personal', exam: 'Exam' };
 
     const modal = document.createElement('div');
     modal.id = 'calEventDetailModal';
@@ -1100,7 +1135,13 @@ function showEventDetails(eventId, targetEl) {
                 ${event.status ? `<div class="cal-event-detail-row"><span class="cal-event-detail-label">Status</span><span class="cal-event-detail-value">${event.status}</span></div>` : ''}
                 ${event.courseName ? `<div class="cal-event-detail-row"><span class="cal-event-detail-label">Course</span><span class="cal-event-detail-value">${event.courseName}</span></div>` : ''}
                 ${event.taskTitle ? `<div class="cal-event-detail-row"><span class="cal-event-detail-label">Task</span><span class="cal-event-detail-value">${event.taskTitle}</span></div>` : ''}
+                ${event.session ? `<div class="cal-event-detail-row"><span class="cal-event-detail-label">Session</span><span class="cal-event-detail-value">${event.session}</span></div>` : ''}
             </div>
+            ${event.isExam ? `
+            <div class="cal-event-detail-footer">
+                <button class="btn btn-secondary" id="calDetailGoExams">Manage Exams</button>
+            </div>
+            ` : `
             <div class="cal-event-detail-footer">
                 <button class="btn btn-secondary" id="calDetailEdit">Edit</button>
                 <button class="btn btn-ghost btn-danger" id="calDetailDelete">Delete</button>
@@ -1112,6 +1153,7 @@ function showEventDetails(eventId, targetEl) {
                     <button class="btn btn-secondary btn-sm" id="calDetailConfirmNo">Cancel</button>
                 </div>
             </div>
+            `}
         </div>
     `;
 
@@ -1122,31 +1164,38 @@ function showEventDetails(eventId, targetEl) {
     modal.querySelector('#calDetailClose').addEventListener('click', close);
     modal.addEventListener('click', (e) => { if (e.target === modal) close(); });
 
-    modal.querySelector('#calDetailEdit').addEventListener('click', () => {
-        close();
-        openEventModalForEdit(event);
-    });
-
-    modal.querySelector('#calDetailDelete').addEventListener('click', () => {
-        modal.querySelector('.cal-event-detail-footer').classList.add('hidden');
-        modal.querySelector('#calDetailConfirm').classList.remove('hidden');
-    });
-
-    modal.querySelector('#calDetailConfirmNo').addEventListener('click', () => {
-        modal.querySelector('#calDetailConfirm').classList.add('hidden');
-        modal.querySelector('.cal-event-detail-footer').classList.remove('hidden');
-    });
-
-    modal.querySelector('#calDetailConfirmYes').addEventListener('click', async () => {
-        try {
-            await api.deleteEvent(eventId);
-            showToast('Event deleted');
+    if (event.isExam) {
+        modal.querySelector('#calDetailGoExams')?.addEventListener('click', () => {
             close();
-            await navigate();
-        } catch {
-            showToast('Failed to delete event', 'error');
-        }
-    });
+            window.location.href = '/Pages/Exams.html';
+        });
+    } else {
+        modal.querySelector('#calDetailEdit').addEventListener('click', () => {
+            close();
+            openEventModalForEdit(event);
+        });
+
+        modal.querySelector('#calDetailDelete').addEventListener('click', () => {
+            modal.querySelector('.cal-event-detail-footer').classList.add('hidden');
+            modal.querySelector('#calDetailConfirm').classList.remove('hidden');
+        });
+
+        modal.querySelector('#calDetailConfirmNo').addEventListener('click', () => {
+            modal.querySelector('#calDetailConfirm').classList.add('hidden');
+            modal.querySelector('.cal-event-detail-footer').classList.remove('hidden');
+        });
+
+        modal.querySelector('#calDetailConfirmYes').addEventListener('click', async () => {
+            try {
+                await api.deleteEvent(eventId);
+                showToast('Event deleted');
+                close();
+                await navigate();
+            } catch {
+                showToast('Failed to delete event', 'error');
+            }
+        });
+    }
 }
 
 /* ---- Highlight Task Events ---- */
