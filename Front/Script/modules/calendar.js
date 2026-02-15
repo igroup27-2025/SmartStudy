@@ -25,6 +25,7 @@ export async function initCalendar() {
     setupViewToggle();
     setupNavigation();
     setupEventCreation();
+    setupConstraintModal();
     await navigate();
 
     // Auto-open event creation modal if ?add=1
@@ -862,32 +863,238 @@ function showConflictWarning(conflicts) {
 
 /* ---- Constraint Modal ---- */
 function openConstraintModal() {
-    const form = document.getElementById('eventForm');
-    if (!form) return;
-    form.reset();
+    // Reset to blocks tab
+    switchConstraintTab('blocks');
+    // Hide add form
+    resetCalConstraintForm();
+    document.getElementById('calConstraintForm')?.classList.add('hidden');
+    // Load data
+    loadCalConstraints();
+    loadCalSchedulingPrefs();
+    openModal('constraintModal');
+}
 
-    editingEventId = null;
-    editingEventType = null;
+function switchConstraintTab(tab) {
+    document.querySelectorAll('.constraint-tab').forEach(t => {
+        t.classList.toggle('active', t.dataset.tab === tab);
+    });
+    document.getElementById('constraintTabBlocks')?.classList.toggle('hidden', tab !== 'blocks');
+    document.getElementById('constraintTabLimits')?.classList.toggle('hidden', tab !== 'limits');
+    // Show/hide Save Limits button
+    document.getElementById('calSaveLimits')?.classList.toggle('hidden', tab !== 'limits');
+}
 
-    const title = document.querySelector('#eventModal .modal-header h3');
-    const submitBtn = document.getElementById('eventSubmitBtn');
-    if (title) title.textContent = 'Add Fixed Constraint';
-    if (submitBtn) submitBtn.textContent = 'Create Constraint';
+async function loadCalConstraints() {
+    const list = document.getElementById('calConstraintsList');
+    if (!list) return;
 
-    // Pre-set type to work and recurring
-    const typeSelect = document.getElementById('eventTypeSelect');
-    if (typeSelect) {
-        typeSelect.value = 'work';
-        typeSelect.disabled = false;
+    list.innerHTML = '<div style="color:var(--text-muted);font-size:var(--fs-sm)">Loading...</div>';
+
+    try {
+        const { from, to } = getConstraintDateRange();
+        const events = await api.getEvents(from, to);
+
+        // Filter recurring personal/work events (these are the constraints)
+        const constraints = events.filter(e =>
+            e.recurring && (e.eventType === 'personal' || e.eventType === 'work')
+        );
+
+        // Deduplicate by eventId (recurrence expansion creates copies)
+        const seen = new Set();
+        const unique = constraints.filter(e => {
+            if (seen.has(e.eventId)) return false;
+            seen.add(e.eventId);
+            return true;
+        });
+
+        if (unique.length === 0) {
+            list.innerHTML = '';
+            return;
+        }
+
+        const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+        list.innerHTML = unique.map(e => {
+            const from = new Date(e.from);
+            const to = new Date(e.to);
+            const label = e.description || e.workPlace || e.type || 'Block';
+            const dayName = dayNames[from.getDay()];
+            return `<div class="constraint-item" data-event-id="${e.eventId}">
+                <div class="constraint-item__info">
+                    <div class="constraint-item__label">${label}</div>
+                    <div class="constraint-item__time">${dayName} ${formatTime(from)} - ${formatTime(to)}</div>
+                </div>
+                <button class="constraint-item__delete" title="Delete">&times;</button>
+            </div>`;
+        }).join('');
+
+        // Wire delete buttons
+        list.querySelectorAll('.constraint-item__delete').forEach(btn => {
+            btn.addEventListener('click', async () => {
+                const item = btn.closest('.constraint-item');
+                const eventId = parseInt(item.dataset.eventId);
+                try {
+                    await api.deleteEvent(eventId);
+                    showToast('Constraint removed');
+                    loadCalConstraints();
+                    navigate();
+                } catch {
+                    showToast('Failed to delete constraint', 'error');
+                }
+            });
+        });
+    } catch {
+        list.innerHTML = '<div style="color:var(--text-muted);font-size:var(--fs-sm)">Failed to load constraints</div>';
     }
-    updateEventFormFields('work');
-    document.getElementById('eventRecurring').checked = true;
+}
 
-    // Hide conflict warning
-    const cw = document.getElementById('conflictWarning');
-    if (cw) cw.style.display = 'none';
+function getConstraintDateRange() {
+    const from = new Date();
+    from.setDate(from.getDate() - 7);
+    from.setHours(0, 0, 0, 0);
+    const to = new Date();
+    to.setDate(to.getDate() + 30);
+    to.setHours(23, 59, 59, 999);
+    return { from, to };
+}
 
-    openModal('eventModal');
+async function saveCalConstraint() {
+    const name = document.getElementById('constraintName')?.value?.trim();
+    const type = document.getElementById('constraintType')?.value || 'personal';
+    const startTime = document.getElementById('constraintStartTime')?.value;
+    const endTime = document.getElementById('constraintEndTime')?.value;
+
+    const checkedDays = [...document.querySelectorAll('#constraintDays input:checked')].map(cb => parseInt(cb.value));
+
+    if (!name) { showToast('Please enter a name', 'error'); return; }
+    if (checkedDays.length === 0) { showToast('Please select at least one day', 'error'); return; }
+    if (!startTime || !endTime) { showToast('Please set start and end times', 'error'); return; }
+    if (endTime <= startTime) { showToast('End time must be after start time', 'error'); return; }
+
+    const saveBtn = document.getElementById('calConstraintSave');
+    if (saveBtn) { saveBtn.disabled = true; saveBtn.textContent = 'Saving...'; }
+
+    try {
+        for (const dayOfWeek of checkedDays) {
+            // Find next occurrence of this weekday
+            const date = getNextWeekday(dayOfWeek);
+            const fromISO = new Date(`${date}T${startTime}`).toISOString();
+            const toISO = new Date(`${date}T${endTime}`).toISOString();
+
+            if (type === 'work') {
+                await api.createWorkEvent({
+                    from: fromISO,
+                    to: toISO,
+                    recurring: true,
+                    workPlace: name
+                });
+            } else {
+                await api.createPersonalEvent({
+                    from: fromISO,
+                    to: toISO,
+                    recurring: true,
+                    type: 'Constraint',
+                    description: name
+                });
+            }
+        }
+
+        showToast(`Constraint "${name}" created`);
+        resetCalConstraintForm();
+        document.getElementById('calConstraintForm')?.classList.add('hidden');
+        loadCalConstraints();
+        navigate();
+    } catch (err) {
+        showToast(err.message || 'Failed to create constraint', 'error');
+    } finally {
+        if (saveBtn) { saveBtn.disabled = false; saveBtn.textContent = 'Save Block'; }
+    }
+}
+
+function getNextWeekday(targetDay) {
+    const d = new Date();
+    const diff = (targetDay - d.getDay() + 7) % 7 || 7;
+    d.setDate(d.getDate() + diff);
+    const pad = n => String(n).padStart(2, '0');
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+}
+
+function resetCalConstraintForm() {
+    document.getElementById('constraintName').value = '';
+    document.getElementById('constraintType').value = 'personal';
+    document.getElementById('constraintStartTime').value = '18:00';
+    document.getElementById('constraintEndTime').value = '20:00';
+    document.querySelectorAll('#constraintDays input').forEach(cb => { cb.checked = false; });
+}
+
+async function loadCalSchedulingPrefs() {
+    try {
+        const prefs = await api.getSchedulingPrefs();
+        const maxDaily = document.getElementById('limitsMaxDaily');
+        const maxDailyVal = document.getElementById('limitsMaxDailyVal');
+        const maxCont = document.getElementById('limitsMaxContinuous');
+        const startH = document.getElementById('limitsStartHour');
+        const endH = document.getElementById('limitsEndHour');
+
+        if (maxDaily) { maxDaily.value = prefs.maxDailyStudyHours ?? 6; }
+        if (maxDailyVal) { maxDailyVal.textContent = `${prefs.maxDailyStudyHours ?? 6}h`; }
+        if (maxCont) { maxCont.value = prefs.maxContinuousMinutes ?? 90; }
+        if (startH) { startH.value = prefs.dayStartHour ?? 8; }
+        if (endH) { endH.value = prefs.dayEndHour ?? 22; }
+    } catch { /* silent — defaults are fine */ }
+}
+
+async function saveCalSchedulingPrefs() {
+    const saveBtn = document.getElementById('calSaveLimits');
+    if (saveBtn) { saveBtn.disabled = true; saveBtn.textContent = 'Saving...'; }
+
+    try {
+        await api.updateSchedulingPrefs({
+            maxDailyStudyHours: parseFloat(document.getElementById('limitsMaxDaily')?.value) || 6,
+            maxContinuousMinutes: parseInt(document.getElementById('limitsMaxContinuous')?.value) || 90,
+            dayStartHour: parseInt(document.getElementById('limitsStartHour')?.value) || 8,
+            dayEndHour: parseInt(document.getElementById('limitsEndHour')?.value) || 22
+        });
+
+        await api.runScheduling();
+        showToast('Study limits saved');
+        navigate();
+    } catch (err) {
+        showToast(err.message || 'Failed to save limits', 'error');
+    } finally {
+        if (saveBtn) { saveBtn.disabled = false; saveBtn.textContent = 'Save Limits'; }
+    }
+}
+
+function setupConstraintModal() {
+    // Tab switching
+    document.querySelectorAll('.constraint-tab').forEach(tab => {
+        tab.addEventListener('click', () => switchConstraintTab(tab.dataset.tab));
+    });
+
+    // Add time block button
+    document.getElementById('calAddTimeBlock')?.addEventListener('click', () => {
+        document.getElementById('calConstraintForm')?.classList.remove('hidden');
+        document.getElementById('calAddTimeBlock')?.classList.add('hidden');
+    });
+
+    // Cancel form
+    document.getElementById('calConstraintCancel')?.addEventListener('click', () => {
+        resetCalConstraintForm();
+        document.getElementById('calConstraintForm')?.classList.add('hidden');
+        document.getElementById('calAddTimeBlock')?.classList.remove('hidden');
+    });
+
+    // Save block
+    document.getElementById('calConstraintSave')?.addEventListener('click', () => saveCalConstraint());
+
+    // Save limits
+    document.getElementById('calSaveLimits')?.addEventListener('click', () => saveCalSchedulingPrefs());
+
+    // Range slider live update
+    document.getElementById('limitsMaxDaily')?.addEventListener('input', (e) => {
+        const val = document.getElementById('limitsMaxDailyVal');
+        if (val) val.textContent = `${e.target.value}h`;
+    });
 }
 
 function openEventModal(dateStr, hour, endHour) {

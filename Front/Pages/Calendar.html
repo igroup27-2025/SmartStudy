@@ -235,6 +235,115 @@
                 </form>
             </div>
         </div>
+        <!-- Constraint Modal -->
+        <div class="modal-overlay" id="constraintModal">
+            <div class="modal modal-lg">
+                <div class="modal-header">
+                    <h3>Manage Constraints</h3>
+                    <button class="modal-close" data-close-modal>&times;</button>
+                </div>
+                <div class="modal-body">
+                    <!-- Tab Bar -->
+                    <div class="constraint-tabs">
+                        <button class="constraint-tab active" data-tab="blocks">Time Blocks</button>
+                        <button class="constraint-tab" data-tab="limits">Study Limits</button>
+                    </div>
+
+                    <!-- Time Blocks Tab -->
+                    <div class="constraint-tab-content" id="constraintTabBlocks">
+                        <div id="calConstraintsList" class="constraint-list"></div>
+                        <button class="btn btn-sm btn-primary" id="calAddTimeBlock" style="margin-top:var(--space-3)">+ Add Time Block</button>
+
+                        <div class="constraint-form hidden" id="calConstraintForm">
+                            <div class="form-group">
+                                <label for="constraintName">Name *</label>
+                                <input type="text" id="constraintName" class="form-input" placeholder="e.g. Family Dinner, Gym">
+                            </div>
+                            <div class="form-group">
+                                <label for="constraintType">Type</label>
+                                <select id="constraintType" class="form-input">
+                                    <option value="personal">Personal</option>
+                                    <option value="work">Work</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label>Days *</label>
+                                <div class="constraint-day-picker" id="constraintDays">
+                                    <label class="constraint-day-chip"><input type="checkbox" value="0"><span>Sun</span></label>
+                                    <label class="constraint-day-chip"><input type="checkbox" value="1"><span>Mon</span></label>
+                                    <label class="constraint-day-chip"><input type="checkbox" value="2"><span>Tue</span></label>
+                                    <label class="constraint-day-chip"><input type="checkbox" value="3"><span>Wed</span></label>
+                                    <label class="constraint-day-chip"><input type="checkbox" value="4"><span>Thu</span></label>
+                                    <label class="constraint-day-chip"><input type="checkbox" value="5"><span>Fri</span></label>
+                                    <label class="constraint-day-chip"><input type="checkbox" value="6"><span>Sat</span></label>
+                                </div>
+                            </div>
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label for="constraintStartTime">Start Time *</label>
+                                    <input type="time" id="constraintStartTime" class="form-input" value="18:00">
+                                </div>
+                                <div class="form-group">
+                                    <label for="constraintEndTime">End Time *</label>
+                                    <input type="time" id="constraintEndTime" class="form-input" value="20:00">
+                                </div>
+                            </div>
+                            <div class="form-row" style="justify-content:flex-end;gap:var(--space-2)">
+                                <button type="button" class="btn btn-sm btn-secondary" id="calConstraintCancel">Cancel</button>
+                                <button type="button" class="btn btn-sm btn-primary" id="calConstraintSave">Save Block</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Study Limits Tab -->
+                    <div class="constraint-tab-content hidden" id="constraintTabLimits">
+                        <div class="form-group">
+                            <label>Max Daily Study Hours</label>
+                            <div class="constraint-range-row">
+                                <input type="range" id="limitsMaxDaily" class="form-range" min="2" max="12" step="0.5" value="6">
+                                <span class="constraint-range-value" id="limitsMaxDailyVal">6h</span>
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label for="limitsMaxContinuous">Max Continuous Study</label>
+                            <select id="limitsMaxContinuous" class="form-input">
+                                <option value="30">30 minutes</option>
+                                <option value="60">1 hour</option>
+                                <option value="90" selected>1.5 hours</option>
+                                <option value="120">2 hours</option>
+                            </select>
+                        </div>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="limitsStartHour">Study Window Start</label>
+                                <select id="limitsStartHour" class="form-input">
+                                    <option value="6">6:00 AM</option>
+                                    <option value="7">7:00 AM</option>
+                                    <option value="8" selected>8:00 AM</option>
+                                    <option value="9">9:00 AM</option>
+                                    <option value="10">10:00 AM</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label for="limitsEndHour">Study Window End</label>
+                                <select id="limitsEndHour" class="form-input">
+                                    <option value="18">6:00 PM</option>
+                                    <option value="19">7:00 PM</option>
+                                    <option value="20">8:00 PM</option>
+                                    <option value="21">9:00 PM</option>
+                                    <option value="22" selected>10:00 PM</option>
+                                    <option value="23">11:00 PM</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer" style="padding:var(--space-4) var(--space-6)">
+                    <button type="button" class="btn btn-secondary" data-close-modal>Close</button>
+                    <button type="button" class="btn btn-primary hidden" id="calSaveLimits">Save Limits</button>
+                </div>
+            </div>
+        </div>
     </div>
     <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
     <script type="module" src="/Script/main.js"></script>

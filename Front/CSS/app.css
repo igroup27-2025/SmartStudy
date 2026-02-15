@@ -1119,6 +1119,118 @@ hr {
   color: var(--text-muted);
 }
 
+/* ---- Constraint Modal (Calendar) ---- */
+.constraint-tabs {
+  display: flex;
+  gap: var(--space-1);
+  border-bottom: 2px solid var(--border-color);
+  margin-bottom: var(--space-4);
+}
+
+.constraint-tab {
+  padding: var(--space-2) var(--space-4);
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  color: var(--text-muted);
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -2px;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.constraint-tab:hover { color: var(--text-primary); }
+.constraint-tab.active {
+  color: var(--color-primary);
+  border-bottom-color: var(--color-primary);
+}
+
+.constraint-list { min-height: 40px; }
+.constraint-list:empty::after {
+  content: 'No time blocks yet';
+  color: var(--text-muted);
+  font-size: var(--fs-sm);
+  padding: var(--space-3) 0;
+  display: block;
+}
+
+.constraint-item__delete {
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-sm);
+  font-size: 1rem;
+  color: var(--text-muted);
+  background: none;
+  border: none;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  flex-shrink: 0;
+}
+.constraint-item__delete:hover {
+  background: var(--color-red-50, #FEE2E2);
+  color: var(--color-red-500, #EF4444);
+}
+
+.constraint-day-picker {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.constraint-day-chip {
+  cursor: pointer;
+}
+.constraint-day-chip input { display: none; }
+.constraint-day-chip span {
+  display: inline-block;
+  padding: var(--space-1) var(--space-3);
+  border-radius: var(--radius-full);
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  background: var(--color-gray-100);
+  color: var(--text-secondary);
+  border: 1px solid var(--border-color);
+  transition: all var(--transition-fast);
+}
+.constraint-day-chip:hover span {
+  border-color: var(--color-primary);
+}
+.constraint-day-chip input:checked + span {
+  background: var(--color-primary);
+  color: #fff;
+  border-color: var(--color-primary);
+}
+
+.constraint-form {
+  background: var(--color-gray-50);
+  border-radius: var(--radius-lg);
+  padding: var(--space-4);
+  margin-top: var(--space-3);
+}
+
+.constraint-range-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+.constraint-range-row .form-range { flex: 1; }
+.constraint-range-value {
+  font-weight: 700;
+  font-size: var(--fs-sm);
+  min-width: 36px;
+  text-align: right;
+  color: var(--color-primary);
+}
+
+.constraint-item__days {
+  font-size: var(--fs-xs);
+  color: var(--text-muted);
+}
+
 /* ---- Estimated vs Actual Chart ---- */
 .est-vs-actual-chart {
   display: flex;
