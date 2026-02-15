@@ -413,6 +413,11 @@ function setupDragAndDrop(grid) {
                     data.location = event.location;
                     data.duration = duration / 3600000;
                     await api.updateClassEvent(eventId, data);
+                } else if (event.eventType === 'task') {
+                    data.taskId = event.taskId;
+                    data.priority = event.priority;
+                    data.status = event.status;
+                    await api.updateTaskEvent(eventId, data);
                 } else if (event.eventType === 'work') {
                     data.workPlace = event.workPlace;
                     await api.updateWorkEvent(eventId, data);
@@ -679,43 +684,58 @@ function setupEventCreation() {
                 if (isEditing) await api.updateWorkEvent(editingEventId, data);
                 else await api.createWorkEvent(data);
             } else if (type === 'task') {
-                const activeSource = document.querySelector('.task-source-btn.active')?.dataset.source || 'existing';
-                let taskId;
-
-                if (activeSource === 'existing') {
-                    taskId = parseInt(document.getElementById('eventTaskId').value);
-                    if (!taskId) {
-                        showToast('Please select a task', 'error');
-                        return;
-                    }
+                if (isEditing) {
+                    // Update existing task event (keep same taskId)
+                    const existingEvent = cachedEvents.find(e => e.eventId === editingEventId);
+                    const taskId = parseInt(document.getElementById('eventTaskId').value) || existingEvent?.taskId;
+                    const data = {
+                        from: from.toISOString(),
+                        to: to.toISOString(),
+                        recurring,
+                        taskId,
+                        priority: existingEvent?.priority || null,
+                        status: existingEvent?.status || 'Scheduled'
+                    };
+                    await api.updateTaskEvent(editingEventId, data);
                 } else {
-                    // Create a new task first
-                    const title = document.getElementById('eventTaskTitle').value?.trim();
-                    const courseId = parseInt(document.getElementById('eventTaskCourseId').value);
-                    if (!title || !courseId) {
-                        showToast('Task title and course are required', 'error');
-                        return;
-                    }
-                    const newTask = await api.createTask({
-                        title,
-                        courseId,
-                        taskType: document.getElementById('eventTaskType')?.value || 'Other',
-                        dueDate: document.getElementById('eventTaskDueDate')?.value || null,
-                        estimatedHours: parseFloat(document.getElementById('eventTaskHours')?.value) || null,
-                        priority: document.getElementById('eventTaskPriority')?.value || null
-                    });
-                    taskId = newTask.taskId;
-                }
+                    const activeSource = document.querySelector('.task-source-btn.active')?.dataset.source || 'existing';
+                    let taskId;
 
-                const data = {
-                    from: from.toISOString(),
-                    to: to.toISOString(),
-                    recurring,
-                    taskId,
-                    priority: null,
-                    status: 'Scheduled'
-                };
-                await api.createTaskEvent(data);
+                    if (activeSource === 'existing') {
+                        taskId = parseInt(document.getElementById('eventTaskId').value);
+                        if (!taskId) {
+                            showToast('Please select a task', 'error');
+                            return;
+                        }
+                    } else {
+                        // Create a new task first
+                        const title = document.getElementById('eventTaskTitle').value?.trim();
+                        const courseId = parseInt(document.getElementById('eventTaskCourseId').value);
+                        if (!title || !courseId) {
+                            showToast('Task title and course are required', 'error');
+                            return;
+                        }
+                        const newTask = await api.createTask({
+                            title,
+                            courseId,
+                            taskType: document.getElementById('eventTaskType')?.value || 'Other',
+                            dueDate: document.getElementById('eventTaskDueDate')?.value || null,
+                            estimatedHours: parseFloat(document.getElementById('eventTaskHours')?.value) || null,
+                            priority: document.getElementById('eventTaskPriority')?.value || null
+                        });
+                        taskId = newTask.taskId;
+                    }
+
+                    const data = {
+                        from: from.toISOString(),
+                        to: to.toISOString(),
+                        recurring,
+                        taskId,
+                        priority: null,
+                        status: 'Scheduled'
+                    };
+                    await api.createTaskEvent(data);
+                }
             } else {
                 const data = {
                     from: from.toISOString(),
@@ -1085,6 +1105,13 @@ function showEventDetails(eventId, targetEl) {
                 <button class="btn btn-secondary" id="calDetailEdit">Edit</button>
                 <button class="btn btn-ghost btn-danger" id="calDetailDelete">Delete</button>
             </div>
+            <div class="cal-event-detail-confirm hidden" id="calDetailConfirm">
+                <p>Delete this event?</p>
+                <div class="cal-event-detail-confirm-actions">
+                    <button class="btn btn-danger btn-sm" id="calDetailConfirmYes">Yes, delete</button>
+                    <button class="btn btn-secondary btn-sm" id="calDetailConfirmNo">Cancel</button>
+                </div>
+            </div>
         </div>
     `;
 
@@ -1100,7 +1127,17 @@ function showEventDetails(eventId, targetEl) {
         openEventModalForEdit(event);
     });
 
-    modal.querySelector('#calDetailDelete').addEventListener('click', async () => {
+    modal.querySelector('#calDetailDelete').addEventListener('click', () => {
+        modal.querySelector('.cal-event-detail-footer').classList.add('hidden');
+        modal.querySelector('#calDetailConfirm').classList.remove('hidden');
+    });
+
+    modal.querySelector('#calDetailConfirmNo').addEventListener('click', () => {
+        modal.querySelector('#calDetailConfirm').classList.add('hidden');
+        modal.querySelector('.cal-event-detail-footer').classList.remove('hidden');
+    });
+
+    modal.querySelector('#calDetailConfirmYes').addEventListener('click', async () => {
         try {
             await api.deleteEvent(eventId);
             showToast('Event deleted');

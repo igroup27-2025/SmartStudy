@@ -276,6 +276,23 @@ public class EventsController : ControllerBase
         return Ok(new { evt.EventId, eventType = "work" });
     }
 
+    [HttpPut("task/{id}")]
+    public async Task<IActionResult> UpdateTask(int id, [FromBody] CreateTaskEventDto dto)
+    {
+        var email = GetEmail();
+        var evt = await _db.TaskEvents.FirstOrDefaultAsync(e => e.EventId == id && e.Email == email);
+        if (evt == null) return NotFound();
+
+        evt.From = dto.From;
+        evt.To = dto.To;
+        evt.Recurring = dto.Recurring;
+        evt.TaskId = dto.TaskId;
+        evt.Priority = dto.Priority;
+        evt.Status = dto.Status ?? evt.Status;
+        await _db.SaveChangesAsync();
+        return Ok(new { evt.EventId, eventType = "task" });
+    }
+
     [HttpPut("personal/{id}")]
     public async Task<IActionResult> UpdatePersonal(int id, [FromBody] CreatePersonalEventDto dto)
     {

@@ -97,6 +97,7 @@ export const api = {
     createWorkEvent: (data) => request('POST', '/events/work', data),
     createPersonalEvent: (data) => request('POST', '/events/personal', data),
     updateClassEvent: (id, data) => request('PUT', `/events/class/${id}`, data),
+    updateTaskEvent: (id, data) => request('PUT', `/events/task/${id}`, data),
     updateWorkEvent: (id, data) => request('PUT', `/events/work/${id}`, data),
     updatePersonalEvent: (id, data) => request('PUT', `/events/personal/${id}`, data),
     deleteEvent: (id) => request('DELETE', `/events/${id}`),
