@@ -372,6 +372,13 @@ function renderTimeGrid(events, startDate, dayCount) {
 
     grid.innerHTML = html;
 
+    // Sync time column header height with day column headers
+    const dayHeaderEl = grid.querySelector('.cal-day-col .cal-day-header');
+    const timeHeaderEl = grid.querySelector('.cal-time-col .cal-day-header');
+    if (dayHeaderEl && timeHeaderEl) {
+        timeHeaderEl.style.minHeight = dayHeaderEl.offsetHeight + 'px';
+    }
+
     // Click on empty cell to create event
     grid.querySelectorAll('.cal-cell').forEach(cell => {
         cell.addEventListener('click', () => {

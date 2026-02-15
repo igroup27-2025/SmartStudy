@@ -51,7 +51,7 @@ public class SchedulingService
 
         // Identify which events are auto-scheduled task events (to be cleared)
         var existingTaskEventIds = await _db.TaskEvents
-            .Where(te => te.StudentTask.Email == email && te.Status == "Scheduled")
+            .Where(te => te.StudentTask.Email == email && (te.Status == "Scheduled" || te.Status == "Partial"))
             .Select(te => te.EventId)
             .ToListAsync();
 
@@ -83,6 +83,29 @@ public class SchedulingService
                 });
             }
             fixedEvents.AddRange(lunchEvents);
+        }
+
+        // Load exams to block exam days and reserve pre-exam study time
+        var exams = await _db.Exams
+            .Where(e => e.Course.UserCourses.Any(uc => uc.Email == email)
+                && e.Date >= scheduleStart && e.Date <= scheduleEnd)
+            .ToListAsync();
+
+        var examDays = new HashSet<DateTime>(exams.Select(e => e.Date.Date));
+        // 3 days before each exam: reserve 5h/day for exam prep
+        var examPrepReserved = new Dictionary<DateTime, double>();
+        foreach (var exam in exams)
+        {
+            for (int d = 1; d <= 3; d++)
+            {
+                var prepDay = exam.Date.Date.AddDays(-d);
+                if (prepDay >= scheduleStart)
+                {
+                    if (!examPrepReserved.ContainsKey(prepDay))
+                        examPrepReserved[prepDay] = 0;
+                    examPrepReserved[prepDay] = Math.Max(examPrepReserved[prepDay], 5.0);
+                }
+            }
         }
 
         // ML-adjusted hours: apply per-course ratio from completed tasks
@@ -127,9 +150,6 @@ public class SchedulingService
         foreach (var task in scoredTasks)
         {
             var totalHours = (double)(task.EstimatedHours ?? 1);
-            // Apply ML ratio if available
-            if (courseRatios.TryGetValue(task.CourseId, out var mlRatio))
-                totalHours *= mlRatio;
             var remainingHours = totalHours;
             var slots = new List<ScheduledSlotDto>();
             // For overdue tasks, schedule them within the next 7 days
@@ -139,10 +159,16 @@ public class SchedulingService
             for (var day = scheduleStart; day < dueDate && remainingHours > 0; day = day.AddDays(1))
             {
                 var dayKey = day.Date;
+
+                // Rule: no tasks on exam days
+                if (examDays.Contains(dayKey)) continue;
+
                 if (!dailyScheduledHours.ContainsKey(dayKey))
                     dailyScheduledHours[dayKey] = 0;
 
-                var dayAvailable = maxDaily - dailyScheduledHours[dayKey];
+                // Rule: reserve hours for exam prep (3 days before exam)
+                var prepReserve = examPrepReserved.GetValueOrDefault(dayKey, 0);
+                var dayAvailable = maxDaily - dailyScheduledHours[dayKey] - prepReserve;
                 if (dayAvailable <= 0) continue;
 
                 // Build free slots for this day
