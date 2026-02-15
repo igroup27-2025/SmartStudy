@@ -20,6 +20,7 @@ function request(method, path, body = null) {
             headers: getHeaders(),
             data: body ? JSON.stringify(body) : undefined,
             contentType: 'application/json',
+            dataType: method === 'DELETE' ? 'text' : 'json',
             success: (data) => resolve(data),
             error: (xhr) => {
                 if (xhr.status === 401) {

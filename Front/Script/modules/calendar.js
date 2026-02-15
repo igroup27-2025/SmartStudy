@@ -163,17 +163,17 @@ function getDateRange() {
     if (currentView === 'monthly') {
         const first = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1);
         const last = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0);
-        // Extend to fill grid rows — start from Monday
-        const gridStart = getMonday(first);
+        // Extend to fill grid rows — start from Sunday
+        const gridStart = getSunday(first);
         const gridEnd = new Date(last);
-        // Extend to Sunday
+        // Extend to Saturday
         const dayOfWeek = gridEnd.getDay();
-        const daysToSunday = dayOfWeek === 0 ? 0 : 7 - dayOfWeek;
-        gridEnd.setDate(gridEnd.getDate() + daysToSunday);
+        const daysToSaturday = dayOfWeek === 6 ? 0 : 6 - dayOfWeek;
+        gridEnd.setDate(gridEnd.getDate() + daysToSaturday);
         gridEnd.setHours(23, 59, 59, 999);
         return { from: gridStart, to: gridEnd };
     } else if (currentView === 'weekly') {
-        const from = getMonday(currentDate);
+        const from = getSunday(currentDate);
         const to = new Date(from);
         to.setDate(to.getDate() + 7);
         return { from, to };
@@ -510,7 +510,7 @@ function renderMonthlyGrid(events, gridStart, gridEnd) {
     today.setHours(0, 0, 0, 0);
     const thisMonth = currentDate.getMonth();
 
-    const dayNames = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+    const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
     let html = '<div class="cal-month">';
 
@@ -1128,11 +1128,10 @@ function highlightTaskEvents(taskId) {
 }
 
 /* ---- Utilities ---- */
-function getMonday(date) {
+function getSunday(date) {
     const d = new Date(date);
     const day = d.getDay();
-    const diff = d.getDate() - day + (day === 0 ? -6 : 1);
-    d.setDate(diff);
+    d.setDate(d.getDate() - day);
     d.setHours(0, 0, 0, 0);
     return d;
 }
