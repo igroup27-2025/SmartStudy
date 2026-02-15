@@ -1053,7 +1053,7 @@ function showEventDetails(eventId, targetEl) {
 
     const modal = document.createElement('div');
     modal.id = 'calEventDetailModal';
-    modal.className = 'modal-overlay active';
+    modal.className = 'modal-overlay';
     modal.innerHTML = `
         <div class="modal cal-event-detail-modal">
             <div class="modal-header" style="border-left:4px solid ${colors.border}">
@@ -1089,6 +1089,7 @@ function showEventDetails(eventId, targetEl) {
     `;
 
     document.body.appendChild(modal);
+    requestAnimationFrame(() => modal.classList.add('open'));
 
     const close = () => modal.remove();
     modal.querySelector('#calDetailClose').addEventListener('click', close);
