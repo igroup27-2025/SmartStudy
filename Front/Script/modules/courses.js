@@ -5,7 +5,7 @@ let courses = [];
 let instructors = [];
 let friends = [];
 
-const COURSE_COLORS = ['#00BCD4', '#F28D35', '#9B76FF', '#F2C777', '#FF607E', '#54BFB5'];
+const COURSE_COLORS = ['#4A90D9', '#F28D35', '#9B76FF', '#43B88C', '#E84B6A', '#54BFB5'];
 
 export async function initCourses() {
     try {

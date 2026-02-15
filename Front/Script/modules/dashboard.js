@@ -636,11 +636,11 @@ async function renderWeeklySuggestions() {
 
 /* ---- Section: Dashboard 3-Day Calendar ---- */
 const MINI_CAL_COLORS = {
-    class: { bg: '#E0F7FA', border: '#00BCD4', text: '#006064' },
-    task: { bg: '#FFF3E0', border: '#F28D35', text: '#E65100' },
-    work: { bg: '#F3E5F5', border: '#9B76FF', text: '#4A148C' },
-    personal: { bg: '#FFF8E1', border: '#F2C777', text: '#F57F17' },
-    exam: { bg: '#FCE4EC', border: '#FF607E', text: '#880E4F' },
+    class:    { bg: '#E3EEF9', border: '#4A90D9', text: '#2D5A8A' },
+    task:     { bg: '#FFF3E0', border: '#F28D35', text: '#A06020' },
+    work:     { bg: '#F3E5F5', border: '#9B76FF', text: '#5E3DBF' },
+    personal: { bg: '#E6F5EE', border: '#43B88C', text: '#2A7A5A' },
+    exam:     { bg: '#FCE4EC', border: '#E84B6A', text: '#A03050' },
 };
 
 let miniCalStart = new Date();
@@ -672,21 +672,54 @@ async function renderMiniCalendar() {
         days.push(d);
     }
 
-    // Header with date range
+    // Determine time range based on events (default 8-17)
+    let startSlot = 8;
+    let endSlot = 17;
+    events.forEach(e => {
+        const fh = new Date(e.from).getHours();
+        const th = new Date(e.to).getHours() + (new Date(e.to).getMinutes() > 0 ? 1 : 0);
+        if (fh < startSlot) startSlot = Math.max(0, fh);
+        if (th > endSlot) endSlot = Math.min(23, th);
+    });
+    const totalHours = endSlot - startSlot;
+    const cellHeight = 40; // px per hour (compact)
+
+    // Header
     const fmt = (d) => d.toLocaleDateString('en', { month: 'short', day: 'numeric' });
-    const rangeLabel = `${fmt(days[0])} - ${fmt(days[2])}`;
+    const rangeLabel = `Next 3 Days`;
 
     let html = '<div class="mini-cal">';
     html += '<div class="mini-cal__header">';
+    html += '<div class="mini-cal__header-left">';
     html += `<span class="mini-cal__title">${rangeLabel}</span>`;
+    html += '<div class="mini-cal__legend-inline">';
+    html += '<span class="legend-dot" style="background:#4A90D9" title="Classes"></span>';
+    html += '<span class="legend-dot" style="background:#F28D35" title="Tasks"></span>';
+    html += '<span class="legend-dot" style="background:#9B76FF" title="Work"></span>';
+    html += '<span class="legend-dot" style="background:#43B88C" title="Personal"></span>';
+    html += '<span class="legend-dot" style="background:#E84B6A" title="Exams"></span>';
+    html += '</div></div>';
+    html += '<div class="mini-cal__header-right">';
     html += '<div class="mini-cal__nav">';
     html += '<button id="miniCalPrev">&larr;</button>';
     html += '<button id="miniCalNext">&rarr;</button>';
+    html += '</div>';
+    html += '<a href="/Pages/Calendar.html" class="mini-cal__link">Full Calendar</a>';
     html += '<button id="miniCalAdd" class="mini-cal__add" title="Add event">+</button>';
     html += '</div></div>';
 
-    // 3-day columns
-    html += '<div class="mini-cal__days">';
+    // Time-grid
+    html += '<div class="mini-cal__grid">';
+
+    // Time labels column
+    html += '<div class="mini-cal__time-col">';
+    html += '<div class="mini-cal__day-header mini-cal__time-header"></div>'; // empty corner
+    for (let h = startSlot; h < endSlot; h++) {
+        html += `<div class="mini-cal__time-label" style="height:${cellHeight}px">${h.toString().padStart(2, '0')}:00</div>`;
+    }
+    html += '</div>';
+
+    // Day columns
     days.forEach(day => {
         const isToday = day.getTime() === today.getTime();
         const dayName = day.toLocaleDateString('en', { weekday: 'short' });
@@ -699,43 +732,42 @@ async function renderMiniCalendar() {
                    eDate.getFullYear() === day.getFullYear();
         });
 
-        html += `<div class="mini-cal__day-col ${isToday ? 'mini-cal__day-col--today' : ''}" data-date="${dateStr}">`;
-        html += `<div class="mini-cal__day-header">`;
+        html += `<div class="mini-cal__day-col" data-date="${dateStr}">`;
+        html += `<div class="mini-cal__day-header ${isToday ? 'mini-cal__day-header--today' : ''}">`;
         html += `<span class="mini-cal__day-name">${dayName}</span>`;
         html += `<span class="mini-cal__day-num ${isToday ? 'today' : ''}">${day.getDate()}</span>`;
         html += '</div>';
 
-        html += '<div class="mini-cal__day-events">';
-        if (dayEvents.length === 0) {
-            html += '<span class="mini-cal__no-events">No events</span>';
-        } else {
-            dayEvents.slice(0, 4).forEach(e => {
-                const colors = MINI_CAL_COLORS[e.eventType] || MINI_CAL_COLORS.personal;
-                const label = e.courseName || e.taskTitle || e.workPlace || e.description || e.type || 'Event';
-                const time = new Date(e.from);
-                const timeStr = `${time.getHours().toString().padStart(2, '0')}:${time.getMinutes().toString().padStart(2, '0')}`;
-                html += `<div class="mini-cal__event" style="background:${colors.bg};border-left:3px solid ${colors.border};color:${colors.text}">`;
-                html += `<span class="mini-cal__event-time">${timeStr}</span> ${label}`;
-                html += '</div>';
-            });
-            if (dayEvents.length > 4) {
-                html += `<span class="mini-cal__more">+${dayEvents.length - 4} more</span>`;
-            }
+        // Day body with hour cells + positioned events
+        html += `<div class="mini-cal__day-body" style="height:${totalHours * cellHeight}px">`;
+
+        // Hour grid lines
+        for (let h = startSlot; h < endSlot; h++) {
+            html += `<div class="mini-cal__cell" style="height:${cellHeight}px"></div>`;
         }
-        html += '</div></div>';
+
+        // Positioned events
+        dayEvents.forEach(e => {
+            const fromTime = new Date(e.from);
+            const toTime = new Date(e.to);
+            const startHour = fromTime.getHours() + fromTime.getMinutes() / 60;
+            const endHour = toTime.getHours() + toTime.getMinutes() / 60;
+            const top = (startHour - startSlot) * cellHeight;
+            const height = Math.max(18, (endHour - startHour) * cellHeight);
+            const colors = MINI_CAL_COLORS[e.eventType] || MINI_CAL_COLORS.personal;
+            const label = e.courseName || e.taskTitle || e.workPlace || e.description || e.type || 'Event';
+            const timeStr = `${fromTime.getHours().toString().padStart(2, '0')}:${fromTime.getMinutes().toString().padStart(2, '0')}`;
+
+            html += `<div class="mini-cal__event" style="top:${top}px;height:${height}px;background:${colors.bg};border-left:3px solid ${colors.border};color:${colors.text}">`;
+            html += `<span class="mini-cal__event-time">${timeStr}</span> ${label}`;
+            html += '</div>';
+        });
+
+        html += '</div></div>'; // close day-body, day-col
     });
-    html += '</div>'; // close .mini-cal__days
 
-    // Event color legend
-    html += '<div class="calendar-legend" style="margin-top:var(--space-3);gap:var(--space-4);flex-wrap:wrap">';
-    html += '<span class="legend-item"><span class="legend-dot" style="background:#00BCD4"></span> Classes</span>';
-    html += '<span class="legend-item"><span class="legend-dot" style="background:#F28D35"></span> Tasks</span>';
-    html += '<span class="legend-item"><span class="legend-dot" style="background:#9B76FF"></span> Work</span>';
-    html += '<span class="legend-item"><span class="legend-dot" style="background:#F2C777"></span> Personal</span>';
-    html += '<span class="legend-item"><span class="legend-dot" style="background:#FF607E"></span> Exams</span>';
-    html += '</div>';
-
-    html += '</div>'; // close .mini-cal
+    html += '</div>'; // close grid
+    html += '</div>'; // close mini-cal
 
     el.innerHTML = html;
 
@@ -755,10 +787,9 @@ async function renderMiniCalendar() {
         window.location.href = `/Pages/Calendar.html?date=${dateStr}&add=1`;
     });
 
-    // Day column click → navigate to calendar page at that date
+    // Day header click → navigate to calendar page at that date
     el.querySelectorAll('.mini-cal__day-col').forEach(col => {
-        col.addEventListener('click', (e) => {
-            if (e.target.closest('#miniCalPrev, #miniCalNext, #miniCalAdd')) return;
+        col.querySelector('.mini-cal__day-header')?.addEventListener('click', () => {
             const dateStr = col.dataset.date;
             if (dateStr) {
                 window.location.href = `/Pages/Calendar.html?date=${dateStr}`;

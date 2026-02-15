@@ -70,7 +70,7 @@ function renderWorkloadByCourse(tasks, courses) {
     const el = document.getElementById('workloadByCourse');
     if (!el) return;
 
-    const courseColors = ['#00BCD4', '#F28D35', '#9B76FF', '#F2C777', '#FF607E', '#54BFB5'];
+    const courseColors = ['#4A90D9', '#F28D35', '#9B76FF', '#43B88C', '#E84B6A', '#54BFB5'];
     const totalHours = tasks.reduce((sum, t) => sum + (t.estimatedHours || 0), 0) || 1;
 
     el.innerHTML = courses.map((c, i) => {
@@ -134,7 +134,7 @@ function renderEstimatedVsActual(tasks, courses) {
     }
 
     // Group by course
-    const courseColors = ['#00BCD4', '#F28D35', '#9B76FF', '#F2C777', '#FF607E', '#54BFB5'];
+    const courseColors = ['#4A90D9', '#F28D35', '#9B76FF', '#43B88C', '#E84B6A', '#54BFB5'];
     const courseMap = {};
     completedWithHours.forEach(t => {
         const key = t.courseId;

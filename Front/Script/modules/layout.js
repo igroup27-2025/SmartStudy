@@ -103,60 +103,10 @@ export function initLayout() {
     overlay.className = 'sidebar-overlay';
     overlay.id = 'sidebarOverlay';
 
-    // Bottom nav bar (mobile)
-    const BOTTOM_TABS = [
-        { page: 'dashboard', label: 'Dashboard', href: '/Pages/Dashboard.html', icon: '&#9632;' },
-        { page: 'tasks',     label: 'Tasks',     href: '/Pages/Tasks.html',     icon: '&#9745;' },
-        { page: 'calendar',  label: 'Calendar',  href: '/Pages/Calendar.html',  icon: '&#128197;' },
-        { page: 'courses',   label: 'Courses',   href: '/Pages/Courses.html',   icon: '&#128218;' },
-    ];
-    const MORE_ITEMS = [
-        { page: 'exams',     label: 'Exams',     href: '/Pages/Exams.html',     icon: '&#128203;' },
-        { page: 'analytics', label: 'Analytics',  href: '/Pages/Analytics.html', icon: '&#128200;' },
-        { page: 'friends',   label: 'Friends',   href: '/Pages/Friends.html',   icon: '&#129309;' },
-        { page: 'settings',  label: 'Settings',  href: '/Pages/Settings.html',  icon: '&#9881;' },
-    ];
-
-    const isMoreActive = MORE_ITEMS.some(m => m.page === currentPage);
-
-    const bottomNav = document.createElement('nav');
-    bottomNav.className = 'bottom-nav';
-    bottomNav.innerHTML = `
-        ${BOTTOM_TABS.map(t => `
-            <a href="${t.href}" class="bottom-nav__item ${currentPage === t.page ? 'active' : ''}" data-page="${t.page}">
-                <span class="bottom-nav__icon">${t.icon}</span>
-                <span class="bottom-nav__label">${t.label}</span>
-            </a>
-        `).join('')}
-        <button class="bottom-nav__item ${isMoreActive ? 'active' : ''}" id="bottomNavMore">
-            <span class="bottom-nav__icon">&#8943;</span>
-            <span class="bottom-nav__label">More</span>
-        </button>
-    `;
-
-    // More sheet overlay
-    const moreSheet = document.createElement('div');
-    moreSheet.className = 'bottom-nav__more-sheet';
-    moreSheet.id = 'moreSheet';
-    moreSheet.innerHTML = `
-        <div class="bottom-nav__more-backdrop" id="moreBackdrop"></div>
-        <div class="bottom-nav__more-panel">
-            <div class="bottom-nav__more-handle"></div>
-            ${MORE_ITEMS.map(m => `
-                <a href="${m.href}" class="bottom-nav__more-item ${currentPage === m.page ? 'active' : ''}">
-                    <span class="bottom-nav__more-icon">${m.icon}</span>
-                    <span>${m.label}</span>
-                </a>
-            `).join('')}
-        </div>
-    `;
-
     body.prepend(overlay);
     body.prepend(main);
     body.prepend(topbar);
     body.prepend(sidebar);
-    body.appendChild(bottomNav);
-    body.appendChild(moreSheet);
 
     // Remove the original pageRoot since content moved to main
     pageRoot.remove();
@@ -179,15 +129,6 @@ export function initLayout() {
     overlay.addEventListener('click', () => {
         sidebar.classList.remove('open');
         overlay.classList.remove('show');
-    });
-
-    // More sheet toggle
-    document.getElementById('bottomNavMore')?.addEventListener('click', () => {
-        moreSheet.classList.toggle('open');
-    });
-
-    document.getElementById('moreBackdrop')?.addEventListener('click', () => {
-        moreSheet.classList.remove('open');
     });
 
     // Close dropdown on outside click
