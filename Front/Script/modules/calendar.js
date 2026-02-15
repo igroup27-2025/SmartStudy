@@ -771,6 +771,26 @@ function setupEventCreation() {
                     };
                     await api.createTaskEvent(data);
                 }
+            } else if (type === 'exam') {
+                const courseId = parseInt(document.getElementById('eventExamCourseId').value);
+                if (!courseId) {
+                    showToast('Please select a course for the exam', 'error');
+                    return;
+                }
+                const duration = parseInt(document.getElementById('eventExamDuration').value) || 120;
+                const data = {
+                    courseId,
+                    date: fromDate,
+                    time: fromTime,
+                    session: document.getElementById('eventExamSession')?.value || 'A',
+                    duration
+                };
+                if (isEditing && editingEventType === 'exam') {
+                    const examId = parseInt(String(editingEventId).replace('exam-', ''));
+                    await api.updateExam(examId, data);
+                } else {
+                    await api.createExam(data);
+                }
             } else {
                 const data = {
                     from: from.toISOString(),
@@ -786,7 +806,7 @@ function setupEventCreation() {
             editingEventId = null;
             editingEventType = null;
             closeModal('eventModal');
-            showToast(isEditing ? 'Event updated' : 'Event created');
+            showToast(isEditing ? 'Event updated' : (type === 'exam' ? 'Exam created' : 'Event created'));
             await navigate();
         } catch (err) {
             showToast(err.message || 'Failed to save event', 'error');
@@ -991,6 +1011,17 @@ function updateEventFormFields(type) {
     document.getElementById('eventWorkFields')?.classList.toggle('hidden', type !== 'work');
     document.getElementById('eventPersonalFields')?.classList.toggle('hidden', type !== 'personal');
     document.getElementById('eventTaskFields')?.classList.toggle('hidden', type !== 'task');
+    document.getElementById('eventExamFields')?.classList.toggle('hidden', type !== 'exam');
+
+    // For exams, hide end date/recurring (derived from start + duration)
+    const endDateRow = document.getElementById('eventToDate')?.closest('.form-row');
+    const recurringRow = document.getElementById('eventRecurring')?.closest('.form-group');
+    if (endDateRow) endDateRow.style.display = type === 'exam' ? 'none' : '';
+    if (recurringRow) recurringRow.style.display = type === 'exam' ? 'none' : '';
+
+    if (type === 'exam') {
+        populateExamCourses();
+    }
 
     if (type === 'task') {
         populateEventTasks();
@@ -1001,6 +1032,16 @@ function updateEventFormFields(type) {
 
 async function populateEventCourses() {
     const select = document.getElementById('eventCourseId');
+    if (!select || select.options.length > 1) return;
+    try {
+        const courses = await api.getCourses();
+        select.innerHTML = '<option value="">Select course...</option>' +
+            courses.map(c => `<option value="${c.courseId}">${c.courseName}</option>`).join('');
+    } catch { /* silent */ }
+}
+
+async function populateExamCourses() {
+    const select = document.getElementById('eventExamCourseId');
     if (!select || select.options.length > 1) return;
     try {
         const courses = await api.getCourses();
