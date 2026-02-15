@@ -65,6 +65,9 @@ export function initLayout() {
     topbar.className = 'topbar';
     topbar.innerHTML = `
         <button class="sidebar-toggle" id="sidebarToggle">&#9776;</button>
+        <div class="topbar-logo">
+            <img src="/Images/logo.png" alt="SmartStudy">
+        </div>
         <h1 class="topbar-title">${pageTitles[currentPage] || 'SmartStudy'}</h1>
         <div class="topbar-actions">
             <div class="notif-wrapper">

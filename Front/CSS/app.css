@@ -323,7 +323,7 @@ hr {
 .sidebar-logo-icon {
   width: 38px;
   height: 38px;
-  background: var(--color-primary);
+  background: linear-gradient(135deg, var(--color-primary), var(--color-accent));
   border-radius: var(--radius-sm);
   display: flex;
   align-items: center;
@@ -1871,10 +1871,21 @@ hr {
   position: absolute;
   width: 500px;
   height: 500px;
-  background: radial-gradient(circle, rgba(242,141,53,0.15), transparent 70%);
+  background: radial-gradient(circle, rgba(242,141,53,0.18), transparent 70%);
   border-radius: 50%;
-  top: 20%;
-  left: 30%;
+  top: 10%;
+  left: 20%;
+}
+
+.login-branding::after {
+  content: '';
+  position: absolute;
+  width: 400px;
+  height: 400px;
+  background: radial-gradient(circle, rgba(84,191,181,0.12), transparent 70%);
+  border-radius: 50%;
+  bottom: 10%;
+  right: 15%;
 }
 
 .login-branding-logo {
@@ -2377,7 +2388,7 @@ hr {
 
 /* ---- Page Hero (orange gradient header for all pages) ---- */
 .page-hero {
-  background: linear-gradient(135deg, rgba(242,141,53,0.08), rgba(84,191,181,0.06));
+  background: linear-gradient(135deg, rgba(242,141,53,0.12), rgba(84,191,181,0.08), rgba(74,144,217,0.06));
   color: var(--text-primary);
   padding: var(--space-6) var(--space-6) var(--space-6);
   margin: calc(-1 * var(--space-8)) calc(-1 * var(--space-8)) var(--space-6);
@@ -4939,6 +4950,10 @@ body[data-layout="onboarding"] {
     display: flex !important;
   }
 
+  .topbar-logo {
+    display: flex;
+  }
+
   .sidebar-overlay {
     position: fixed;
     inset: 0;
@@ -4966,36 +4981,47 @@ body[data-layout="onboarding"] {
   .main-content {
     margin-left: 0;
     width: 100%;
-    padding: var(--space-5);
+    padding: var(--space-3);
   }
 
   /* Page hero responsive */
   .page-hero {
-    margin: calc(-1 * var(--space-5)) calc(-1 * var(--space-5)) var(--space-5);
-    padding: var(--space-5) var(--space-5) var(--space-5);
+    margin: calc(-1 * var(--space-3)) calc(-1 * var(--space-3)) var(--space-3);
+    padding: var(--space-3) var(--space-4);
+    gap: var(--space-2);
   }
 
   .page-hero__title {
-    font-size: var(--fs-xl);
+    font-size: var(--fs-lg);
   }
 
   /* Topbar search */
   .topbar-search-input {
-    width: 160px;
+    width: 140px;
   }
   .topbar-search-input:focus {
-    width: 200px;
+    width: 180px;
+  }
+
+  .topbar {
+    padding: 0 var(--space-3);
+    height: 52px;
+  }
+
+  .main-content {
+    margin-top: 52px;
   }
 
   /* Stat cards */
   .stat-cards {
     grid-template-columns: repeat(2, 1fr);
-    gap: var(--space-4);
+    gap: var(--space-2);
   }
 
   /* Dashboard grid */
   .dashboard-grid {
     grid-template-columns: 1fr;
+    gap: var(--space-3);
   }
   .dashboard-grid-wide {
     grid-column: span 1;
@@ -5006,27 +5032,31 @@ body[data-layout="onboarding"] {
   .card-grid-3,
   .card-grid-4 {
     grid-template-columns: 1fr;
+    gap: var(--space-3);
   }
 
   /* Analytics */
   .analytics-grid {
     grid-template-columns: 1fr;
+    gap: var(--space-3);
   }
 
   .analytics-stat-boxes {
     grid-template-columns: 1fr;
+    gap: var(--space-2);
   }
 
   /* Settings */
   .settings-layout {
     grid-template-columns: 1fr;
+    gap: var(--space-3);
   }
 
   .settings-nav {
     flex-direction: row;
     overflow-x: auto;
     gap: var(--space-2);
-    margin-bottom: var(--space-4);
+    margin-bottom: var(--space-3);
     padding-bottom: var(--space-2);
   }
 
@@ -5062,7 +5092,7 @@ body[data-layout="onboarding"] {
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    padding: var(--space-8) var(--space-5);
+    padding: var(--space-5) var(--space-3);
   }
 
   .login-mobile-logo {
@@ -5072,17 +5102,17 @@ body[data-layout="onboarding"] {
   .login-card {
     width: 100%;
     max-width: 400px;
-    padding: var(--space-6);
+    padding: var(--space-4);
   }
 
   /* Onboarding */
   .onboarding-card {
-    padding: var(--space-6);
+    padding: var(--space-4);
   }
 
   .onboarding-actions {
     flex-direction: column;
-    gap: var(--space-3);
+    gap: var(--space-2);
   }
 
   .onboarding-actions .btn {
@@ -5091,13 +5121,13 @@ body[data-layout="onboarding"] {
 
   /* Modals */
   .modal-overlay {
-    padding: var(--space-4);
+    padding: var(--space-2);
     align-items: center;
   }
 
   .modal {
-    max-height: 85vh;
-    border-radius: var(--radius-xl);
+    max-height: 90vh;
+    border-radius: var(--radius-lg);
   }
 
   /* Form rows */
@@ -5117,12 +5147,48 @@ body[data-layout="onboarding"] {
     margin-top: var(--space-2);
   }
 
+  /* Tighter card padding */
+  .card {
+    padding: var(--space-4);
+    border-radius: var(--radius-md);
+  }
+
+  .dash-review,
+  .dash-workload,
+  .mini-cal {
+    padding: var(--space-3);
+  }
+
+  .dash-stats {
+    gap: var(--space-2);
+    margin-bottom: var(--space-3);
+  }
+
+  .dash-stat {
+    padding: var(--space-3) var(--space-2);
+    border-radius: var(--radius-md);
+  }
+
+  .dash-stat__value {
+    font-size: var(--fs-2xl);
+  }
+
 }
 
 /* Small mobile */
 @media (max-width: 480px) {
+  .main-content {
+    padding: var(--space-2);
+  }
+
+  .page-hero {
+    margin: calc(-1 * var(--space-2)) calc(-1 * var(--space-2)) var(--space-2);
+    padding: var(--space-2) var(--space-3);
+  }
+
   .stat-cards {
     grid-template-columns: 1fr;
+    gap: var(--space-2);
   }
 
   .topbar-search {
@@ -5130,16 +5196,35 @@ body[data-layout="onboarding"] {
   }
 
   .topbar-right {
-    gap: var(--space-2);
+    gap: var(--space-1);
+  }
+
+  .topbar {
+    padding: 0 var(--space-2);
+    height: 48px;
+  }
+
+  .main-content {
+    margin-top: 48px;
   }
 
   .exam-card-details {
     flex-direction: column;
-    gap: var(--space-2);
+    gap: var(--space-1);
   }
 
   .course-card-stats {
     flex-wrap: wrap;
+  }
+
+  .dashboard-grid {
+    gap: var(--space-2);
+  }
+
+  .card-grid,
+  .card-grid-3,
+  .card-grid-4 {
+    gap: var(--space-2);
   }
 }
 
@@ -5488,7 +5573,7 @@ body[data-layout="onboarding"] {
 
 /* ---- Hero Greeting ---- */
 .dash-hero {
-  background: linear-gradient(135deg, rgba(242,141,53,0.08), rgba(84,191,181,0.06));
+  background: linear-gradient(135deg, rgba(242,141,53,0.12), rgba(84,191,181,0.08), rgba(74,144,217,0.06));
   color: var(--text-primary);
   padding: var(--space-8) var(--space-6) 3.5rem;
   margin: calc(-1 * var(--space-6)) calc(-1 * var(--space-6)) 0;
