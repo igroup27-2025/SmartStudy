@@ -666,15 +666,24 @@ function setupEventCreation() {
         const toTime = document.getElementById('eventToTime').value;
         const recurring = document.getElementById('eventRecurring')?.checked || false;
 
-        if (!fromDate || !fromTime || !toDate || !toTime) {
-            showToast('Please fill in date and time fields', 'error');
-            return;
+        if (type === 'exam') {
+            if (!fromDate || !fromTime) {
+                showToast('Please fill in date and time fields', 'error');
+                return;
+            }
+        } else {
+            if (!fromDate || !fromTime || !toDate || !toTime) {
+                showToast('Please fill in date and time fields', 'error');
+                return;
+            }
         }
 
         const from = new Date(`${fromDate}T${fromTime}`);
-        const to = new Date(`${toDate}T${toTime}`);
+        const to = type === 'exam'
+            ? new Date(from.getTime() + (parseInt(document.getElementById('eventExamDuration').value) || 120) * 60000)
+            : new Date(`${toDate}T${toTime}`);
 
-        if (to <= from) {
+        if (type !== 'exam' && to <= from) {
             showToast('End time must be after start time', 'error');
             return;
         }
@@ -1014,10 +1023,15 @@ function updateEventFormFields(type) {
     document.getElementById('eventExamFields')?.classList.toggle('hidden', type !== 'exam');
 
     // For exams, hide end date/recurring (derived from start + duration)
-    const endDateRow = document.getElementById('eventToDate')?.closest('.form-row');
+    const endDateEl = document.getElementById('eventToDate');
+    const endTimeEl = document.getElementById('eventToTime');
+    const endDateRow = endDateEl?.closest('.form-row');
     const recurringRow = document.getElementById('eventRecurring')?.closest('.form-group');
     if (endDateRow) endDateRow.style.display = type === 'exam' ? 'none' : '';
     if (recurringRow) recurringRow.style.display = type === 'exam' ? 'none' : '';
+    // Remove required from hidden fields to prevent form validation errors
+    if (endDateEl) endDateEl.required = type !== 'exam';
+    if (endTimeEl) endTimeEl.required = type !== 'exam';
 
     if (type === 'exam') {
         populateExamCourses();
