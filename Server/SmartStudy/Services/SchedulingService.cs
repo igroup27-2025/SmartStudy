@@ -87,23 +87,64 @@ public class SchedulingService
 
         // Load exams to block exam days and reserve pre-exam study time
         var exams = await _db.Exams
+            .Include(e => e.Course)
             .Where(e => e.Course.UserCourses.Any(uc => uc.Email == email)
                 && e.Date >= scheduleStart && e.Date <= scheduleEnd)
             .ToListAsync();
 
         var examDays = new HashSet<DateTime>(exams.Select(e => e.Date.Date));
-        // 3 days before each exam: reserve 5h/day for exam prep
-        var examPrepReserved = new Dictionary<DateTime, double>();
+
+        // Auto-create "Study for exam" tasks for each upcoming exam (3 days * 5h = 15h)
+        var examStudyTasks = new List<StudentTask>();
         foreach (var exam in exams)
         {
+            if (exam.Date.Date <= now.Date) continue; // skip past exams
+
+            // Check if a study task already exists for this exam
+            var existingStudyTask = await _db.Tasks
+                .FirstOrDefaultAsync(t => t.Email == email
+                    && t.CourseId == exam.CourseId
+                    && t.Type == "Study for exam"
+                    && t.DueDate == exam.Date.Date
+                    && !t.IsCompleted);
+
+            if (existingStudyTask == null)
+            {
+                var courseName = exam.Course?.CourseName ?? (await _db.Courses.FindAsync(exam.CourseId))?.CourseName ?? "Exam";
+                existingStudyTask = new StudentTask
+                {
+                    Email = email,
+                    CourseId = exam.CourseId,
+                    Title = $"Study for exam - {courseName}",
+                    Type = "Study for exam",
+                    EstimatedHours = 15, // 5h * 3 days
+                    DueDate = exam.Date.Date,
+                    IsCompleted = false,
+                    Priority = "High"
+                };
+                _db.Tasks.Add(existingStudyTask);
+                await _db.SaveChangesAsync();
+            }
+
+            examStudyTasks.Add(existingStudyTask);
+        }
+
+        // Map exam dates to their study tasks for targeted scheduling
+        var examStudyByDate = new Dictionary<DateTime, List<StudentTask>>();
+        foreach (var exam in exams)
+        {
+            var studyTask = examStudyTasks.FirstOrDefault(t => t.CourseId == exam.CourseId && t.DueDate == exam.Date.Date);
+            if (studyTask == null) continue;
+
             for (int d = 1; d <= 3; d++)
             {
                 var prepDay = exam.Date.Date.AddDays(-d);
                 if (prepDay >= scheduleStart)
                 {
-                    if (!examPrepReserved.ContainsKey(prepDay))
-                        examPrepReserved[prepDay] = 0;
-                    examPrepReserved[prepDay] = Math.Max(examPrepReserved[prepDay], 5.0);
+                    if (!examStudyByDate.ContainsKey(prepDay))
+                        examStudyByDate[prepDay] = new List<StudentTask>();
+                    if (!examStudyByDate[prepDay].Any(t => t.TaskId == studyTask.TaskId))
+                        examStudyByDate[prepDay].Add(studyTask);
                 }
             }
         }
@@ -146,9 +187,75 @@ public class SchedulingService
         var dailyScheduledHours = new Dictionary<DateTime, double>();
         var newTaskEvents = new List<TaskEvent>();
 
-        // 5. For each task, greedily assign to earliest available slots
+        // 5a. Schedule exam study tasks first on their designated prep days (5h/day)
+        var examStudyRemainingHours = examStudyTasks.ToDictionary(t => t.TaskId, t => (double)(t.EstimatedHours ?? 15));
+        foreach (var (prepDay, studyTasks) in examStudyByDate.OrderBy(kv => kv.Key))
+        {
+            if (examDays.Contains(prepDay)) continue;
+            var dayKey = prepDay.Date;
+            if (!dailyScheduledHours.ContainsKey(dayKey))
+                dailyScheduledHours[dayKey] = 0;
+
+            foreach (var studyTask in studyTasks)
+            {
+                if (examStudyRemainingHours[studyTask.TaskId] <= 0) continue;
+
+                var dayFreeSlots = GetFreeSlots(prepDay, fixedEvents, newTaskEvents, dayStart, dayEnd);
+                var studyToday = 0.0;
+                var targetHours = 5.0;
+
+                foreach (var freeSlot in dayFreeSlots)
+                {
+                    if (studyToday >= targetHours) break;
+                    if (examStudyRemainingHours[studyTask.TaskId] <= 0) break;
+
+                    var slotDuration = (freeSlot.To - freeSlot.From).TotalHours;
+                    var canUse = Math.Min(slotDuration,
+                        Math.Min(examStudyRemainingHours[studyTask.TaskId],
+                        targetHours - studyToday));
+
+                    if (canUse < 0.5) continue;
+                    canUse = Math.Floor(canUse * 2) / 2;
+                    if (canUse <= 0) continue;
+
+                    var slotFrom = freeSlot.From;
+                    var slotTo = slotFrom.AddHours(canUse);
+
+                    newTaskEvents.Add(new TaskEvent
+                    {
+                        Email = email,
+                        From = slotFrom,
+                        To = slotTo,
+                        Recurring = false,
+                        TaskId = studyTask.TaskId,
+                        Priority = "High",
+                        Status = "Scheduled"
+                    });
+
+                    studyToday += canUse;
+                    examStudyRemainingHours[studyTask.TaskId] -= canUse;
+                    dailyScheduledHours[dayKey] = dailyScheduledHours.GetValueOrDefault(dayKey, 0) + canUse;
+                }
+
+                // Add to result
+                var existingScheduled = result.ScheduledTasks.FirstOrDefault(st => st.TaskId == studyTask.TaskId);
+                if (existingScheduled == null)
+                {
+                    existingScheduled = new ScheduledTaskDto { TaskId = studyTask.TaskId, Title = studyTask.Title, Slots = new List<ScheduledSlotDto>() };
+                    result.ScheduledTasks.Add(existingScheduled);
+                }
+                existingScheduled.Slots.AddRange(
+                    newTaskEvents.Where(te => te.TaskId == studyTask.TaskId && te.From.Date == dayKey)
+                        .Select(te => new ScheduledSlotDto { From = te.From, To = te.To }));
+            }
+        }
+
+        // 5b. Schedule regular tasks (excluding exam study tasks) in remaining slots
+        var examStudyTaskIds = new HashSet<int>(examStudyTasks.Select(t => t.TaskId));
         foreach (var task in scoredTasks)
         {
+            if (examStudyTaskIds.Contains(task.TaskId)) continue;
+
             var totalHours = (double)(task.EstimatedHours ?? 1);
             var remainingHours = totalHours;
             var slots = new List<ScheduledSlotDto>();
@@ -166,9 +273,7 @@ public class SchedulingService
                 if (!dailyScheduledHours.ContainsKey(dayKey))
                     dailyScheduledHours[dayKey] = 0;
 
-                // Rule: reserve hours for exam prep (3 days before exam)
-                var prepReserve = examPrepReserved.GetValueOrDefault(dayKey, 0);
-                var dayAvailable = maxDaily - dailyScheduledHours[dayKey] - prepReserve;
+                var dayAvailable = maxDaily - dailyScheduledHours[dayKey];
                 if (dayAvailable <= 0) continue;
 
                 // Build free slots for this day
