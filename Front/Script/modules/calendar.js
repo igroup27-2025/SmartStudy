@@ -30,6 +30,12 @@ export async function initCalendar() {
     if (params.get('add') === '1') {
         openEventModal(dateParam || null);
     }
+
+    // Highlight task events if ?highlight=TASK_ID
+    const highlightTaskId = params.get('highlight');
+    if (highlightTaskId) {
+        highlightTaskEvents(parseInt(highlightTaskId));
+    }
 }
 
 /* ---- View Toggle ---- */
@@ -69,6 +75,52 @@ function setupNavigation() {
     // Add constraint button
     document.getElementById('calAddConstraint')?.addEventListener('click', () => {
         openConstraintModal();
+    });
+
+    // Google Calendar sync button
+    document.getElementById('calSyncGoogle')?.addEventListener('click', async () => {
+        try {
+            // Check if Google Calendar API is enabled
+            const config = await api.getAuthConfig();
+            const clientId = config.googleClientId;
+            if (!clientId || clientId === 'PLACEHOLDER_GOOGLE_CLIENT_ID') {
+                showToast('Google Calendar sync is not configured. Set up Google API credentials.', 'error');
+                return;
+            }
+
+            // Request Calendar scope via Google Identity Services
+            if (typeof google === 'undefined' || !google.accounts) {
+                showToast('Google Sign-In library not loaded', 'error');
+                return;
+            }
+
+            const tokenClient = google.accounts.oauth2.initTokenClient({
+                client_id: clientId,
+                scope: 'https://www.googleapis.com/auth/calendar.readonly',
+                callback: async (tokenResponse) => {
+                    if (tokenResponse.access_token) {
+                        try {
+                            const syncBtn = document.getElementById('calSyncGoogle');
+                            syncBtn.disabled = true;
+                            syncBtn.textContent = 'Syncing...';
+                            const result = await api.syncGoogleCalendar(tokenResponse.access_token);
+                            showToast(result.message || 'Calendar synced!', 'success');
+                            await navigate();
+                            syncBtn.disabled = false;
+                            syncBtn.textContent = 'Sync Google';
+                        } catch (err) {
+                            showToast(err.message || 'Sync failed', 'error');
+                            const syncBtn = document.getElementById('calSyncGoogle');
+                            syncBtn.disabled = false;
+                            syncBtn.textContent = 'Sync Google';
+                        }
+                    }
+                },
+            });
+            tokenClient.requestAccessToken();
+        } catch (err) {
+            showToast('Failed to start Google Calendar sync', 'error');
+        }
     });
 
     // Import schedule button
@@ -370,7 +422,22 @@ function setupDragAndDrop(grid) {
                     await api.updatePersonalEvent(eventId, data);
                 }
 
-                showToast('Event moved');
+                // Check for conflicts after move
+                try {
+                    const conflicts = await api.checkConflicts({
+                        from: newFrom.toISOString(),
+                        to: newTo.toISOString(),
+                        excludeEventId: eventId
+                    });
+                    if (conflicts && conflicts.length > 0) {
+                        const conflictName = conflicts[0].courseName || conflicts[0].taskTitle || conflicts[0].workPlace || 'another event';
+                        showToast(`Event moved, but overlaps with ${conflictName}`, 'warning');
+                    } else {
+                        showToast('Event moved');
+                    }
+                } catch {
+                    showToast('Event moved');
+                }
                 await navigate();
             } catch {
                 showToast('Failed to move event', 'error');
@@ -661,10 +728,10 @@ function setupEventCreation() {
                 else await api.createPersonalEvent(data);
             }
 
-            showToast(isEditing ? 'Event updated' : 'Event created');
             editingEventId = null;
             editingEventType = null;
             closeModal('eventModal');
+            showToast(isEditing ? 'Event updated' : 'Event created');
             await navigate();
         } catch (err) {
             showToast(err.message || 'Failed to save event', 'error');
@@ -966,10 +1033,10 @@ function setupTaskSourceToggle() {
     });
 }
 
-/* ---- Event Details Popup ---- */
+/* ---- Event Details Modal ---- */
 function showEventDetails(eventId, targetEl) {
-    // Remove existing popup
-    document.querySelector('.cal-event-popup')?.remove();
+    // Remove existing detail modal
+    document.getElementById('calEventDetailModal')?.remove();
 
     const event = cachedEvents.find(e => e.eventId === eventId);
     if (!event) return;
@@ -978,63 +1045,85 @@ function showEventDetails(eventId, targetEl) {
     const to = new Date(event.to);
     const colors = EVENT_COLORS[event.eventType] || EVENT_COLORS.personal;
     const label = event.courseName || event.taskTitle || event.workPlace || event.description || event.type || 'Event';
+    const dateStr = from.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
+    const durationMin = Math.round((to - from) / 60000);
+    const durationStr = durationMin >= 60 ? `${Math.floor(durationMin / 60)}h ${durationMin % 60 ? durationMin % 60 + 'm' : ''}` : `${durationMin}m`;
 
-    const popup = document.createElement('div');
-    popup.className = 'cal-event-popup';
-    popup.innerHTML = `
-        <div class="cal-event-popup__header" style="border-left: 4px solid ${colors.border}">
-            <strong>${label}</strong>
-            <button class="cal-event-popup__close">&times;</button>
-        </div>
-        <div class="cal-event-popup__body">
-            <div><strong>Type:</strong> ${event.eventType}</div>
-            <div><strong>Time:</strong> ${formatTime(from)} - ${formatTime(to)}</div>
-            <div><strong>Date:</strong> ${from.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}</div>
-            ${event.location ? `<div><strong>Location:</strong> ${event.location}</div>` : ''}
-            ${event.workPlace ? `<div><strong>Workplace:</strong> ${event.workPlace}</div>` : ''}
-            ${event.description ? `<div><strong>Description:</strong> ${event.description}</div>` : ''}
-            ${event.status ? `<div><strong>Status:</strong> ${event.status}</div>` : ''}
-        </div>
-        <div class="cal-event-popup__actions">
-            <button class="btn btn-sm btn-secondary cal-event-edit" data-event-id="${eventId}">Edit</button>
-            <button class="btn btn-sm btn-ghost cal-event-delete" data-event-id="${eventId}">Delete</button>
+    const typeLabels = { class: 'Class', task: 'Study Session', work: 'Work', personal: 'Personal' };
+
+    const modal = document.createElement('div');
+    modal.id = 'calEventDetailModal';
+    modal.className = 'modal-overlay active';
+    modal.innerHTML = `
+        <div class="modal cal-event-detail-modal">
+            <div class="modal-header" style="border-left:4px solid ${colors.border}">
+                <h3>${label}</h3>
+                <button class="modal-close" id="calDetailClose">&times;</button>
+            </div>
+            <div class="cal-event-detail-body">
+                <div class="cal-event-detail-row">
+                    <span class="cal-event-detail-label">Type</span>
+                    <span class="cal-event-detail-value">${typeLabels[event.eventType] || event.eventType}</span>
+                </div>
+                <div class="cal-event-detail-row">
+                    <span class="cal-event-detail-label">Date</span>
+                    <span class="cal-event-detail-value">${dateStr}</span>
+                </div>
+                <div class="cal-event-detail-row">
+                    <span class="cal-event-detail-label">Time</span>
+                    <span class="cal-event-detail-value">${formatTime(from)} - ${formatTime(to)} (${durationStr})</span>
+                </div>
+                ${event.recurring ? '<div class="cal-event-detail-row"><span class="cal-event-detail-label">Recurring</span><span class="cal-event-detail-value">Yes (Weekly)</span></div>' : ''}
+                ${event.location ? `<div class="cal-event-detail-row"><span class="cal-event-detail-label">Location</span><span class="cal-event-detail-value">${event.location}</span></div>` : ''}
+                ${event.workPlace ? `<div class="cal-event-detail-row"><span class="cal-event-detail-label">Workplace</span><span class="cal-event-detail-value">${event.workPlace}</span></div>` : ''}
+                ${event.description ? `<div class="cal-event-detail-row"><span class="cal-event-detail-label">Description</span><span class="cal-event-detail-value">${event.description}</span></div>` : ''}
+                ${event.status ? `<div class="cal-event-detail-row"><span class="cal-event-detail-label">Status</span><span class="cal-event-detail-value">${event.status}</span></div>` : ''}
+                ${event.courseName ? `<div class="cal-event-detail-row"><span class="cal-event-detail-label">Course</span><span class="cal-event-detail-value">${event.courseName}</span></div>` : ''}
+                ${event.taskTitle ? `<div class="cal-event-detail-row"><span class="cal-event-detail-label">Task</span><span class="cal-event-detail-value">${event.taskTitle}</span></div>` : ''}
+            </div>
+            <div class="cal-event-detail-footer">
+                <button class="btn btn-secondary" id="calDetailEdit">Edit</button>
+                <button class="btn btn-ghost btn-danger" id="calDetailDelete">Delete</button>
+            </div>
         </div>
     `;
 
-    targetEl.style.position = 'relative';
-    targetEl.appendChild(popup);
+    document.body.appendChild(modal);
 
-    popup.querySelector('.cal-event-popup__close').addEventListener('click', (e) => {
-        e.stopPropagation();
-        popup.remove();
-    });
+    const close = () => modal.remove();
+    modal.querySelector('#calDetailClose').addEventListener('click', close);
+    modal.addEventListener('click', (e) => { if (e.target === modal) close(); });
 
-    popup.querySelector('.cal-event-edit')?.addEventListener('click', (e) => {
-        e.stopPropagation();
-        popup.remove();
+    modal.querySelector('#calDetailEdit').addEventListener('click', () => {
+        close();
         openEventModalForEdit(event);
     });
 
-    popup.querySelector('.cal-event-delete')?.addEventListener('click', async (e) => {
-        e.stopPropagation();
+    modal.querySelector('#calDetailDelete').addEventListener('click', async () => {
         try {
             await api.deleteEvent(eventId);
             showToast('Event deleted');
-            popup.remove();
+            close();
             await navigate();
         } catch {
             showToast('Failed to delete event', 'error');
         }
     });
+}
 
-    // Close on outside click
-    const closeOnOutside = (e) => {
-        if (!popup.contains(e.target) && e.target !== targetEl) {
-            popup.remove();
-            document.removeEventListener('click', closeOnOutside);
-        }
-    };
-    setTimeout(() => document.addEventListener('click', closeOnOutside), 0);
+/* ---- Highlight Task Events ---- */
+function highlightTaskEvents(taskId) {
+    setTimeout(() => {
+        const eventEls = document.querySelectorAll(`[data-event-type="task"]`);
+        eventEls.forEach(el => {
+            const evtId = parseInt(el.dataset.eventId);
+            const event = cachedEvents.find(e => e.eventId === evtId);
+            if (event && event.taskId === taskId) {
+                el.classList.add('cal-event--highlighted');
+                el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }
+        });
+    }, 300);
 }
 
 /* ---- Utilities ---- */

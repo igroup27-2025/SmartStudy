@@ -118,6 +118,29 @@ public class TasksController : ControllerBase
         _db.Tasks.Add(task);
         await _db.SaveChangesAsync();
 
+        // Auto-share if course has SharedByDefault enabled and has a study partner
+        var userCourse = await _db.UserCourses.FirstOrDefaultAsync(uc => uc.Email == email && uc.CourseId == task.CourseId);
+        if (userCourse?.SharedByDefault == true && !string.IsNullOrEmpty(userCourse.StudyPartnerEmail))
+        {
+            var sharedTask = new SharedTask
+            {
+                TaskId = task.TaskId,
+                CreatedByEmail = email,
+                SharedStatus = "Pending",
+                CreatedAt = DateTime.UtcNow
+            };
+            _db.SharedTasks.Add(sharedTask);
+            await _db.SaveChangesAsync();
+
+            _db.SharedTaskMembers.Add(new SharedTaskMember
+            {
+                TaskId = task.TaskId,
+                Email = userCourse.StudyPartnerEmail,
+                ResponseStatus = "Pending"
+            });
+            await _db.SaveChangesAsync();
+        }
+
         // Trigger scheduling for all tasks
         await _scheduling.ScheduleAllTasksAsync(email);
 
@@ -221,7 +244,25 @@ public class TasksController : ControllerBase
         // Reschedule remaining tasks
         await _scheduling.ScheduleAllTasksAsync(email);
 
-        return Ok(new { task.TaskId, task.IsCompleted, task.ActualHours });
+        // Compute ML stats for the task's course
+        object mlStats = null;
+        if (task.IsCompleted && task.CourseId > 0)
+        {
+            var courseTasks = await _db.Tasks
+                .Where(t => t.Email == email && t.CourseId == task.CourseId
+                    && t.IsCompleted && t.ActualHours.HasValue && t.EstimatedHours.HasValue && t.EstimatedHours > 0)
+                .Select(t => new { t.ActualHours, t.EstimatedHours })
+                .ToListAsync();
+
+            if (courseTasks.Any())
+            {
+                var avgRatio = courseTasks.Average(t => (double)t.ActualHours.Value / (double)t.EstimatedHours.Value);
+                var bias = avgRatio > 1.2 ? "underestimate" : avgRatio < 0.8 ? "overestimate" : "accurate";
+                mlStats = new { courseAvgRatio = avgRatio, estimationBias = bias, sampleSize = courseTasks.Count };
+            }
+        }
+
+        return Ok(new { task.TaskId, task.IsCompleted, task.ActualHours, mlStats });
     }
 
     [HttpPost("{id}/split")]

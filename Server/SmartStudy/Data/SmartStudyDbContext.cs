@@ -125,6 +125,8 @@ public class SmartStudyDbContext : DbContext
 
             entity.Property(e => e.StudyPartnerEmail).HasMaxLength(255);
 
+            entity.Property(e => e.SharedByDefault).HasDefaultValue(false);
+
             entity.HasOne(e => e.Course)
                 .WithMany(c => c.UserCourses)
                 .HasForeignKey(e => e.CourseId)

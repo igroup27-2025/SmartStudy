@@ -12,6 +12,11 @@ public class User
 
     public bool OnboardingCompleted { get; set; } = false;
 
+    // Google Calendar integration
+    public string? GoogleCalendarAccessToken { get; set; }
+    public string? GoogleCalendarRefreshToken { get; set; }
+    public DateTime? LastCalendarSync { get; set; }
+
     // Navigation properties
     public NotificationSettings? NotificationSettings { get; set; }
     public SchedulingPreferences? SchedulingPreferences { get; set; }

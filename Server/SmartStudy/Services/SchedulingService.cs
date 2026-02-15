@@ -85,6 +85,17 @@ public class SchedulingService
             fixedEvents.AddRange(lunchEvents);
         }
 
+        // ML-adjusted hours: apply per-course ratio from completed tasks
+        var completedForML = await _db.Tasks
+            .Where(t => t.Email == email && t.IsCompleted && t.ActualHours.HasValue && t.EstimatedHours.HasValue && t.EstimatedHours > 0)
+            .Select(t => new { t.CourseId, Actual = (double)t.ActualHours!.Value, Estimated = (double)t.EstimatedHours!.Value })
+            .ToListAsync();
+
+        var courseRatios = completedForML
+            .GroupBy(t => t.CourseId)
+            .Where(g => g.Count() >= 2)
+            .ToDictionary(g => g.Key, g => g.Average(t => t.Actual / t.Estimated));
+
         // 4. Sort tasks by priority score
         // Overdue tasks get the highest urgency (daysUntilDue is clamped to 0.1)
         var scoredTasks = tasks.Select(t =>
@@ -98,6 +109,9 @@ public class SchedulingService
                 _ => 2
             };
             var hours = (double)(t.EstimatedHours ?? 1);
+            // Apply ML ratio if available
+            if (courseRatios.TryGetValue(t.CourseId, out var ratio))
+                hours *= ratio;
             var score = (1.0 / daysUntilDue) * 40 + priorityWeight * 30 + Math.Min(hours, 10) * 3;
             return new { Task = t, Score = score };
         })
@@ -113,6 +127,9 @@ public class SchedulingService
         foreach (var task in scoredTasks)
         {
             var totalHours = (double)(task.EstimatedHours ?? 1);
+            // Apply ML ratio if available
+            if (courseRatios.TryGetValue(task.CourseId, out var mlRatio))
+                totalHours *= mlRatio;
             var remainingHours = totalHours;
             var slots = new List<ScheduledSlotDto>();
             // For overdue tasks, schedule them within the next 7 days
@@ -283,9 +300,14 @@ public class SchedulingService
 
         for (var day = scheduleStart; day < scheduleEnd; day = day.AddDays(1))
         {
-            var dayTaskEvents = taskEvents.Where(te =>
-                te.From.Date == day.Date).ToList();
-            var scheduledHours = dayTaskEvents.Sum(te => (te.To - te.From).TotalHours);
+            // Sum ALL event hours for this day (classes, work, personal, tasks)
+            var dayFixedHours = fixedEvents
+                .Where(e => e.From.Date == day.Date)
+                .Sum(e => (e.To - e.From).TotalHours);
+            var dayTaskHours = taskEvents
+                .Where(te => te.From.Date == day.Date)
+                .Sum(te => (te.To - te.From).TotalHours);
+            var scheduledHours = dayFixedHours + dayTaskHours;
             var availableHours = (dayEnd - dayStart) - GetBlockedHours(day, fixedEvents, dayStart, dayEnd);
             var isOverloaded = scheduledHours > maxDaily;
 

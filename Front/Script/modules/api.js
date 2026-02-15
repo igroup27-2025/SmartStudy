@@ -41,6 +41,7 @@ export const api = {
     forgotPassword: (email) => request('POST', '/auth/forgot-password', { email }),
     resetPassword: (data) => request('POST', '/auth/reset-password', data),
     googleLogin: (idToken) => request('POST', '/auth/google', { idToken }),
+    getAuthConfig: () => request('GET', '/auth/config'),
 
     // Dashboard
     getDashboard: () => request('GET', '/dashboard'),
@@ -165,6 +166,10 @@ export const api = {
     updateProfile: (data) => request('PUT', '/settings/profile', data),
     updateNotifications: (data) => request('PUT', '/settings/notifications', data),
     getInstructors: () => request('GET', '/settings/instructors'),
+
+    // Calendar Sync
+    syncGoogleCalendar: (accessToken) => request('POST', '/calendar-sync/google', { accessToken }),
+    getCalendarSyncStatus: () => request('GET', '/calendar-sync/status'),
 
     // Scheduling Preferences
     getSchedulingPrefs: () => request('GET', '/settings/scheduling'),

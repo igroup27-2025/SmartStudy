@@ -229,7 +229,7 @@ function renderSharedInvitations() {
     });
 }
 
-function showCompletionModal(taskId) {
+export function showCompletionModal(taskId) {
     const task = allTasks.find(t => t.taskId === taskId);
     if (!task) return;
     completingTaskId = taskId;
@@ -246,17 +246,38 @@ function setupCompletionModal() {
         closeModal('completeModal');
     });
     document.getElementById('completeSkip')?.addEventListener('click', () => {
-        doComplete(completingTaskId, null);
         closeModal('completeModal');
     });
 }
 
 async function doComplete(taskId, actualHours) {
     try {
-        await api.completeTask(taskId, { actualHours });
+        const task = allTasks.find(t => t.taskId === taskId);
+        const result = await api.completeTask(taskId, { actualHours });
+
+        // ML hint: if actual hours deviate >30% from estimate
+        if (actualHours && task?.estimatedHours && parseFloat(task.estimatedHours) > 0) {
+            const ratio = actualHours / parseFloat(task.estimatedHours);
+            if (ratio > 1.3 || ratio < 0.7) {
+                const direction = ratio > 1 ? 'longer' : 'shorter';
+                setTimeout(() => showToast(`Tip: This task took ${direction} than estimated (${ratio.toFixed(1)}x). Future estimates will improve.`, 'info'), 500);
+            }
+        }
+
+        // Show course accuracy feedback from ML stats
+        if (result?.mlStats?.sampleSize >= 3) {
+            const bias = result.mlStats.estimationBias;
+            if (bias && bias !== 'accurate') {
+                const biasMsg = bias === 'underestimate'
+                    ? 'You tend to underestimate tasks in this course.'
+                    : 'You tend to overestimate tasks in this course.';
+                setTimeout(() => showToast(`${biasMsg} Avg ratio: ${result.mlStats.courseAvgRatio.toFixed(2)}x (${result.mlStats.sampleSize} tasks)`, 'info'), 1000);
+            }
+        }
+
         allTasks = await api.getTasks();
         renderTasks(applyFilters());
-        showToast('Task updated');
+        showToast('Task completed!', 'success');
     } catch { showToast('Failed to update task', 'error'); }
 }
 

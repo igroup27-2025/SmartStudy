@@ -20,6 +20,13 @@ public class AuthResponseDto
     public string Email { get; set; } = null!;
     public string FirstName { get; set; } = null!;
     public string LastName { get; set; } = null!;
+    public bool OnboardingCompleted { get; set; }
+    public bool IsNewUser { get; set; }
+}
+
+public class AuthConfigDto
+{
+    public string? GoogleClientId { get; set; }
 }
 
 public class ForgotPasswordDto

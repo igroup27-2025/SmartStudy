@@ -138,6 +138,43 @@ function initStep3() {
     constraints = data.constraints || [];
     renderConstraints();
 
+    // Google Calendar connect
+    if (data.googleCalConnected) {
+        const btn = document.getElementById('connectGoogleCal');
+        const status = document.getElementById('googleCalStatus');
+        if (btn) btn.classList.add('hidden');
+        if (status) status.classList.remove('hidden');
+    }
+    document.getElementById('connectGoogleCal')?.addEventListener('click', async () => {
+        try {
+            const config = await api.getAuthConfig();
+            if (!config.googleClientId || config.googleClientId === 'PLACEHOLDER_GOOGLE_CLIENT_ID') {
+                alert('Google Calendar sync is not configured yet.');
+                return;
+            }
+            const tokenClient = google.accounts.oauth2.initTokenClient({
+                client_id: config.googleClientId,
+                scope: 'https://www.googleapis.com/auth/calendar.readonly',
+                callback: async (resp) => {
+                    if (resp.error) return;
+                    try {
+                        await api.syncGoogleCalendar(resp.access_token);
+                        const btn = document.getElementById('connectGoogleCal');
+                        const status = document.getElementById('googleCalStatus');
+                        if (btn) btn.classList.add('hidden');
+                        if (status) status.classList.remove('hidden');
+                        saveData({ googleCalConnected: true });
+                    } catch (err) {
+                        console.error('Google Calendar sync failed:', err);
+                    }
+                }
+            });
+            tokenClient.requestAccessToken();
+        } catch (err) {
+            console.error('Google Calendar connect error:', err);
+        }
+    });
+
     // Add constraint button
     document.getElementById('addConstraintBtn')?.addEventListener('click', () => {
         document.getElementById('constraintForm').style.display = 'block';
@@ -237,6 +274,8 @@ function initStep4() {
 
     const cCount = (data.constraints || []).length;
     setText('summaryConstraints', `Recurring constraints: ${cCount || 'None'}`);
+
+    setText('summaryExternal', `External systems: ${data.googleCalConnected ? 'Google Calendar connected' : 'None connected'}`);
 }
 
 /* ---- Finish & Save ---- */

@@ -36,7 +36,9 @@ public class AuthController : ControllerBase
             Token = token,
             Email = user.Email,
             FirstName = user.FirstName,
-            LastName = user.LastName
+            LastName = user.LastName,
+            OnboardingCompleted = user.OnboardingCompleted,
+            IsNewUser = false
         });
     }
 
@@ -65,7 +67,9 @@ public class AuthController : ControllerBase
             Token = token,
             Email = user.Email,
             FirstName = user.FirstName,
-            LastName = user.LastName
+            LastName = user.LastName,
+            OnboardingCompleted = false,
+            IsNewUser = true
         });
     }
 
@@ -122,9 +126,11 @@ public class AuthController : ControllerBase
 
             var email = payload.Email;
             var user = await _db.Users.FirstOrDefaultAsync(u => u.Email == email);
+            var isNewUser = false;
 
             if (user == null)
             {
+                isNewUser = true;
                 // Create new user from Google profile
                 user = new User
                 {
@@ -132,7 +138,8 @@ public class AuthController : ControllerBase
                     FirstName = payload.GivenName ?? "User",
                     LastName = payload.FamilyName ?? "",
                     Password = HashPassword(Guid.NewGuid().ToString()),
-                    AuthProvider = "Google"
+                    AuthProvider = "Google",
+                    OnboardingCompleted = false
                 };
                 _db.Users.Add(user);
                 _db.NotificationSettings.Add(new NotificationSettings { Email = email });
@@ -145,13 +152,24 @@ public class AuthController : ControllerBase
                 Token = token,
                 Email = user.Email,
                 FirstName = user.FirstName,
-                LastName = user.LastName
+                LastName = user.LastName,
+                OnboardingCompleted = user.OnboardingCompleted,
+                IsNewUser = isNewUser
             });
         }
         catch (Exception)
         {
             return BadRequest(new { message = "Invalid Google token" });
         }
+    }
+
+    [HttpGet("config")]
+    public IActionResult GetConfig()
+    {
+        return Ok(new AuthConfigDto
+        {
+            GoogleClientId = _config["Google:ClientId"]
+        });
     }
 
     private string GenerateToken(User user)

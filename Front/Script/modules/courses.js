@@ -38,14 +38,15 @@ function renderCourses() {
 
     el.innerHTML = courses.map((c, i) => `
         <div class="course-card" data-id="${c.courseId}">
-            <div class="course-card-header" style="background: ${COURSE_COLORS[i % COURSE_COLORS.length]}">
-                <h3 class="course-card-name">${c.courseName}</h3>
-                <div class="course-card-actions">
-                    <button class="btn btn-ghost btn-sm course-edit" data-id="${c.courseId}" title="Edit">&#9998;</button>
-                    <button class="btn btn-ghost btn-sm course-delete" data-id="${c.courseId}" title="Delete">&#128465;</button>
-                </div>
-            </div>
+            <div class="course-card-header" style="background: ${COURSE_COLORS[i % COURSE_COLORS.length]}"></div>
             <div class="course-card-body">
+                <div class="course-card-title-row">
+                    <h3 class="course-card-name">${c.courseName}</h3>
+                    <div class="course-card-actions">
+                        <button class="btn btn-ghost btn-sm course-edit" data-id="${c.courseId}" title="Edit">&#9998;</button>
+                        <button class="btn btn-ghost btn-sm course-delete" data-id="${c.courseId}" title="Delete">&#128465;</button>
+                    </div>
+                </div>
                 ${c.instructorName ? `<div class="course-instructor">${c.instructorName}</div>` : ''}
                 <div class="course-stats">
                     <div class="course-stat">
@@ -67,6 +68,7 @@ function renderCourses() {
                 </div>
                 ${c.semester ? `<div class="course-semester">Semester: ${c.semester}</div>` : ''}
                 ${c.studyPartnerName ? `<div class="course-partner">Study Partner: ${c.studyPartnerName}</div>` : ''}
+                ${c.sharedByDefault ? '<span class="badge badge-info" style="margin-top:6px;display:inline-block;">Shared by default</span>' : ''}
             </div>
         </div>
     `).join('');
@@ -123,6 +125,7 @@ function setupAddCourse() {
             credits: parseFloat(document.getElementById('courseCredits').value) || null,
             semester: document.getElementById('courseSemester').value || null,
             instructorId: parseInt(document.getElementById('courseInstructorId').value) || null,
+            sharedByDefault: document.getElementById('courseSharedByDefault')?.checked || false,
         };
 
         try {
@@ -176,6 +179,10 @@ function editCourse(id) {
     if (partnerSelect) {
         partnerSelect.value = course.studyPartnerEmail || '';
     }
+
+    // Set shared by default
+    const sharedCheck = document.getElementById('courseSharedByDefault');
+    if (sharedCheck) sharedCheck.checked = course.sharedByDefault || false;
 
     openModal('courseModal');
 }

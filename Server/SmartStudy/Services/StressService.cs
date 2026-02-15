@@ -37,9 +37,27 @@ public class StressService
             .Where(e => userCourseIds.Contains(e.CourseId) && e.Date >= now.Date)
             .ToListAsync();
 
+        // ML-adjusted hours: apply per-course ratio from completed tasks
+        var completedTasks = await _db.Tasks
+            .Where(t => t.Email == email && t.IsCompleted && t.ActualHours.HasValue && t.EstimatedHours.HasValue && t.EstimatedHours > 0)
+            .Select(t => new { t.CourseId, Actual = (double)t.ActualHours!.Value, Estimated = (double)t.EstimatedHours!.Value })
+            .ToListAsync();
+
+        var courseRatios = completedTasks
+            .GroupBy(t => t.CourseId)
+            .Where(g => g.Count() >= 2)
+            .ToDictionary(g => g.Key, g => g.Average(t => t.Actual / t.Estimated));
+
         double requiredHours = incompleteTasks
             .Where(t => t.EstimatedHours.HasValue)
-            .Sum(t => (double)t.EstimatedHours!.Value);
+            .Sum(t =>
+            {
+                var est = (double)t.EstimatedHours!.Value;
+                // Apply ML ratio if available for this course
+                if (courseRatios.TryGetValue(t.CourseId, out var ratio))
+                    return est * ratio;
+                return est;
+            });
 
         // Add exam prep hours (assume 10 hours per exam within 14 days)
         requiredHours += upcomingExams

@@ -149,8 +149,19 @@ public class EventsController : ControllerBase
         };
         _db.ClassEvents.Add(evt);
         await _db.SaveChangesAsync();
+
+        // Check conflicts before rescheduling
+        var conflictsBefore = await CountConflictingTaskEvents(email, dto.From, dto.To, evt.EventId);
         await new SchedulingService(_db).ScheduleAllTasksAsync(email);
-        return CreatedAtAction(nameof(GetAll), new { }, new { evt.EventId, eventType = "class" });
+        var conflictsAfter = await CountConflictingTaskEvents(email, dto.From, dto.To, evt.EventId);
+
+        return CreatedAtAction(nameof(GetAll), new { }, new
+        {
+            evt.EventId,
+            eventType = "class",
+            conflictsDetected = conflictsBefore,
+            conflictsAutoResolved = conflictsBefore > 0 && conflictsAfter == 0
+        });
     }
 
     [HttpPost("task")]
@@ -187,8 +198,18 @@ public class EventsController : ControllerBase
         };
         _db.WorkEvents.Add(evt);
         await _db.SaveChangesAsync();
+
+        var conflictsBefore = await CountConflictingTaskEvents(email, dto.From, dto.To, evt.EventId);
         await new SchedulingService(_db).ScheduleAllTasksAsync(email);
-        return CreatedAtAction(nameof(GetAll), new { }, new { evt.EventId, eventType = "work" });
+        var conflictsAfter = await CountConflictingTaskEvents(email, dto.From, dto.To, evt.EventId);
+
+        return CreatedAtAction(nameof(GetAll), new { }, new
+        {
+            evt.EventId,
+            eventType = "work",
+            conflictsDetected = conflictsBefore,
+            conflictsAutoResolved = conflictsBefore > 0 && conflictsAfter == 0
+        });
     }
 
     [HttpPost("personal")]
@@ -206,8 +227,18 @@ public class EventsController : ControllerBase
         };
         _db.PersonalEvents.Add(evt);
         await _db.SaveChangesAsync();
+
+        var conflictsBefore = await CountConflictingTaskEvents(email, dto.From, dto.To, evt.EventId);
         await new SchedulingService(_db).ScheduleAllTasksAsync(email);
-        return CreatedAtAction(nameof(GetAll), new { }, new { evt.EventId, eventType = "personal" });
+        var conflictsAfter = await CountConflictingTaskEvents(email, dto.From, dto.To, evt.EventId);
+
+        return CreatedAtAction(nameof(GetAll), new { }, new
+        {
+            evt.EventId,
+            eventType = "personal",
+            conflictsDetected = conflictsBefore,
+            conflictsAutoResolved = conflictsBefore > 0 && conflictsAfter == 0
+        });
     }
 
     [HttpPut("class/{id}")]
@@ -319,6 +350,14 @@ public class EventsController : ControllerBase
         }
 
         return Ok(new { hasConflicts = conflicts.Any(), conflicts });
+    }
+
+    private async Task<int> CountConflictingTaskEvents(string email, DateTime from, DateTime to, int excludeEventId)
+    {
+        return await _db.TaskEvents
+            .Where(te => te.Email == email && te.EventId != excludeEventId &&
+                         te.From < to && te.To > from)
+            .CountAsync();
     }
 
     [HttpDelete("{id}")]

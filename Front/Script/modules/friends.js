@@ -6,31 +6,15 @@ let connections = [];
 let pendingRequests = [];
 let sharedTasks = [];
 
-// Demo data fallback (used when API is unavailable)
-const DEMO_CONNECTIONS = [
-    { connectionId: 1, friendEmail: 'sarah.cohen@uni.ac.il', friendName: 'Sarah Cohen', status: 'accepted', connectedDate: '2026-01-15' },
-    { connectionId: 2, friendEmail: 'david.levi@uni.ac.il', friendName: 'David Levi', status: 'accepted', connectedDate: '2026-01-22' },
-];
-
-const DEMO_PENDING = [
-    { connectionId: 3, friendEmail: 'maya.alon@uni.ac.il', friendName: 'Maya Alon', status: 'pending', connectedDate: '2026-02-05' },
-];
-
-const DEMO_SAFE_ZONES = [
-    { date: '2026-02-10', day: 'Tuesday', startTime: '10:00', endTime: '12:00', myStress: 25, friendStress: 30 },
-    { date: '2026-02-10', day: 'Tuesday', startTime: '14:00', endTime: '16:00', myStress: 20, friendStress: 35 },
-    { date: '2026-02-11', day: 'Wednesday', startTime: '09:00', endTime: '11:00', myStress: 30, friendStress: 28 },
-    { date: '2026-02-12', day: 'Thursday', startTime: '13:00', endTime: '15:00', myStress: 42, friendStress: 38 },
-];
-
 export async function initFriends() {
     try {
         const data = await api.getConnections();
         connections = data.filter(c => c.status === 'accepted');
         pendingRequests = data.filter(c => c.status === 'pending');
-    } catch {
-        connections = [...DEMO_CONNECTIONS];
-        pendingRequests = [...DEMO_PENDING];
+    } catch (err) {
+        console.error('Failed to load connections:', err);
+        connections = [];
+        pendingRequests = [];
     }
 
     try {
@@ -91,7 +75,10 @@ function renderPendingRequests() {
             let result;
             try {
                 result = await api.acceptConnection(id);
-            } catch { /* demo mode */ }
+            } catch (err) {
+                showToast(err.message || 'Failed to accept request', 'error');
+                return;
+            }
 
             const req = pendingRequests.find(r => r.connectionId === id);
             if (req) {
@@ -114,7 +101,10 @@ function renderPendingRequests() {
             const id = parseInt(btn.dataset.id);
             try {
                 await api.declineConnection(id);
-            } catch { /* demo mode */ }
+            } catch (err) {
+                showToast(err.message || 'Failed to decline request', 'error');
+                return;
+            }
 
             pendingRequests = pendingRequests.filter(r => r.connectionId !== id);
             renderPendingRequests();
@@ -162,7 +152,10 @@ function renderFriends() {
             const id = parseInt(btn.dataset.id);
             try {
                 await api.removeConnection(id);
-            } catch { /* demo mode */ }
+            } catch (err) {
+                showToast(err.message || 'Failed to remove friend', 'error');
+                return;
+            }
 
             connections = connections.filter(c => c.connectionId !== id);
             renderFriends();
@@ -210,7 +203,10 @@ function setupInvite() {
 
         try {
             await api.inviteConnection(email);
-        } catch { /* demo mode */ }
+        } catch (err) {
+            showToast(err.message || 'Failed to send invitation', 'error');
+            return;
+        }
 
         closeModal('inviteModal');
         showToast('Invitation sent!');
@@ -225,8 +221,14 @@ async function openSafeZone(connectionId, name) {
     let zones;
     try {
         zones = await api.getSafeZones(connectionId);
-    } catch {
-        zones = DEMO_SAFE_ZONES;
+    } catch (err) {
+        document.getElementById('safeZoneContent').innerHTML = `
+            <div class="empty-state" style="padding: var(--space-8) 0;">
+                <div class="empty-state-icon">&#9888;</div>
+                <h3>Failed to load safe zones</h3>
+                <p>${err.message || 'Please try again later'}</p>
+            </div>`;
+        return;
     }
 
     const content = document.getElementById('safeZoneContent');

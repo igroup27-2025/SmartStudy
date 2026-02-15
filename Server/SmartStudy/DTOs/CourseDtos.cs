@@ -13,6 +13,7 @@ public class CourseDto
     public int ExamCount { get; set; }
     public string? StudyPartnerEmail { get; set; }
     public string? StudyPartnerName { get; set; }
+    public bool SharedByDefault { get; set; }
 }
 
 public class SetStudyPartnerDto
@@ -36,4 +37,5 @@ public class UpdateCourseDto
     public decimal? Credits { get; set; }
     public string? Semester { get; set; }
     public int? InstructorId { get; set; }
+    public bool? SharedByDefault { get; set; }
 }

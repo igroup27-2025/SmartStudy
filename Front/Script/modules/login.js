@@ -1,5 +1,5 @@
 import { api } from './api.js';
-import { saveAuth, isLoggedIn } from './auth.js';
+import { saveAuth, isLoggedIn, isOnboardingCompleted } from './auth.js';
 import { showToast } from './modals.js';
 
 export function initLogin() {
@@ -62,7 +62,7 @@ export function initLogin() {
             btn.textContent = 'Signing in...';
             const res = await api.login(email, password);
             saveAuth(res);
-            window.location.href = '/Pages/Dashboard.html';
+            window.location.href = res.onboardingCompleted ? '/Pages/Dashboard.html' : '/Pages/Onboarding1.html';
         } catch (err) {
             showToast(err.message || 'Login failed', 'error');
         } finally {
@@ -87,7 +87,7 @@ export function initLogin() {
             btn.textContent = 'Creating account...';
             const res = await api.register(data);
             saveAuth(res);
-            window.location.href = '/Pages/Dashboard.html';
+            window.location.href = '/Pages/Onboarding1.html';
         } catch (err) {
             showToast(err.message || 'Registration failed', 'error');
         } finally {
@@ -174,21 +174,30 @@ export function initLogin() {
     initGoogleSignIn();
 }
 
-function initGoogleSignIn() {
-    // Load Google Identity Services script dynamically
-    const script = document.createElement('script');
-    script.src = 'https://accounts.google.com/gsi/client';
-    script.async = true;
-    script.defer = true;
-    script.onload = () => {
-        if (typeof google !== 'undefined' && google.accounts) {
-            google.accounts.id.initialize({
-                client_id: window.__GOOGLE_CLIENT_ID || '',
-                callback: handleGoogleCallback,
-            });
-        }
-    };
-    document.head.appendChild(script);
+async function initGoogleSignIn() {
+    // Fetch Google client ID from backend config
+    try {
+        const config = await api.getAuthConfig();
+        const clientId = config.googleClientId;
+        if (!clientId || clientId === 'PLACEHOLDER_GOOGLE_CLIENT_ID') return;
+
+        // Load Google Identity Services script dynamically
+        const script = document.createElement('script');
+        script.src = 'https://accounts.google.com/gsi/client';
+        script.async = true;
+        script.defer = true;
+        script.onload = () => {
+            if (typeof google !== 'undefined' && google.accounts) {
+                google.accounts.id.initialize({
+                    client_id: clientId,
+                    callback: handleGoogleCallback,
+                });
+            }
+        };
+        document.head.appendChild(script);
+    } catch {
+        // Google Sign-In not available — silently skip
+    }
 }
 
 async function handleGoogleCallback(response) {
@@ -197,7 +206,7 @@ async function handleGoogleCallback(response) {
     try {
         const res = await api.googleLogin(response.credential);
         saveAuth(res);
-        window.location.href = '/Pages/Dashboard.html';
+        window.location.href = res.onboardingCompleted ? '/Pages/Dashboard.html' : '/Pages/Onboarding1.html';
     } catch (err) {
         showToast(err.message || 'Google login failed', 'error');
     }

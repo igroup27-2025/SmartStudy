@@ -2673,11 +2673,31 @@ hr {
   padding: var(--space-5);
 }
 
+.course-card-title-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: var(--space-2);
+  margin-bottom: var(--space-2);
+}
+
+.course-card-actions {
+  display: flex;
+  gap: var(--space-1);
+  flex-shrink: 0;
+}
+
+.course-card-actions .btn {
+  padding: var(--space-1) var(--space-2);
+  font-size: var(--fs-base);
+  min-width: auto;
+}
+
 .course-card-name {
   font-size: var(--fs-lg);
   font-weight: var(--fw-semibold);
   color: var(--text-primary);
-  margin-bottom: var(--space-1);
+  margin-bottom: 0;
 }
 
 .course-card-code {
@@ -4271,6 +4291,48 @@ body[data-layout="onboarding"] {
   border-radius: var(--radius-md);
   margin-bottom: var(--space-2);
   font-size: var(--fs-sm);
+}
+
+.onboarding-external-systems {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.onboarding-external-item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3);
+  background: var(--bg-secondary);
+  border-radius: var(--radius-md);
+}
+
+.onboarding-external-info {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  flex: 1;
+}
+
+.onboarding-external-icon {
+  font-size: 1.5rem;
+  flex-shrink: 0;
+}
+
+.onboarding-external-status {
+  color: var(--color-success);
+  font-weight: var(--fw-medium);
+  font-size: var(--fs-sm);
+}
+
+.onboarding-external-badge {
+  font-size: var(--fs-xs);
+  color: var(--text-muted);
+  background: var(--bg-tertiary);
+  padding: 2px 8px;
+  border-radius: var(--radius-sm);
+  white-space: nowrap;
 }
 
 
@@ -6363,6 +6425,86 @@ body[data-layout="onboarding"] {
   border-top: 1px solid var(--border-color);
   display: flex;
   justify-content: flex-end;
+}
+
+/* ---- Calendar Event Detail Modal ---- */
+.cal-event-detail-modal {
+  max-width: 480px;
+  max-height: 80vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.cal-event-detail-body {
+  padding: var(--space-4) var(--space-5);
+  overflow-y: auto;
+  flex: 1;
+}
+
+.cal-event-detail-row {
+  display: flex;
+  justify-content: space-between;
+  padding: var(--space-2) 0;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.cal-event-detail-row:last-child {
+  border-bottom: none;
+}
+
+.cal-event-detail-label {
+  font-weight: var(--fw-medium);
+  color: var(--text-secondary);
+  font-size: var(--fs-sm);
+}
+
+.cal-event-detail-value {
+  color: var(--text-primary);
+  font-size: var(--fs-sm);
+  text-align: right;
+}
+
+.cal-event-detail-footer {
+  padding: var(--space-3) var(--space-5);
+  border-top: 1px solid var(--border-color);
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-2);
+  position: sticky;
+  bottom: 0;
+  background: var(--bg-card);
+  border-radius: 0 0 var(--radius-lg) var(--radius-lg);
+}
+
+/* ---- Calendar Event Highlighted ---- */
+.cal-event--highlighted {
+  outline: 3px solid var(--color-primary);
+  outline-offset: 1px;
+  animation: pulseHighlight 2s ease-in-out 3;
+}
+
+@keyframes pulseHighlight {
+  0%, 100% { outline-color: var(--color-primary); }
+  50% { outline-color: var(--color-accent); }
+}
+
+/* ---- Dashboard Overdue ---- */
+.dash-overdue {
+  margin-top: var(--space-4);
+}
+
+.dash-review__badge--danger {
+  background: var(--color-danger);
+  color: white;
+}
+
+.dash-task-card--overdue {
+  border-left: 3px solid var(--color-danger);
+}
+
+.dash-task-card__course {
+  font-size: var(--fs-sm);
+  color: var(--text-muted);
 }
 
 /* ---- Calendar Cell Hover ---- */

@@ -40,6 +40,7 @@ builder.Services.AddScoped<ScheduleImportService>();
 builder.Services.AddScoped<SafeZoneService>();
 builder.Services.AddScoped<NotificationService>();
 builder.Services.AddScoped<WeeklySuggestionService>();
+builder.Services.AddScoped<GoogleCalendarService>();
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
@@ -322,6 +323,25 @@ using (var scope = app.Services.CreateScope())
         ";
         schedCmd.ExecuteNonQuery();
     }
+    // Phase 6+8 migrations: SharedByDefault, Google Calendar fields
+    using (var phase2Cmd = conn.CreateCommand())
+    {
+        phase2Cmd.CommandText = @"
+            -- Add SharedByDefault to UserCourses
+            IF COL_LENGTH('SmartStudy_UserCourses', 'SharedByDefault') IS NULL
+                ALTER TABLE SmartStudy_UserCourses ADD SharedByDefault BIT NOT NULL DEFAULT 0;
+
+            -- Add Google Calendar fields to Users
+            IF COL_LENGTH('SmartStudy_Users', 'GoogleCalendarAccessToken') IS NULL
+                ALTER TABLE SmartStudy_Users ADD GoogleCalendarAccessToken NVARCHAR(MAX) NULL;
+            IF COL_LENGTH('SmartStudy_Users', 'GoogleCalendarRefreshToken') IS NULL
+                ALTER TABLE SmartStudy_Users ADD GoogleCalendarRefreshToken NVARCHAR(MAX) NULL;
+            IF COL_LENGTH('SmartStudy_Users', 'LastCalendarSync') IS NULL
+                ALTER TABLE SmartStudy_Users ADD LastCalendarSync DATETIME2 NULL;
+        ";
+        phase2Cmd.ExecuteNonQuery();
+    }
+
     conn.Close();
 }
 

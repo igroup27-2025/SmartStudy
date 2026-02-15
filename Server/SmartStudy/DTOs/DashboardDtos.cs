@@ -19,6 +19,8 @@ public class DashboardDto
     public List<DailyWorkloadDto> DailyWorkload { get; set; } = new();
     public List<string> OverloadedDays { get; set; } = new();
     public TaskDto? NextSuggestedTask { get; set; }
+    public List<TaskDto> NeedsReviewTasks { get; set; } = new();
+    public List<TaskDto> OverdueTasks { get; set; } = new();
 }
 
 public class StressScoreDto

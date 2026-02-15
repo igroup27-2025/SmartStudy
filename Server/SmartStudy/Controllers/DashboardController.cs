@@ -135,12 +135,56 @@ public class DashboardController : ControllerBase
             .Where(d => d.Date >= today && d.Date < today.AddDays(7))
             .Sum(d => d.ScheduledHours);
 
-        // Next suggested task: highest priority, soonest deadline, not completed
+        // Needs Review: tasks with scheduled events in the past that are still not completed
+        var needsReviewTasks = tasksWithEvents
+            .Where(t => !t.IsCompleted && t.TaskEvents.Any(te => te.From < now))
+            .OrderBy(t => t.DueDate)
+            .Take(10)
+            .Select(t => new TaskDto
+            {
+                TaskId = t.TaskId,
+                CourseId = t.CourseId,
+                CourseName = t.Course?.CourseName ?? "",
+                Title = t.Title,
+                Type = t.Type,
+                EstimatedHours = t.EstimatedHours,
+                DueDate = t.DueDate,
+                IsCompleted = t.IsCompleted,
+                Priority = t.Priority,
+                ScheduledDate = t.TaskEvents.OrderBy(te => te.From).FirstOrDefault()?.From,
+                SchedulingStatus = t.TaskEvents.Any() ? "Scheduled" : "Unscheduled"
+            })
+            .ToList();
+
+        // Overdue tasks: due date in the past, not completed
+        var overdueTasks = tasks
+            .Where(t => !t.IsCompleted && t.DueDate.HasValue && t.DueDate < now)
+            .OrderBy(t => t.DueDate)
+            .Select(t => new TaskDto
+            {
+                TaskId = t.TaskId,
+                CourseId = t.CourseId,
+                CourseName = t.Course?.CourseName ?? "",
+                Title = t.Title,
+                Type = t.Type,
+                EstimatedHours = t.EstimatedHours,
+                DueDate = t.DueDate,
+                IsCompleted = t.IsCompleted,
+                Priority = t.Priority
+            })
+            .ToList();
+
+        // Next suggested task: weighted scoring matching scheduling engine
         TaskDto? nextSuggested = null;
         var suggested = tasksWithEvents
-            .Where(t => t.DueDate.HasValue && t.DueDate > now)
-            .OrderByDescending(t => t.Priority == "High" ? 3 : t.Priority == "Medium" ? 2 : 1)
-            .ThenBy(t => t.DueDate)
+            .Where(t => t.DueDate.HasValue && t.DueDate > now && !t.IsCompleted)
+            .OrderByDescending(t =>
+            {
+                var daysUntilDue = Math.Max(0.1, (t.DueDate!.Value - now).TotalDays);
+                var priorityWeight = t.Priority == "High" ? 3.0 : t.Priority == "Medium" ? 2.0 : 1.0;
+                var hours = (double)(t.EstimatedHours ?? 1m);
+                return (1.0 / daysUntilDue) * 40 + priorityWeight * 30 + Math.Min(hours, 10) * 3;
+            })
             .FirstOrDefault();
 
         if (suggested != null)
@@ -181,7 +225,9 @@ public class DashboardController : ControllerBase
             WeeklyWorkloadHours = Math.Round(weeklyWorkload, 1),
             DailyWorkload = schedulingStatus.DailyWorkload,
             OverloadedDays = schedulingStatus.OverloadedDays,
-            NextSuggestedTask = nextSuggested
+            NextSuggestedTask = nextSuggested,
+            NeedsReviewTasks = needsReviewTasks,
+            OverdueTasks = overdueTasks
         });
     }
 

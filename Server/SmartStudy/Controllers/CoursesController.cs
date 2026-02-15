@@ -55,7 +55,8 @@ public class CoursesController : ControllerBase
                 TaskCount = c.Tasks.Count(t => t.Email == email),
                 ExamCount = c.Exams.Count,
                 StudyPartnerEmail = uc?.StudyPartnerEmail,
-                StudyPartnerName = uc?.StudyPartnerEmail != null && partners.ContainsKey(uc.StudyPartnerEmail) ? partners[uc.StudyPartnerEmail] : null
+                StudyPartnerName = uc?.StudyPartnerEmail != null && partners.ContainsKey(uc.StudyPartnerEmail) ? partners[uc.StudyPartnerEmail] : null,
+                SharedByDefault = uc?.SharedByDefault ?? false
             };
         }).ToList();
 
@@ -139,6 +140,13 @@ public class CoursesController : ControllerBase
         if (dto.Semester != null) course.Semester = dto.Semester;
         if (dto.InstructorId.HasValue) course.InstructorId = dto.InstructorId;
 
+        // Handle SharedByDefault on the UserCourse junction
+        if (dto.SharedByDefault.HasValue)
+        {
+            var uc = await _db.UserCourses.FirstOrDefaultAsync(x => x.Email == email && x.CourseId == id);
+            if (uc != null) uc.SharedByDefault = dto.SharedByDefault.Value;
+        }
+
         await _db.SaveChangesAsync();
         return Ok(new CourseDto
         {
@@ -147,7 +155,8 @@ public class CoursesController : ControllerBase
             WeeklyHours = course.WeeklyHours,
             Credits = course.Credits,
             Semester = course.Semester,
-            InstructorId = course.InstructorId
+            InstructorId = course.InstructorId,
+            SharedByDefault = dto.SharedByDefault ?? false
         });
     }
 

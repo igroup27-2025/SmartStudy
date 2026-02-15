@@ -14,8 +14,14 @@ export function saveAuth(response) {
     localStorage.setItem('smartstudy_user', JSON.stringify({
         email: response.email,
         firstName: response.firstName,
-        lastName: response.lastName
+        lastName: response.lastName,
+        onboardingCompleted: response.onboardingCompleted ?? true
     }));
+}
+
+export function isOnboardingCompleted() {
+    const user = getUser();
+    return user?.onboardingCompleted !== false;
 }
 
 export function logout() {
