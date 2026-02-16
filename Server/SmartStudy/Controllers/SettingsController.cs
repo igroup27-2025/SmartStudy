@@ -104,7 +104,12 @@ public class SettingsController : ControllerBase
             DayEndHour = prefs?.DayEndHour ?? 22,
             SleepHoursPerDay = prefs?.SleepHoursPerDay ?? 8.0,
             LunchBreakStart = prefs?.LunchBreakStart?.ToString(@"hh\:mm"),
-            LunchBreakEnd = prefs?.LunchBreakEnd?.ToString(@"hh\:mm")
+            LunchBreakEnd = prefs?.LunchBreakEnd?.ToString(@"hh\:mm"),
+            BreakDurationMinutes = prefs?.BreakDurationMinutes ?? 15,
+            DefaultTaskEstimatedHours = prefs?.DefaultTaskEstimatedHours ?? 4.0,
+            MaxDailyTotalHours = prefs?.MaxDailyTotalHours ?? 14.0,
+            ExamPrepHoursPerDay = prefs?.ExamPrepHoursPerDay ?? 5.0,
+            ExamPrepDays = prefs?.ExamPrepDays ?? 3
         });
     }
 
@@ -124,6 +129,11 @@ public class SettingsController : ControllerBase
         prefs.DayStartHour = Math.Clamp(dto.DayStartHour, 5, 12);
         prefs.DayEndHour = Math.Clamp(dto.DayEndHour, 16, 23);
         prefs.SleepHoursPerDay = Math.Clamp(dto.SleepHoursPerDay, 5, 10);
+        prefs.BreakDurationMinutes = Math.Clamp(dto.BreakDurationMinutes, 5, 60);
+        prefs.DefaultTaskEstimatedHours = Math.Clamp(dto.DefaultTaskEstimatedHours, 0.5, 20);
+        prefs.MaxDailyTotalHours = Math.Clamp(dto.MaxDailyTotalHours, 6, 20);
+        prefs.ExamPrepHoursPerDay = Math.Clamp(dto.ExamPrepHoursPerDay, 1, 12);
+        prefs.ExamPrepDays = Math.Clamp(dto.ExamPrepDays, 1, 14);
 
         if (dto.LunchBreakStart != null && TimeSpan.TryParse(dto.LunchBreakStart, out var lStart))
             prefs.LunchBreakStart = lStart;
@@ -162,6 +172,11 @@ public class SettingsController : ControllerBase
             prefs.DayStartHour = Math.Clamp(p.DayStartHour, 5, 12);
             prefs.DayEndHour = Math.Clamp(p.DayEndHour, 16, 23);
             prefs.SleepHoursPerDay = Math.Clamp(p.SleepHoursPerDay, 5, 10);
+            prefs.BreakDurationMinutes = Math.Clamp(p.BreakDurationMinutes, 5, 60);
+            prefs.DefaultTaskEstimatedHours = Math.Clamp(p.DefaultTaskEstimatedHours, 0.5, 20);
+            prefs.MaxDailyTotalHours = Math.Clamp(p.MaxDailyTotalHours, 6, 20);
+            prefs.ExamPrepHoursPerDay = Math.Clamp(p.ExamPrepHoursPerDay, 1, 12);
+            prefs.ExamPrepDays = Math.Clamp(p.ExamPrepDays, 1, 14);
 
             if (p.LunchBreakStart != null && TimeSpan.TryParse(p.LunchBreakStart, out var lStart))
                 prefs.LunchBreakStart = lStart;

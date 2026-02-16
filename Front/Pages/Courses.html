@@ -65,6 +65,21 @@
                             <small class="form-hint">Assign a friend as study partner for this course</small>
                         </div>
                         <div class="form-group">
+                            <label for="courseDefaultHours">Default estimated hours per task</label>
+                            <input type="number" id="courseDefaultHours" class="form-input" step="0.5" min="0.5" max="20" placeholder="Leave empty for global default">
+                            <small class="form-hint">Used until enough tasks are completed for automatic calculation</small>
+                        </div>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="courseExamPrepHours">Exam prep hours/day</label>
+                                <input type="number" id="courseExamPrepHours" class="form-input" step="0.5" min="1" max="12" placeholder="Global default">
+                            </div>
+                            <div class="form-group">
+                                <label for="courseExamPrepDays">Exam prep days</label>
+                                <input type="number" id="courseExamPrepDays" class="form-input" step="1" min="1" max="14" placeholder="Global default">
+                            </div>
+                        </div>
+                        <div class="form-group">
                             <label class="toggle-label">
                                 <input type="checkbox" id="courseSharedByDefault" class="toggle-input">
                                 <span class="toggle-switch"></span>

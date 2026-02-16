@@ -89,10 +89,24 @@ function initStep2() {
         });
     }
 
+    // Max daily total slider
+    const maxTotal = document.getElementById('maxDailyTotal');
+    const maxTotalVal = document.getElementById('maxDailyTotalValue');
+    if (maxTotal && maxTotalVal) {
+        if (data.maxDailyTotalHours) maxTotal.value = data.maxDailyTotalHours;
+        maxTotalVal.textContent = `${maxTotal.value}h`;
+        maxTotal.addEventListener('input', () => {
+            maxTotalVal.textContent = `${maxTotal.value}h`;
+        });
+    }
+
     // Restore saved values
     if (data.maxContinuousMinutes) setSelect('maxContinuous', data.maxContinuousMinutes);
     if (data.dayStartHour) setSelect('dayStart', data.dayStartHour);
     if (data.dayEndHour) setSelect('dayEnd', data.dayEndHour);
+    if (data.breakDurationMinutes) setSelect('breakDuration', data.breakDurationMinutes);
+    if (data.examPrepHoursPerDay) document.getElementById('examPrepHoursPerDay').value = data.examPrepHoursPerDay;
+    if (data.examPrepDays) document.getElementById('examPrepDays').value = data.examPrepDays;
 
     // Lunch break toggle
     const lunchEnabled = document.getElementById('lunchEnabled');
@@ -119,6 +133,10 @@ function collectStep2() {
         lunchEnabled: document.getElementById('lunchEnabled')?.checked ?? true,
         lunchStart: document.getElementById('lunchStart')?.value || '12:00',
         lunchEnd: document.getElementById('lunchEnd')?.value || '13:00',
+        breakDurationMinutes: parseInt(document.getElementById('breakDuration')?.value) || 15,
+        maxDailyTotalHours: parseFloat(document.getElementById('maxDailyTotal')?.value) || 14,
+        examPrepHoursPerDay: parseFloat(document.getElementById('examPrepHoursPerDay')?.value) || 5,
+        examPrepDays: parseInt(document.getElementById('examPrepDays')?.value) || 3,
     });
 }
 
@@ -253,7 +271,7 @@ function collectStep3() {
 function initStep4() {
     const data = loadData();
 
-    setText('summaryStudy', `Max ${data.maxDailyStudyHours || 6}h/day, ${data.maxContinuousMinutes || 90}min continuous`);
+    setText('summaryStudy', `Max ${data.maxDailyStudyHours || 6}h study/day, ${data.maxDailyTotalHours || 14}h total/day, ${data.maxContinuousMinutes || 90}min continuous, ${data.breakDurationMinutes || 15}min breaks`);
 
     const startHour = data.dayStartHour || 8;
     const endHour = data.dayEndHour || 22;
@@ -292,6 +310,11 @@ async function finishOnboarding() {
             sleepHoursPerDay: data.sleepHoursPerDay || 8,
             lunchBreakStart: data.lunchEnabled !== false ? (data.lunchStart || '12:00') : null,
             lunchBreakEnd: data.lunchEnabled !== false ? (data.lunchEnd || '13:00') : null,
+            breakDurationMinutes: data.breakDurationMinutes || 15,
+            defaultTaskEstimatedHours: 4.0,
+            maxDailyTotalHours: data.maxDailyTotalHours || 14,
+            examPrepHoursPerDay: data.examPrepHoursPerDay || 5,
+            examPrepDays: data.examPrepDays || 3,
         },
         notificationSettings: {
             notifyBeforeTask: data.notifyDeadline !== false,

@@ -85,13 +85,6 @@ public class TasksController : ControllerBase
     {
         var email = GetEmail();
 
-        // Auto-priority from due date if priority not set
-        var priority = dto.Priority;
-        if (string.IsNullOrEmpty(priority) && dto.DueDate.HasValue)
-        {
-            priority = CalculateAutoPriority(dto.DueDate.Value);
-        }
-
         var task = new StudentTask
         {
             CourseId = dto.CourseId,
@@ -99,10 +92,10 @@ public class TasksController : ControllerBase
             Type = dto.Type,
             EstimatedHours = dto.EstimatedHours,
             DueDate = dto.DueDate,
-            Priority = priority,
             ParentTaskId = dto.ParentTaskId,
             Email = email,
-            IsCompleted = false
+            IsCompleted = false,
+            AllowSplitting = dto.AllowSplitting
         };
 
         // If sub-task, inherit course/due date from parent
@@ -167,16 +160,7 @@ public class TasksController : ControllerBase
         if (dto.EstimatedHours.HasValue) task.EstimatedHours = dto.EstimatedHours;
         if (dto.DueDate.HasValue) task.DueDate = dto.DueDate;
         if (dto.IsCompleted.HasValue) task.IsCompleted = dto.IsCompleted.Value;
-
-        // Auto-priority: if due date changed but priority not explicitly set
-        if (dto.Priority != null)
-        {
-            task.Priority = dto.Priority;
-        }
-        else if (dto.DueDate.HasValue && task.DueDate.HasValue)
-        {
-            task.Priority = CalculateAutoPriority(task.DueDate.Value);
-        }
+        if (dto.AllowSplitting.HasValue) task.AllowSplitting = dto.AllowSplitting.Value;
 
         await _db.SaveChangesAsync();
 
@@ -284,15 +268,10 @@ public class TasksController : ControllerBase
                 Type = task.Type,
                 EstimatedHours = sub.EstimatedHours,
                 DueDate = sub.DueDate ?? task.DueDate,
-                Priority = task.Priority,
                 ParentTaskId = task.TaskId,
                 Email = email,
                 IsCompleted = false
             };
-
-            // Auto-priority for sub-task
-            if (subTask.DueDate.HasValue)
-                subTask.Priority = CalculateAutoPriority(subTask.DueDate.Value);
 
             _db.Tasks.Add(subTask);
             created.Add(subTask);
@@ -386,17 +365,6 @@ public class TasksController : ControllerBase
         return Ok(insights);
     }
 
-    private static string CalculateAutoPriority(DateTime dueDate)
-    {
-        var daysUntil = (dueDate.Date - DateTime.Now.Date).TotalDays;
-        return daysUntil switch
-        {
-            < 3 => "High",
-            <= 7 => "Medium",
-            _ => "Low"
-        };
-    }
-
     private static TaskDto BuildTaskDto(StudentTask t)
     {
         var taskEvents = t.TaskEvents?.Where(te => te.Status == "Scheduled" || te.Status == "Partial").ToList()
@@ -452,7 +420,8 @@ public class TasksController : ControllerBase
             {
                 From = te.From,
                 To = te.To
-            }).OrderBy(s => s.From).ToList()
+            }).OrderBy(s => s.From).ToList(),
+            AllowSplitting = t.AllowSplitting
         };
     }
 }

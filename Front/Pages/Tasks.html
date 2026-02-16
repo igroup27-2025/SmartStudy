@@ -90,14 +90,12 @@
                             </div>
                         </div>
                         <div class="form-group">
-                            <label for="taskPriority">Priority</label>
-                            <select id="taskPriority" class="form-input">
-                                <option value="">Auto (from due date)</option>
-                                <option value="High">High</option>
-                                <option value="Medium">Medium</option>
-                                <option value="Low">Low</option>
-                            </select>
-                            <small class="form-hint">Leave empty to auto-set from due date</small>
+                            <label class="toggle-label">
+                                <input type="checkbox" id="taskAllowSplitting" class="toggle-input">
+                                <span class="toggle-switch"></span>
+                                Allow splitting across multiple days
+                            </label>
+                            <small class="form-hint">When off, the task is scheduled as a single continuous block with breaks</small>
                         </div>
                         <!-- Share Task Toggle (only for new tasks) -->
                         <div id="sharedSection" class="form-group">

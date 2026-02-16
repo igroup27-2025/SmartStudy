@@ -56,7 +56,10 @@ public class CoursesController : ControllerBase
                 ExamCount = c.Exams.Count,
                 StudyPartnerEmail = uc?.StudyPartnerEmail,
                 StudyPartnerName = uc?.StudyPartnerEmail != null && partners.ContainsKey(uc.StudyPartnerEmail) ? partners[uc.StudyPartnerEmail] : null,
-                SharedByDefault = uc?.SharedByDefault ?? false
+                SharedByDefault = uc?.SharedByDefault ?? false,
+                DefaultTaskEstimatedHours = c.DefaultTaskEstimatedHours,
+                ExamPrepHoursPerDay = c.ExamPrepHoursPerDay,
+                ExamPrepDays = c.ExamPrepDays
             };
         }).ToList();
 
@@ -139,6 +142,9 @@ public class CoursesController : ControllerBase
         if (dto.Credits.HasValue) course.Credits = dto.Credits;
         if (dto.Semester != null) course.Semester = dto.Semester;
         if (dto.InstructorId.HasValue) course.InstructorId = dto.InstructorId;
+        if (dto.DefaultTaskEstimatedHours.HasValue) course.DefaultTaskEstimatedHours = dto.DefaultTaskEstimatedHours;
+        if (dto.ExamPrepHoursPerDay.HasValue) course.ExamPrepHoursPerDay = dto.ExamPrepHoursPerDay;
+        if (dto.ExamPrepDays.HasValue) course.ExamPrepDays = dto.ExamPrepDays;
 
         // Handle SharedByDefault on the UserCourse junction
         if (dto.SharedByDefault.HasValue)
@@ -156,7 +162,10 @@ public class CoursesController : ControllerBase
             Credits = course.Credits,
             Semester = course.Semester,
             InstructorId = course.InstructorId,
-            SharedByDefault = dto.SharedByDefault ?? false
+            SharedByDefault = dto.SharedByDefault ?? false,
+            DefaultTaskEstimatedHours = course.DefaultTaskEstimatedHours,
+            ExamPrepHoursPerDay = course.ExamPrepHoursPerDay,
+            ExamPrepDays = course.ExamPrepDays
         });
     }
 

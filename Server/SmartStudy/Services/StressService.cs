@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using SmartStudy.Data;
 using SmartStudy.DTOs;
+using SmartStudy.Models;
 
 namespace SmartStudy.Services;
 
@@ -17,15 +18,15 @@ public class StressService
     {
         var now = DateTime.Now;
 
-        // Load user preferences
         var prefs = await _db.SchedulingPreferences.FindAsync(email);
         double sleepHours = prefs?.SleepHoursPerDay ?? 8.0;
+        double maxDailyStudy = prefs?.MaxDailyStudyHours ?? 6.0;
+        double maxDailyTotal = prefs?.MaxDailyTotalHours ?? 14.0;
 
         var incompleteTasks = await _db.Tasks
             .Include(t => t.SubTasks)
             .Where(t => t.Email == email && !t.IsCompleted && t.DueDate != null)
             .ToListAsync();
-        // Only count leaf tasks to avoid double-counting parents
         incompleteTasks = incompleteTasks.Where(t => !t.SubTasks.Any()).ToList();
 
         var userCourseIds = await _db.UserCourses
@@ -37,7 +38,7 @@ public class StressService
             .Where(e => userCourseIds.Contains(e.CourseId) && e.Date >= now.Date)
             .ToListAsync();
 
-        // ML-adjusted hours: apply per-course ratio from completed tasks
+        // ML-adjusted hours
         var completedTasks = await _db.Tasks
             .Where(t => t.Email == email && t.IsCompleted && t.ActualHours.HasValue && t.EstimatedHours.HasValue && t.EstimatedHours > 0)
             .Select(t => new { t.CourseId, Actual = (double)t.ActualHours!.Value, Estimated = (double)t.EstimatedHours!.Value })
@@ -53,29 +54,23 @@ public class StressService
             .Sum(t =>
             {
                 var est = (double)t.EstimatedHours!.Value;
-                // Apply ML ratio if available for this course
                 if (courseRatios.TryGetValue(t.CourseId, out var ratio))
                     return est * ratio;
                 return est;
             });
 
-        // Add exam prep hours (assume 10 hours per exam within 14 days)
         requiredHours += upcomingExams
             .Where(e => (e.Date - now.Date).TotalDays <= 14)
             .Count() * 10.0;
 
-        // Calculate available hours until nearest deadline
+        // Available hours until nearest deadline
         DateTime? nearestDeadline = null;
-
         var taskDeadlines = incompleteTasks
             .Where(t => t.DueDate > now)
             .Select(t => t.DueDate!.Value);
-
         var examDeadlines = upcomingExams
             .Select(e => e.Date.Add(e.Time));
-
         var allDeadlines = taskDeadlines.Concat(examDeadlines).Where(d => d > now).ToList();
-
         if (allDeadlines.Count != 0)
             nearestDeadline = allDeadlines.Min();
 
@@ -86,7 +81,6 @@ public class StressService
             double daysUntilDeadline = totalHoursUntilDeadline / 24.0;
             double sleepTotal = daysUntilDeadline * sleepHours;
 
-            // Subtract existing events from available hours
             var events = await _db.Events
                 .Where(e => e.Email == email && e.From > now && e.From < nearestDeadline.Value)
                 .ToListAsync();
@@ -96,12 +90,33 @@ public class StressService
         }
         else
         {
-            availableHours = 168; // One week of waking hours
+            availableHours = 168;
         }
 
         double score = requiredHours > 0
             ? Math.Min(100, (requiredHours / availableHours) * 100)
             : 0;
+
+        // Calculate today's study and total load for the DTO
+        var todayStart = now.Date;
+        var todayEnd = todayStart.AddDays(1);
+        var todayTaskEvents = await _db.TaskEvents
+            .Where(te => te.StudentTask.Email == email
+                && te.From >= todayStart && te.From < todayEnd
+                && (te.Status == "Scheduled" || te.Status == "Partial"))
+            .ToListAsync();
+        var todayOtherEvents = await _db.Events
+            .Where(e => e.Email == email && e.From >= todayStart && e.From < todayEnd)
+            .ToListAsync();
+
+        double todayStudyHours = todayTaskEvents.Sum(te => (te.To - te.From).TotalHours);
+        double todayOtherHours = todayOtherEvents
+            .Where(e => !todayTaskEvents.Any(te => te.EventId == e.EventId))
+            .Sum(e => (e.To - e.From).TotalHours);
+        double todayTotalHours = todayStudyHours + todayOtherHours;
+
+        double studyLoad = maxDailyStudy > 0 ? (todayStudyHours / maxDailyStudy) * 100 : 0;
+        double totalLoad = maxDailyTotal > 0 ? (todayTotalHours / maxDailyTotal) * 100 : 0;
 
         return new StressScoreDto
         {
@@ -109,7 +124,10 @@ public class StressService
             Level = GetStressLevel(score),
             Color = GetStressColor(score),
             RequiredHours = Math.Round(requiredHours, 1),
-            AvailableHours = Math.Round(availableHours, 1)
+            AvailableHours = Math.Round(availableHours, 1),
+            StudyLoad = Math.Round(Math.Min(100, studyLoad), 1),
+            TotalLoad = Math.Round(Math.Min(100, totalLoad), 1),
+            TotalScheduledHours = Math.Round(todayTotalHours, 1)
         };
     }
 
@@ -119,9 +137,9 @@ public class StressService
         var startOfWeek = now.Date.AddDays(-(int)now.DayOfWeek);
         var result = new List<WeeklyStressDto>();
 
-        // Load user preferences
         var prefs = await _db.SchedulingPreferences.FindAsync(email);
-        double wakingHours = 24 - (prefs?.SleepHoursPerDay ?? 8.0);
+        double maxDailyStudy = prefs?.MaxDailyStudyHours ?? 6.0;
+        double maxDailyTotal = prefs?.MaxDailyTotalHours ?? 14.0;
 
         var userCourseIds = await _db.UserCourses
             .Where(uc => uc.Email == email)
@@ -142,18 +160,28 @@ public class StressService
                 .Where(e => e.Email == email && e.From >= day && e.From < dayEnd)
                 .ToListAsync();
 
+            // Get scheduled task events for this day
+            var dayTaskEvents = await _db.TaskEvents
+                .Where(te => te.StudentTask.Email == email
+                    && te.From >= day && te.From < dayEnd
+                    && (te.Status == "Scheduled" || te.Status == "Partial"))
+                .ToListAsync();
+
             var dayExams = await _db.Exams
                 .Where(e => userCourseIds.Contains(e.CourseId)
                     && e.Date >= day && e.Date < dayEnd)
                 .CountAsync();
 
-            // Subtract event hours from available time
-            double eventHours = dayEvents.Sum(e => (e.To - e.From).TotalHours);
-            double dayHours = dayTasks * 2.0 + dayExams * 10.0;
-            double dayAvailable = Math.Max(1, wakingHours - eventHours);
-            double dayScore = dayAvailable > 0
-                ? Math.Min(100, (dayHours / dayAvailable) * 100)
-                : 0;
+            // Calculate dual load
+            double studyHours = dayTaskEvents.Sum(te => (te.To - te.From).TotalHours);
+            double otherHours = dayEvents
+                .Where(e => !dayTaskEvents.Any(te => te.EventId == e.EventId))
+                .Sum(e => (e.To - e.From).TotalHours);
+            double totalHours = studyHours + otherHours;
+
+            double studyLoad = maxDailyStudy > 0 ? (studyHours / maxDailyStudy) * 100 : 0;
+            double totalLoad = maxDailyTotal > 0 ? (totalHours / maxDailyTotal) * 100 : 0;
+            double dayScore = Math.Min(100, Math.Max(studyLoad, totalLoad));
 
             result.Add(new WeeklyStressDto
             {

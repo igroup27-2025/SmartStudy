@@ -5,6 +5,7 @@ using Microsoft.EntityFrameworkCore;
 using SmartStudy.Data;
 using SmartStudy.DTOs;
 using SmartStudy.Models;
+using SmartStudy.Services;
 
 namespace SmartStudy.Controllers;
 
@@ -14,8 +15,13 @@ namespace SmartStudy.Controllers;
 public class ExamsController : ControllerBase
 {
     private readonly SmartStudyDbContext _db;
+    private readonly SchedulingService _scheduling;
 
-    public ExamsController(SmartStudyDbContext db) => _db = db;
+    public ExamsController(SmartStudyDbContext db, SchedulingService scheduling)
+    {
+        _db = db;
+        _scheduling = scheduling;
+    }
 
     private string GetEmail() => User.FindFirst(ClaimTypes.Email)!.Value;
 
@@ -90,6 +96,10 @@ public class ExamsController : ControllerBase
         _db.Exams.Add(exam);
         await _db.SaveChangesAsync();
 
+        // Trigger reschedule
+        var email = GetEmail();
+        await _scheduling.ScheduleAllTasksAsync(email);
+
         var course = await _db.Courses.FindAsync(dto.CourseId);
         return CreatedAtAction(nameof(Get), new { id = exam.ExamId }, new ExamDto
         {
@@ -126,6 +136,9 @@ public class ExamsController : ControllerBase
 
         await _db.SaveChangesAsync();
 
+        // Trigger reschedule
+        await _scheduling.ScheduleAllTasksAsync(email);
+
         return Ok(new ExamDto
         {
             ExamId = exam.ExamId,
@@ -153,6 +166,10 @@ public class ExamsController : ControllerBase
 
         _db.Exams.Remove(exam);
         await _db.SaveChangesAsync();
+
+        // Trigger reschedule
+        await _scheduling.ScheduleAllTasksAsync(email);
+
         return NoContent();
     }
 }
