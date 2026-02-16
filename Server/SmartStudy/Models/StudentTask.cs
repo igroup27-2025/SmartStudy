@@ -13,6 +13,7 @@ public class StudentTask
     public decimal? ActualHours { get; set; }
     public int? ParentTaskId { get; set; }
     public string Email { get; set; } = null!;
+    public bool AllowSplitting { get; set; } = false;
 
     // Navigation properties
     public Course Course { get; set; } = null!;

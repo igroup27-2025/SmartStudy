@@ -29,6 +29,7 @@ public class TaskDto
     public DateTime? ScheduledDate { get; set; }
     public string SchedulingStatus { get; set; } = "Unscheduled"; // "Scheduled" | "Unscheduled" | "Partial"
     public List<TaskSlotDto>? ScheduledSlots { get; set; }
+    public bool AllowSplitting { get; set; }
 }
 
 public class TaskSlotDto
@@ -44,8 +45,8 @@ public class CreateTaskDto
     public string Type { get; set; } = null!;
     public decimal? EstimatedHours { get; set; }
     public DateTime? DueDate { get; set; }
-    public string? Priority { get; set; }
     public int? ParentTaskId { get; set; }
+    public bool AllowSplitting { get; set; } = false;
 }
 
 public class CompleteTaskDto
@@ -72,6 +73,6 @@ public class UpdateTaskDto
     public string? Type { get; set; }
     public decimal? EstimatedHours { get; set; }
     public DateTime? DueDate { get; set; }
-    public string? Priority { get; set; }
     public bool? IsCompleted { get; set; }
+    public bool? AllowSplitting { get; set; }
 }

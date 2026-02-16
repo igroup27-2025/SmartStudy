@@ -30,6 +30,9 @@ public class StressScoreDto
     public string Color { get; set; } = null!;
     public double RequiredHours { get; set; }
     public double AvailableHours { get; set; }
+    public double StudyLoad { get; set; }
+    public double TotalLoad { get; set; }
+    public double TotalScheduledHours { get; set; }
 }
 
 public class WeeklyStressDto
@@ -76,6 +79,11 @@ public class SchedulingPreferencesDto
     public double SleepHoursPerDay { get; set; }
     public string? LunchBreakStart { get; set; }
     public string? LunchBreakEnd { get; set; }
+    public int BreakDurationMinutes { get; set; } = 15;
+    public double DefaultTaskEstimatedHours { get; set; } = 4.0;
+    public double MaxDailyTotalHours { get; set; } = 14.0;
+    public double ExamPrepHoursPerDay { get; set; } = 5.0;
+    public int ExamPrepDays { get; set; } = 3;
 }
 
 public class OnboardingDto

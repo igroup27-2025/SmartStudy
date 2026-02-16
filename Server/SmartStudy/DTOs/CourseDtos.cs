@@ -14,6 +14,9 @@ public class CourseDto
     public string? StudyPartnerEmail { get; set; }
     public string? StudyPartnerName { get; set; }
     public bool SharedByDefault { get; set; }
+    public double? DefaultTaskEstimatedHours { get; set; }
+    public double? ExamPrepHoursPerDay { get; set; }
+    public int? ExamPrepDays { get; set; }
 }
 
 public class SetStudyPartnerDto
@@ -38,4 +41,7 @@ public class UpdateCourseDto
     public string? Semester { get; set; }
     public int? InstructorId { get; set; }
     public bool? SharedByDefault { get; set; }
+    public double? DefaultTaskEstimatedHours { get; set; }
+    public double? ExamPrepHoursPerDay { get; set; }
+    public int? ExamPrepDays { get; set; }
 }

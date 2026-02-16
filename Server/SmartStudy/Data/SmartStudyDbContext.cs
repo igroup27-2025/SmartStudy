@@ -79,6 +79,11 @@ public class SmartStudyDbContext : DbContext
             entity.Property(e => e.SleepHoursPerDay).HasDefaultValue(8.0);
             entity.Property(e => e.LunchBreakStart);
             entity.Property(e => e.LunchBreakEnd);
+            entity.Property(e => e.BreakDurationMinutes).HasDefaultValue(15);
+            entity.Property(e => e.DefaultTaskEstimatedHours).HasDefaultValue(4.0);
+            entity.Property(e => e.MaxDailyTotalHours).HasDefaultValue(14.0);
+            entity.Property(e => e.ExamPrepHoursPerDay).HasDefaultValue(5.0);
+            entity.Property(e => e.ExamPrepDays).HasDefaultValue(3);
 
             entity.HasOne(e => e.User)
                 .WithOne(u => u.SchedulingPreferences)
@@ -104,6 +109,9 @@ public class SmartStudyDbContext : DbContext
             entity.Property(e => e.WeeklyHours).HasColumnType("decimal(4,1)");
             entity.Property(e => e.Credits).HasColumnType("decimal(4,1)");
             entity.Property(e => e.Semester).HasMaxLength(50);
+            entity.Property(e => e.DefaultTaskEstimatedHours);
+            entity.Property(e => e.ExamPrepHoursPerDay);
+            entity.Property(e => e.ExamPrepDays);
 
             entity.HasOne(e => e.Instructor)
                 .WithMany(i => i.Courses)
@@ -162,6 +170,7 @@ public class SmartStudyDbContext : DbContext
             entity.Property(e => e.ActualHours).HasColumnType("decimal(5,2)");
             entity.Property(e => e.ParentTaskId);
             entity.Property(e => e.Email).HasMaxLength(255).IsRequired();
+            entity.Property(e => e.AllowSplitting).HasDefaultValue(false);
 
             entity.HasOne(e => e.ParentTask)
                 .WithMany(e => e.SubTasks)

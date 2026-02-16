@@ -4,6 +4,8 @@
 
 This document specifies 10 major changes to the scheduling engine (`SchedulingService`) and stress/workload calculation (`StressService`). The changes aim to make the system smarter, more personal, and fully driven by user preferences.
 
+**Key design principle:** Task priority (High/Medium/Low) is **computed automatically** by the system based on objective factors (deadline, workload, credits, shared status). The user does NOT manually set priority — it is always an output of the priority scoring algorithm.
+
 ---
 
 ## Change 1: Full Reschedule on Every Task Change
@@ -18,15 +20,16 @@ Every time a task is created/updated/deleted, the scheduler runs **from scratch 
 
 **`SchedulingService.cs` — `ScheduleAllTasksAsync`:**
 1. Delete **all** auto-scheduled TaskEvents (already exists ✓)
-2. Sort tasks by priority score (already exists ✓)
-3. Schedule in order — the first task gets the best slots
-4. Lower-priority tasks get whatever is left
+2. Compute priority score for every task (see Priority Formula below)
+3. Sort tasks by score descending
+4. Schedule in order — highest-score task gets the best slots first
+5. Lower-score tasks get whatever remains
 
 **`TasksController.cs` — automatic triggers:**
 ```csharp
 // After each of the following operations — trigger full reschedule:
 // POST   /api/tasks          (Create)
-// PUT    /api/tasks/{id}     (Update — priority, dueDate, estimatedHours changed)
+// PUT    /api/tasks/{id}     (Update — dueDate, estimatedHours, etc.)
 // DELETE /api/tasks/{id}     (Delete)
 // POST   /api/tasks/{id}/complete (Complete)
 ```
@@ -300,24 +303,19 @@ When `RelocationSuggestions` is not empty, show a message to the user:
 Shared tasks (`SharedTask`) receive no scheduling bonus.
 
 ### Required Change
-A task marked as shared gets a priority bonus in the score calculation, since they're harder to reschedule (coordination with another person).
+A task marked as shared gets a priority bonus in the computed score, since they're harder to reschedule (coordination with another person).
 
 ### Technical Changes
 
-**`SchedulingService.cs` — updated priority formula:**
+**`SchedulingService.cs` — shared bonus in priority formula:**
 ```csharp
-// Updated priority score:
 var isShared = task.SharedTask != null;
-var sharedBonus = isShared ? 20 : 0;
-
-var score = (1.0 / daysUntilDue) * 40
-          + priorityWeight * 30
-          + Math.Min(hours, 10) * 3
-          + creditBonus                 // Change 8
-          + sharedBonus;                // +20 for shared tasks
+var sharedBonus = isShared ? 25 : 0;
 ```
 
-**Why 20 points?** Enough to push a shared task ahead of a regular task at the same priority level, but not enough to override an urgent task.
+See the full priority formula in the **Priority Formula** section below.
+
+**Why 25 points?** Enough to push a shared task ahead of a regular task with similar parameters, but not enough to override a task with a much closer deadline or higher credit course.
 
 ---
 
@@ -331,27 +329,13 @@ Courses with more credits = their tasks are more important.
 
 ### Technical Changes
 
-**`SchedulingService.cs` — updated priority formula:**
+**`SchedulingService.cs` — credit bonus in priority formula:**
 ```csharp
-// Add credit bonus:
 var credits = task.Course?.Credits ?? 3;
-var creditBonus = credits * 2.5;  // 3 credits = 7.5, 5 credits = 12.5
-
-var score = (1.0 / daysUntilDue) * 40
-          + priorityWeight * 30
-          + Math.Min(hours, 10) * 3
-          + creditBonus                 // New
-          + sharedBonus;                // Change 7
+var creditBonus = credits * 4;  // 2 credits = 8, 3 credits = 12, 5 credits = 20
 ```
 
-**Full Updated Priority Formula:**
-```
-score = (1/daysUntilDue) * 40        — Urgency (0-400 for overdue tasks)
-      + priorityWeight * 30          — Priority (30/60/90)
-      + min(hours, 10) * 3           — Workload (0-30)
-      + credits * 2.5                — Course importance (typical 5-15)
-      + sharedBonus                  — Shared task bonus (0 or 20)
-```
+See the full priority formula in the **Priority Formula** section below.
 
 ---
 
@@ -511,24 +495,153 @@ public int? ExamPrepDays { get; set; }
 
 ---
 
-## Full Updated Priority Formula (After All Changes)
+## Automatic Priority Formula (Computed, Not User-Defined)
+
+### Design Principle
+The user **never** manually sets High/Medium/Low priority. The system computes a priority score from objective factors, and that score determines both:
+1. **Scheduling order** — higher score = scheduled first, gets the best time slots
+2. **Display priority label** — the score maps to High/Medium/Low for the UI
+
+### Formula
 
 ```
-score = (1 / daysUntilDue) * 40            — Urgency (overdue = 1/0.1 = 400 points)
-      + priorityWeight * 30                — User priority (High=90, Medium=60, Low=30)
-      + min(effectiveHours, 10) * 3        — Workload scope (0-30 points)
-      + credits * 2.5                      — Course importance (typical 5-15)
-      + (isShared ? 20 : 0)               — Shared task bonus
+score = (1 / daysUntilDue) * 50            — Urgency
+      + min(effectiveHours, 10) * 5        — Workload scope
+      + credits * 4                        — Course importance
+      + (isShared ? 25 : 0)               — Shared task bonus
 ```
 
-### Calculation Examples:
+### Score → Priority Level Mapping
 
-| Task | Deadline | Priority | Hours | Credits | Shared | Score |
-|------|----------|----------|-------|---------|--------|-------|
-| Task A | Tomorrow (1 day) | High | 4h | 5 | Yes | 40+90+12+12.5+20 = **174.5** |
-| Task B | In 3 days | High | 6h | 3 | No | 13.3+90+18+7.5+0 = **128.8** |
-| Task C | In 1 week | Medium | 2h | 4 | Yes | 5.7+60+6+10+20 = **101.7** |
-| Task D | In 1 week | Low | 3h | 3 | No | 5.7+30+9+7.5+0 = **52.2** |
+```
+score > 70   → High   (red label)
+score > 35   → Medium (orange label)
+score ≤ 35   → Low    (green label)
+```
+
+### Component Breakdown
+
+#### Component 1: `(1 / daysUntilDue) * 50` — Urgency
+
+The primary driver. Uses inverse-time curve: slow for distant deadlines, sharply increasing near the deadline.
+
+| Deadline | 1/daysUntilDue | × 50 | Points |
+|----------|---------------|------|--------|
+| Overdue (clamped to 0.1) | 10.0 | × 50 | **500** |
+| Tomorrow (1 day) | 1.0 | × 50 | **50** |
+| In 3 days | 0.33 | × 50 | **16.7** |
+| In 7 days | 0.14 | × 50 | **7.1** |
+| In 14 days | 0.07 | × 50 | **3.6** |
+
+**Why 50?** A task due tomorrow gets 50 points — enough on its own to push a task above the Medium threshold (35). Combined with even a small workload or credits, it reaches High. Overdue tasks (500 pts) dominate everything, which is intentional.
+
+#### Component 2: `min(effectiveHours, 10) * 5` — Workload Scope
+
+Bigger tasks need to start earlier because they require more calendar space to fit.
+
+| Estimated Hours | min(h, 10) | × 5 | Points |
+|-----------------|-----------|-----|--------|
+| 1h | 1 | × 5 | **5** |
+| 4h (default) | 4 | × 5 | **20** |
+| 8h | 8 | × 5 | **40** |
+| 10h+ | 10 | × 5 | **50** (capped) |
+
+**Why 5?** A 4-hour task (default) contributes 20 points — meaningful but not dominant. A large 8h task gets 40 points, which combined with a week-away deadline (7.1) reaches ~47 → Medium priority. This ensures large tasks get scheduled early even when the deadline seems far.
+
+**Why cap at 10?** Prevents extreme values. A 50-hour project shouldn't get 250 points from workload alone. The cap ensures max workload contribution equals max urgency (50 pts each), keeping the formula balanced.
+
+#### Component 3: `credits * 4` — Course Importance
+
+Higher-credit courses carry more academic weight.
+
+| Credits | × 4 | Points |
+|---------|-----|--------|
+| 2 | × 4 | **8** |
+| 3 (typical) | × 4 | **12** |
+| 4 | × 4 | **16** |
+| 5 | × 4 | **20** |
+| 6 | × 4 | **24** |
+
+**Why 4?** The gap between a 2-credit course (8 pts) and a 6-credit course (24 pts) is 16 points. This is significant enough to serve as a strong tiebreaker between similar tasks, but doesn't override urgency. A 5-credit course task due in a week (~27 pts from urgency+credits) won't beat a 2-credit task due tomorrow (~58 pts).
+
+#### Component 4: `isShared ? 25 : 0` — Shared Task Bonus
+
+Shared tasks are harder to reschedule because they require coordination with another person.
+
+**Why 25?** This is a flat bonus that:
+- Pushes a shared task clearly ahead of a non-shared task with identical parameters
+- Alone, can push a borderline task from Low to Medium (25 pts is enough to cross the 35 threshold)
+- Cannot override urgency or a significantly higher credit course
+
+### Calculation Examples
+
+| Task | Deadline | Hours | Credits | Shared | Score | Priority |
+|------|----------|-------|---------|--------|-------|----------|
+| Task A | Overdue (0.1d) | 4h | 5 | Yes | 500+20+20+25 = **565** | High |
+| Task B | Tomorrow (1d) | 4h | 5 | No | 50+20+20+0 = **90** | High |
+| Task C | In 3 days | 6h | 3 | Yes | 16.7+30+12+25 = **83.7** | High |
+| Task D | In 7 days | 4h | 4 | No | 7.1+20+16+0 = **43.1** | Medium |
+| Task E | In 7 days | 2h | 3 | Yes | 7.1+10+12+25 = **54.1** | Medium |
+| Task F | In 14 days | 2h | 3 | No | 3.6+10+12+0 = **25.6** | Low |
+| Task G | In 14 days | 8h | 5 | No | 3.6+40+20+0 = **63.6** | Medium |
+| Task H | In 14 days | 1h | 2 | No | 3.6+5+8+0 = **16.6** | Low |
+
+### How Threshold Crossings Work
+
+Notice how factors interact to push tasks across thresholds:
+- **Task F** (14 days, 2h, 3 credits, not shared) = 25.6 → **Low**
+- **Task E** (7 days, 2h, 3 credits, shared) = 54.1 → **Medium** — both the closer deadline AND shared bonus pushed it up
+- **Task G** (14 days, 8h, 5 credits, not shared) = 63.6 → **Medium** — the large workload and high credits compensate for the distant deadline
+- **Task C** (3 days, 6h, 3 credits, shared) = 83.7 → **High** — all factors combine
+
+### Priority is Dynamic
+
+Since priority is computed, it **changes automatically over time**:
+- Task F starts as Low (25.6 pts) at 14 days out
+- At 7 days: 7.1+10+12+0 = 29.1 → still Low
+- At 3 days: 16.7+10+12+0 = 38.7 → **Medium** (crossed 35 threshold)
+- At 1 day: 50+10+12+0 = 72 → **High** (crossed 70 threshold)
+
+This means the system naturally escalates task priority as deadlines approach, with no user intervention needed.
+
+### Implementation in `SchedulingService.cs`
+
+```csharp
+var scoredTasks = tasks.Select(t =>
+{
+    var daysUntilDue = Math.Max(0.1, (t.DueDate!.Value - now).TotalDays);
+    var hours = GetEffectiveHours(t, courseRatios, prefs);
+    var credits = t.Course?.Credits ?? 3;
+    var isShared = t.SharedTask != null;
+
+    var score = (1.0 / daysUntilDue) * 50
+              + Math.Min(hours, 10) * 5
+              + credits * 4
+              + (isShared ? 25 : 0);
+
+    // Compute priority label from score
+    var priority = score switch
+    {
+        > 70 => "High",
+        > 35 => "Medium",
+        _ => "Low"
+    };
+
+    return new { Task = t, Score = score, Priority = priority };
+})
+.OrderByDescending(x => x.Score)
+.ToList();
+```
+
+### Removing Manual Priority
+
+**`StudentTask.cs`** — the `Priority` field remains in the model, but it is now **computed and stored** by the scheduler on each run, never set by the user.
+
+**`CreateTaskDto.cs`** — remove `Priority` from the DTO (user no longer provides it).
+
+**`TaskDto.cs`** — `Priority` remains as a read-only output field (display only).
+
+**Frontend** — remove the priority dropdown from the task creation/edit form. Display the computed priority as a colored label (read-only).
 
 ---
 
@@ -558,6 +671,8 @@ ALTER TABLE SmartStudy_Tasks ADD
     AllowSplitting BIT NOT NULL DEFAULT 0;
 ```
 
+**Note:** The `Priority` column on `SmartStudy_Tasks` is kept, but it is now written by the scheduler (computed), not by the user.
+
 ---
 
 ## File Changes Summary
@@ -568,18 +683,19 @@ ALTER TABLE SmartStudy_Tasks ADD
 | `Models/Course.cs` | 3 new fields |
 | `Models/StudentTask.cs` | `AllowSplitting` field |
 | `DTOs/SchedulingDtos.cs` | `RelocationSuggestionDto` + new fields in `DailyWorkloadDto` |
-| `DTOs/TaskDtos.cs` | `AllowSplitting` in Create/Update/TaskDto |
+| `DTOs/TaskDtos.cs` | `AllowSplitting` in Create/Update/TaskDto; remove `Priority` from `CreateTaskDto` |
 | `DTOs/CourseDtos.cs` | Exam prep + default hours fields |
 | `DTOs/DashboardDtos.cs` | `StudyLoad`, `TotalLoad` fields in StressScoreDto |
-| `Services/SchedulingService.cs` | Major rewrite — continuous scheduling logic, breaks, relocation suggestions |
+| `Services/SchedulingService.cs` | Major rewrite — computed priority, continuous scheduling, breaks, relocation suggestions |
 | `Services/StressService.cs` | New total load calculation |
-| `Controllers/TasksController.cs` | Auto-reschedule trigger after CRUD |
+| `Controllers/TasksController.cs` | Auto-reschedule trigger after CRUD; remove priority from Create |
 | `Controllers/ExamsController.cs` | Auto-reschedule trigger after CRUD |
 | `Controllers/CoursesController.cs` | New fields in Update |
 | `Data/SmartStudyDbContext.cs` | Add new fields to migration |
 | `Front/Pages/Onboarding2.html` | New onboarding fields |
 | `Front/Script/modules/onboarding.js` | Handle new fields |
 | `Front/CSS/app.css` | Relocation suggestion styling |
+| Frontend task forms | Remove priority dropdown; show computed priority as read-only label |
 
 ---
 
@@ -588,12 +704,12 @@ ALTER TABLE SmartStudy_Tasks ADD
 ### Phase 1: Infrastructure (DB + Models)
 1. Add fields to `SchedulingPreferences`, `Course`, `StudentTask`
 2. Update `SmartStudyDbContext` + migration
-3. Update DTOs
+3. Update DTOs (add new fields, remove `Priority` from `CreateTaskDto`)
 
 ### Phase 2: Scheduling Engine
-4. Rewrite `ScheduleAllTasksAsync` with continuous scheduling logic + breaks
+4. Rewrite `ScheduleAllTasksAsync` with computed priority formula
 5. Add `GetEffectiveHours` with default hierarchy
-6. Update priority formula (credits + shared bonus)
+6. Implement continuous scheduling logic + breaks (non-splitting default)
 7. Add relocation suggestion logic
 8. Add automatic triggers in Controllers
 
@@ -603,7 +719,7 @@ ALTER TABLE SmartStudy_Tasks ADD
 
 ### Phase 4: Frontend
 11. Update onboarding (new fields)
-12. Update task form (AllowSplitting)
+12. Update task form (AllowSplitting toggle; remove priority dropdown; show computed priority)
 13. Update course settings (exam prep + default hours)
 14. Add UI for relocation suggestions
 15. Update dashboard to display total load

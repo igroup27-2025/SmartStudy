@@ -9,6 +9,10 @@ public class Course
     public string? Semester { get; set; }
     public int? InstructorId { get; set; }
 
+    public double? DefaultTaskEstimatedHours { get; set; }
+    public double? ExamPrepHoursPerDay { get; set; }
+    public int? ExamPrepDays { get; set; }
+
     // Navigation properties
     public Instructor? Instructor { get; set; }
     public ICollection<UserCourse> UserCourses { get; set; } = new List<UserCourse>();
