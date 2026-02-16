@@ -193,7 +193,7 @@ async function renderLearningInsights() {
         }
 
         el.innerHTML = insights.map(i => {
-            const accuracy = i.adjustmentFactor ? Math.round(i.adjustmentFactor * 100) : 100;
+            const accuracy = i.accuracy != null ? Math.round(i.accuracy) : 100;
             const isOver = accuracy > 110;
             const isUnder = accuracy < 90;
             const barColor = isOver ? '#E74C3C' : isUnder ? '#F28D35' : '#27AE60';
@@ -209,7 +209,7 @@ async function renderLearningInsights() {
                         <div class="progress-bar-fill" style="width:${Math.min(accuracy, 200) / 2}%;background:${barColor}"></div>
                     </div>
                     <div class="learning-insight-meta">
-                        <span>${i.completedTasks} tasks completed</span>
+                        <span>${i.taskCount} tasks completed</span>
                         <span>Avg: ${i.avgEstimated?.toFixed(1) || 0}h est / ${i.avgActual?.toFixed(1) || 0}h actual</span>
                     </div>
                 </div>
