@@ -21,6 +21,7 @@ public class DashboardDto
     public TaskDto? NextSuggestedTask { get; set; }
     public List<TaskDto> NeedsReviewTasks { get; set; } = new();
     public List<TaskDto> OverdueTasks { get; set; } = new();
+    public List<RelocationSuggestionDto> RelocationSuggestions { get; set; } = new();
 }
 
 public class StressScoreDto

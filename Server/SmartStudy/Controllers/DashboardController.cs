@@ -227,7 +227,8 @@ public class DashboardController : ControllerBase
             OverloadedDays = schedulingStatus.OverloadedDays,
             NextSuggestedTask = nextSuggested,
             NeedsReviewTasks = needsReviewTasks,
-            OverdueTasks = overdueTasks
+            OverdueTasks = overdueTasks,
+            RelocationSuggestions = schedulingStatus.RelocationSuggestions
         });
     }
 

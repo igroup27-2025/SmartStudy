@@ -61,4 +61,5 @@ public class SchedulingStatusDto
     public int UnscheduledCount { get; set; }
     public List<DailyWorkloadDto> DailyWorkload { get; set; } = new();
     public List<string> OverloadedDays { get; set; } = new();
+    public List<RelocationSuggestionDto> RelocationSuggestions { get; set; } = new();
 }

@@ -660,15 +660,39 @@ public class SchedulingService
             UnscheduledCount = unscheduledCount
         };
 
+        // Load typed event IDs for breakdown and relocation suggestions
+        var workEventIds = await _db.WorkEvents
+            .Where(w => w.Email == email)
+            .Select(w => w.EventId)
+            .ToListAsync();
+        var personalEventIds = await _db.PersonalEvents
+            .Where(p => p.Email == email)
+            .Select(p => p.EventId)
+            .ToListAsync();
+        var classEventIds = await _db.ClassEvents
+            .Where(c => c.Email == email)
+            .Select(c => c.EventId)
+            .ToListAsync();
+
         for (var day = scheduleStart; day < scheduleEnd; day = day.AddDays(1))
         {
-            var dayFixedHours = fixedEvents
-                .Where(e => e.From.Date == day.Date)
-                .Sum(e => (e.To - e.From).TotalHours);
+            var dayEvents = fixedEvents.Where(e => e.From.Date == day.Date).ToList();
+            double classHours = 0, workHours = 0, personalHours = 0;
+            foreach (var evt in dayEvents)
+            {
+                var duration = Math.Max(0, (evt.To - evt.From).TotalHours);
+                if (classEventIds.Contains(evt.EventId))
+                    classHours += duration;
+                else if (workEventIds.Contains(evt.EventId))
+                    workHours += duration;
+                else if (personalEventIds.Contains(evt.EventId))
+                    personalHours += duration;
+            }
+
             var dayTaskHours = taskEvents
                 .Where(te => te.From.Date == day.Date)
                 .Sum(te => (te.To - te.From).TotalHours);
-            var totalHours = dayFixedHours + dayTaskHours;
+            var totalHours = dayTaskHours + classHours + workHours + personalHours;
             var availableHours = (dayEnd - dayStart) - GetBlockedHours(day, fixedEvents, dayStart, dayEnd);
 
             var studyLoad = maxDailyStudy > 0 ? (dayTaskHours / maxDailyStudy) * 100 : 0;
@@ -682,11 +706,51 @@ public class SchedulingService
                 AvailableHours = Math.Round(Math.Max(0, availableHours), 1),
                 IsOverloaded = isOverloaded,
                 StudyHours = Math.Round(dayTaskHours, 1),
+                WorkHours = Math.Round(workHours, 1),
+                ClassHours = Math.Round(classHours, 1),
+                PersonalHours = Math.Round(personalHours, 1),
                 TotalHours = Math.Round(totalHours, 1)
             });
 
             if (isOverloaded)
                 result.OverloadedDays.Add(day.ToString("yyyy-MM-dd"));
+        }
+
+        // Generate relocation suggestions for unscheduled tasks
+        var unscheduledTasks = tasks.Where(t => !t.TaskEvents.Any()).ToList();
+        foreach (var task in unscheduledTasks)
+        {
+            var dueDate = task.DueDate!.Value;
+            for (var day = scheduleStart; day < dueDate && day < scheduleEnd; day = day.AddDays(1))
+            {
+                var movableEvents = fixedEvents
+                    .Where(e => e.From.Date == day.Date
+                        && (workEventIds.Contains(e.EventId) || personalEventIds.Contains(e.EventId)))
+                    .ToList();
+
+                foreach (var evt in movableEvents)
+                {
+                    var evtDuration = (evt.To - evt.From).TotalHours;
+                    if (evtDuration >= 1.0)
+                    {
+                        var eventType = workEventIds.Contains(evt.EventId) ? "Work" : "Personal";
+                        result.RelocationSuggestions.Add(new RelocationSuggestionDto
+                        {
+                            EventId = evt.EventId,
+                            EventTitle = $"{eventType} Event",
+                            EventType = eventType,
+                            CurrentFrom = evt.From,
+                            CurrentTo = evt.To,
+                            BlockedTaskTitle = task.Title,
+                            Message = $"Moving this {eventType.ToLower()} event from {evt.From:ddd HH:mm}-{evt.To:HH:mm} would free up space for \"{task.Title}\""
+                        });
+                        break;
+                    }
+                }
+
+                if (result.RelocationSuggestions.Any(rs => rs.BlockedTaskTitle == task.Title))
+                    break;
+            }
         }
 
         return result;
