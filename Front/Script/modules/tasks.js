@@ -13,7 +13,7 @@ export async function initTasks() {
         // Load friends and shared tasks in background
         try {
             const connections = await api.getConnections();
-            friends = connections.friends || [];
+            friends = (Array.isArray(connections) ? connections : []).filter(c => c.status === 'accepted').map(c => ({ email: c.friendEmail, name: c.friendName }));
         } catch { friends = []; }
         try { sharedTasks = await api.getSharedTasks(); } catch { sharedTasks = []; }
 
@@ -492,7 +492,21 @@ function editTask(id) {
     document.getElementById('taskHours').value = task.estimatedHours || '';
     document.getElementById('taskDueDate').value = task.dueDate ? task.dueDate.split('T')[0] : '';
     document.getElementById('taskPriority').value = task.priority || '';
-    document.getElementById('sharedSection').style.display = 'none'; // Hide share for edit
+    document.getElementById('sharedSection').style.display = 'block';
+    // Pre-populate shared toggle if task is already shared
+    const sharedToggle = document.getElementById('taskShared');
+    const friendSelector = document.getElementById('friendSelector');
+    if (sharedToggle && friendSelector) {
+        if (task.isShared && task.sharedWithEmail) {
+            sharedToggle.checked = true;
+            friendSelector.style.display = 'block';
+            const friendSelect = document.getElementById('taskFriend');
+            if (friendSelect) friendSelect.value = task.sharedWithEmail;
+        } else {
+            sharedToggle.checked = false;
+            friendSelector.style.display = 'none';
+        }
+    }
     document.getElementById('hoursSuggestion').style.display = 'none';
     const dueDateInput = document.getElementById('taskDueDate');
     if (dueDateInput) dueDateInput.removeAttribute('min');

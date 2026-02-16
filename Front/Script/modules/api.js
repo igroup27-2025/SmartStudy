@@ -1,6 +1,10 @@
 // API Client module - handles all API calls with authentication (jQuery $.ajax)
 const API_BASE = '/api';
 
+function toLocalISO(d) {
+    return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}T${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}:${String(d.getSeconds()).padStart(2,'0')}`;
+}
+
 function getToken() {
     return localStorage.getItem('smartstudy_token');
 }
@@ -87,8 +91,8 @@ export const api = {
     // Events
     getEvents: (from, to) => {
         const qs = new URLSearchParams();
-        if (from) qs.set('from', from.toISOString());
-        if (to) qs.set('to', to.toISOString());
+        if (from) qs.set('from', toLocalISO(from));
+        if (to) qs.set('to', toLocalISO(to));
         const query = qs.toString();
         return request('GET', `/events${query ? '?' + query : ''}`);
     },

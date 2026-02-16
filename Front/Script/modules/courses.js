@@ -13,7 +13,7 @@ export async function initCourses() {
         // Load friends for study partner selection
         try {
             const connections = await api.getConnections();
-            friends = (connections.friends || []);
+            friends = (Array.isArray(connections) ? connections : []).filter(c => c.status === 'accepted').map(c => ({ email: c.friendEmail, firstName: (c.friendName || '').split(' ')[0], lastName: (c.friendName || '').split(' ').slice(1).join(' ') }));
         } catch { friends = []; }
 
         renderCourses();
