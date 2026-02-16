@@ -1,84 +1,84 @@
-# מפרט שדרוג מערכת השיבוץ וחישוב העומסים — SmartStudy
+# Scheduling Engine & Stress Calculation Redesign Spec — SmartStudy
 
-## סקירה כללית
+## Overview
 
-מסמך זה מפרט 10 שינויים מהותיים במנוע השיבוץ (`SchedulingService`) ובחישוב העומסים (`StressService`). השינויים מכוונים להפוך את המערכת לחכמה, אישית ומבוססת על העדפות המשתמש.
+This document specifies 10 major changes to the scheduling engine (`SchedulingService`) and stress/workload calculation (`StressService`). The changes aim to make the system smarter, more personal, and fully driven by user preferences.
 
 ---
 
-## שינוי 1: שיבוץ מחדש מלא בכל שינוי
+## Change 1: Full Reschedule on Every Task Change
 
-### מצב קיים
-השיבוץ כבר מוחק TaskEvents ישנים ובונה מחדש, אבל הוא רק מוצא חלונות פנויים — לא מזיז משימות קיימות.
+### Current Behavior
+The scheduler already clears old TaskEvents and rebuilds, but it only finds empty slots — it doesn't displace existing lower-priority tasks.
 
-### שינוי נדרש
-בכל פעם שנוצרת/מתעדכנת/נמחקת משימה, השיבוץ ירוץ **מאפס על כל המשימות** לפי סדר העדיפות החדש. משימה בעדיפות גבוהה תדחוק משימות בעדיפות נמוכה — לא רק תמצא מקום פנוי.
+### Required Change
+Every time a task is created/updated/deleted, the scheduler runs **from scratch on all tasks** in priority order. A higher-priority task gets the best available slots, pushing lower-priority tasks to whatever remains.
 
-### שינויים טכניים
+### Technical Changes
 
 **`SchedulingService.cs` — `ScheduleAllTasksAsync`:**
-1. מחיקת **כל** ה-TaskEvents האוטומטיים (כבר קיים ✓)
-2. מיון משימות לפי ציון עדיפות (כבר קיים ✓)
-3. שיבוץ לפי הסדר — המשימה הראשונה מקבלת את הסלוטים הטובים ביותר
-4. משימות בעדיפות נמוכה מקבלות מה שנשאר
+1. Delete **all** auto-scheduled TaskEvents (already exists ✓)
+2. Sort tasks by priority score (already exists ✓)
+3. Schedule in order — the first task gets the best slots
+4. Lower-priority tasks get whatever is left
 
-**`TasksController.cs` — טריגרים אוטומטיים:**
+**`TasksController.cs` — automatic triggers:**
 ```csharp
-// אחרי כל אחד מהפעולות הבאות — הפעלת שיבוץ מחדש:
+// After each of the following operations — trigger full reschedule:
 // POST   /api/tasks          (Create)
 // PUT    /api/tasks/{id}     (Update — priority, dueDate, estimatedHours changed)
 // DELETE /api/tasks/{id}     (Delete)
 // POST   /api/tasks/{id}/complete (Complete)
 ```
 
-הוסף קריאה ל-`_schedulingService.ScheduleAllTasksAsync(email)` בסוף כל אחת מהפעולות.
+Add a call to `_schedulingService.ScheduleAllTasksAsync(email)` at the end of each operation.
 
-**`ExamsController.cs`** — אותו דבר: יצירה/עדכון/מחיקה של מבחן מפעילה שיבוץ מחדש.
+**`ExamsController.cs`** — same: creating/updating/deleting an exam triggers a full reschedule.
 
 ---
 
-## שינוי 2: ברירת מחדל — משימה לא מתפצלת + הפסקה של 15 דקות
+## Change 2: Default Behavior — Tasks Don't Split + 15-Minute Breaks
 
-### מצב קיים
-משימה מפוצלת אוטומטית לבלוקים של `maxContinuous` (90 דק') ומשובצת בכל סלוט פנוי.
+### Current Behavior
+Tasks are automatically split into blocks of `maxContinuous` (90 min) and placed in any available slot across multiple days.
 
-### שינוי נדרש
-**ברירת מחדל**: משימה משובצת כבלוק רציף אחד. אם זמן המשימה חורג מ-`MaxContinuousMinutes`, מוסיפים **הפסקה של 15 דקות** ואז ממשיכים מיד (לא מפצלים לימים שונים).
+### Required Change
+**Default**: A task is scheduled as a single continuous block. If the task duration exceeds `MaxContinuousMinutes`, a **15-minute break** is inserted, then the task continues immediately (no splitting across different days).
 
-### דוגמה
-משימה של 3 שעות עם `MaxContinuousMinutes = 90`:
+### Example
+A 3-hour task with `MaxContinuousMinutes = 90`:
 ```
-09:00-10:30  — לימוד (90 דק')
-10:30-10:45  — הפסקה (15 דק')
-10:45-12:15  — המשך לימוד (90 דק')
+09:00-10:30  — Study session (90 min)
+10:30-10:45  — Break (15 min)
+10:45-12:15  — Continue studying (90 min)
 ```
 
-### שינויים טכניים
+### Technical Changes
 
-**`StudentTask.cs` — שדה חדש:**
+**`StudentTask.cs` — new field:**
 ```csharp
-public bool AllowSplitting { get; set; } = false;  // ברירת מחדל: לא לפצל
+public bool AllowSplitting { get; set; } = false;  // Default: don't split
 ```
 
-**`SchedulingService.cs` — לוגיקת שיבוץ חדשה:**
+**`SchedulingService.cs` — new scheduling logic:**
 ```
-לכל משימה:
+For each task:
   if (task.AllowSplitting == false):
-    // חפש סלוט רציף אחד שמספיק לכל המשימה (כולל הפסקות)
+    // Find a single continuous slot that fits the entire task (including breaks)
     totalNeeded = estimatedHours + (floor(estimatedHours / maxContinuousHours) * 0.25)
-    חפש חלון פנוי של totalNeeded שעות
-    אם נמצא:
-      שבץ כבלוק אחד עם הפסקות פנימיות
-    אם לא נמצא:
-      הוסף ל-UnscheduledTasks עם סיבה "לא נמצא חלון רציף"
+    Find a free window of totalNeeded hours
+    If found:
+      Schedule as a single block with internal breaks
+    If not found:
+      Add to UnscheduledTasks with reason "No continuous slot available"
   else (AllowSplitting == true):
-    // לוגיקה הנוכחית — פיצול לסלוטים
-    שבץ בבלוקים של 30 דקות בכל מקום פנוי
+    // Current logic — split across available slots
+    Schedule in 30-minute blocks wherever there's free time
 ```
 
-**הוספת הפסקות ב-TaskEvent:**
+**Adding breaks to TaskEvents:**
 ```csharp
-// במקום ליצור TaskEvent אחד רציף, צור רצף:
+// Instead of creating one continuous TaskEvent, create a sequence:
 var sessions = SplitIntoSessionsWithBreaks(slotFrom, totalHours, maxContinuousMinutes, breakMinutes: 15);
 foreach (var session in sessions)
 {
@@ -86,19 +86,19 @@ foreach (var session in sessions)
 }
 ```
 
-**הפסקות אינן אירועים** — הזמן של ההפסקה פשוט לא משובץ (חלון פנוי של 15 דקות בין הסשנים).
+**Breaks are NOT events** — the break time is simply unscheduled (a 15-minute free gap between sessions).
 
 ---
 
-## שינוי 3: פיצול משימה רק כאשר המשתמש הגדיר
+## Change 3: Task Splitting Only When User Enables It
 
-### מצב קיים
-כל משימה מפוצלת אוטומטית.
+### Current Behavior
+All tasks are automatically split across multiple slots/days.
 
-### שינוי נדרש
-שדה `AllowSplitting` ב-`StudentTask` (ברירת מחדל: `false`). המשתמש מגדיר בעת יצירת/עריכת משימה.
+### Required Change
+`AllowSplitting` field on `StudentTask` (default: `false`). The user sets this when creating/editing a task.
 
-### שינויים טכניים
+### Technical Changes
 
 **`CreateTaskDto.cs`:**
 ```csharp
@@ -115,92 +115,92 @@ public bool? AllowSplitting { get; set; }
 public bool AllowSplitting { get; set; }
 ```
 
-**Frontend — טופס יצירת/עריכת משימה:**
-הוסף toggle/checkbox:
+**Frontend — task create/edit form:**
+Add a toggle/checkbox:
 ```
-☐ אפשר פיצול המשימה ליותר מיום אחד
+☐ Allow splitting this task across multiple days
 ```
-ברירת מחדל: כבוי.
+Default: off.
 
 ---
 
-## שינוי 4: ערכי ברירת מחדל נגזרים מהעדפות המשתמש
+## Change 4: Default Values Derived from User Preferences
 
-### מצב קיים
-ערכי ברירת מחדל hardcoded בקוד:
+### Current Behavior
+Default values are hardcoded:
 ```csharp
 int dayStart = prefs?.DayStartHour ?? 8;
 double maxDaily = prefs?.MaxDailyStudyHours ?? 6.0;
 ```
 
-### שינוי נדרש
-כל ערך ברירת מחדל נשלף מהעדפות המשתמש שהוגדרו באונבורדינג. ה-fallback ל-hardcoded נשאר רק למקרה שלא הושלם אונבורדינג.
+### Required Change
+All default values are pulled from user preferences set during onboarding. The hardcoded fallback remains only for cases where onboarding wasn't completed.
 
-### שינויים טכניים
+### Technical Changes
 
-**`SchedulingPreferences.cs` — שדות חדשים:**
+**`SchedulingPreferences.cs` — new fields:**
 ```csharp
-public int BreakDurationMinutes { get; set; } = 15;          // הפסקה בין סשנים
-public double DefaultTaskEstimatedHours { get; set; } = 4.0; // זמן מוערך דיפולטיבי למטלה (ראו שינוי 9)
-public double MaxDailyTotalHours { get; set; } = 14.0;       // מקסימום שעות פעילות ביום (ראו שינוי 5)
-public double ExamPrepHoursPerDay { get; set; } = 5.0;       // שעות הכנה למבחן ליום (ראו שינוי 10)
-public int ExamPrepDays { get; set; } = 3;                   // ימי הכנה למבחן (ראו שינוי 10)
+public int BreakDurationMinutes { get; set; } = 15;          // Break between sessions
+public double DefaultTaskEstimatedHours { get; set; } = 4.0; // Default estimated hours per task (see Change 9)
+public double MaxDailyTotalHours { get; set; } = 14.0;       // Max total active hours per day (see Change 5)
+public double ExamPrepHoursPerDay { get; set; } = 5.0;       // Exam prep hours per day (see Change 10)
+public int ExamPrepDays { get; set; } = 3;                   // Exam prep days (see Change 10)
 ```
 
 **`Onboarding2.html` / `onboarding.js`:**
-הוסף שדות נוספים בשלב 2:
-- זמן הפסקה (דיפולט 15 דקות)
-- מקסימום שעות פעילות כוללות ביום (דיפולט 14)
-- שעות הכנה למבחן ליום (דיפולט 5)
-- ימי הכנה למבחן (דיפולט 3)
+Add new fields in Step 2:
+- Break duration (default 15 minutes)
+- Max total active hours per day (default 14)
+- Exam prep hours per day (default 5)
+- Exam prep days before exam (default 3)
 
 ---
 
-## שינוי 5: חישוב עומס יומי כולל (Total Daily Load)
+## Change 5: Total Daily Load Calculation
 
-### הבעיה
-המערכת הנוכחית מחשבת עומס רק לפי שעות למידה. אבל יום עם משמרת של 8 שעות + 3 שעות למידה = 11 שעות פעילות, שזה עלול להיות עומס גם אם 3 שעות למידה זה מתחת ל-`MaxDailyStudyHours`.
+### The Problem
+The current system calculates stress based only on study hours. But a day with an 8-hour work shift + 3 hours of studying = 11 active hours, which can be stressful even though 3 study hours is below `MaxDailyStudyHours`.
 
-### הפתרון המוצע: שני ציונים משולבים
+### Proposed Solution: Two Combined Scores
 
-#### הגדרה חדשה: `MaxDailyTotalHours`
-המשתמש מגדיר באונבורדינג: "כמה שעות פעילות כוללות ביום את/ה מסוגל/ת?" (ברירת מחדל: 14 שעות = 24 - 8 שינה - 2 שגרה).
+#### New Setting: `MaxDailyTotalHours`
+The user sets during onboarding: "How many total active hours per day can you handle?" (default: 14 hours = 24 - 8 sleep - 2 daily routine).
 
-#### נוסחת העומס היומי החדשה:
+#### New Daily Load Formula:
 
 ```
-# שלב 1: חישוב שעות לפי קטגוריה
-studyHours    = שעות למידה משובצות ביום
-workHours     = שעות עבודה ביום  
-classHours    = שעות שיעורים ביום
-personalHours = שעות אירועים אישיים ביום
+# Step 1: Calculate hours by category
+studyHours    = scheduled study hours for the day
+workHours     = work event hours for the day
+classHours    = class event hours for the day
+personalHours = personal event hours for the day
 totalHours    = studyHours + workHours + classHours + personalHours
 
-# שלב 2: ציון עומס למידה (Study Load)
+# Step 2: Study Load score
 studyLoad = (studyHours / MaxDailyStudyHours) * 100
-# → האם אני לומד/ת יותר מדי?
+# → Am I studying too much?
 
-# שלב 3: ציון עומס כולל (Total Load)  
+# Step 3: Total Load score
 totalLoad = (totalHours / MaxDailyTotalHours) * 100
-# → האם היום שלי עמוס מדי בכלל?
+# → Is my day too packed overall?
 
-# שלב 4: ציון סופי — המקסימום משניהם
+# Step 4: Final score — the maximum of both
 dailyScore = max(studyLoad, totalLoad)
 ```
 
-#### למה המקסימום?
-- יום עם 6 שעות למידה + 0 עבודה: `studyLoad=100%, totalLoad=43%` → **ציון 100** (עומס למידה)
-- יום עם 3 שעות למידה + 8 שעות עבודה: `studyLoad=50%, totalLoad=79%` → **ציון 79** (עומס כולל)
-- יום עם 2 שעות למידה + 2 שעות עבודה: `studyLoad=33%, totalLoad=29%` → **ציון 33** (הכל תקין)
+#### Why the maximum?
+- Day with 6h study + 0h work: `studyLoad=100%, totalLoad=43%` → **Score 100** (study overload)
+- Day with 3h study + 8h work: `studyLoad=50%, totalLoad=79%` → **Score 79** (total overload)
+- Day with 2h study + 2h work: `studyLoad=33%, totalLoad=29%` → **Score 33** (all good)
 
-#### השפעה על השיבוץ:
-המנוע לא רק בודק `dailyScheduledHours < maxDaily` אלא גם:
+#### Impact on Scheduling:
+The engine doesn't just check `dailyScheduledHours < maxDaily` but also:
 ```csharp
 var totalDayHours = GetTotalEventHours(day, fixedEvents) + dailyScheduledHours[dayKey];
-if (totalDayHours >= prefs.MaxDailyTotalHours) continue; // דלג על יום עמוס
+if (totalDayHours >= prefs.MaxDailyTotalHours) continue; // Skip overloaded day
 ```
 
-### שינויים טכניים
+### Technical Changes
 
 **`SchedulingPreferences.cs`:**
 ```csharp
@@ -209,7 +209,7 @@ public double MaxDailyTotalHours { get; set; } = 14.0;
 
 **`StressService.cs` — `GetWeeklyStressAsync`:**
 ```csharp
-// חישוב חדש:
+// New calculation:
 double studyHours = dayTaskEvents.Sum(te => (te.To - te.From).TotalHours);
 double otherHours = dayEvents.Where(e => e is not TaskEvent)
                              .Sum(e => (e.To - e.From).TotalHours);
@@ -220,14 +220,14 @@ double totalLoad = (totalHours / maxDailyTotal) * 100;
 double dayScore = Math.Min(100, Math.Max(studyLoad, totalLoad));
 ```
 
-**`StressScoreDto` — שדות חדשים:**
+**`StressScoreDto` — new fields:**
 ```csharp
-public double StudyLoad { get; set; }     // ציון עומס למידה
-public double TotalLoad { get; set; }     // ציון עומס כולל
-public double TotalScheduledHours { get; set; } // סה"כ שעות ביום
+public double StudyLoad { get; set; }           // Study load score
+public double TotalLoad { get; set; }           // Total load score
+public double TotalScheduledHours { get; set; } // Total hours scheduled for the day
 ```
 
-**`DailyWorkloadDto` — שדות חדשים:**
+**`DailyWorkloadDto` — new fields:**
 ```csharp
 public double StudyHours { get; set; }
 public double WorkHours { get; set; }
@@ -238,30 +238,30 @@ public double TotalHours { get; set; }
 
 ---
 
-## שינוי 6: אירועים שאסור להזיז vs. הצעות
+## Change 6: Immovable vs. Suggested-to-Move Events
 
-### מצב קיים
-כל האירועים הקבועים (שיעורים, עבודה, אישי) נחשבים immovable.
+### Current Behavior
+All fixed events (classes, work, personal) are treated as immovable.
 
-### שינוי נדרש
-היררכיית אירועים:
+### Required Change
+Event hierarchy:
 
-| סוג אירוע | סטטוס | פעולה כשאין מקום |
-|------------|--------|------------------|
-| למידה למבחן | **Immovable** | לעולם לא מוזז |
-| שיעורים (Class) | **Immovable** | לעולם לא מוזז |
-| עבודה (Work) | **Protected** | המערכת מציעה להזיז, לא מבצעת |
-| אישי (Personal) | **Protected** | המערכת מציעה להזיז, לא מבצעת |
-| משימות (Task) | **Flexible** | מוזז אוטומטית בשיבוץ מחדש |
+| Event Type | Status | Action When No Room |
+|------------|--------|---------------------|
+| Exam Study | **Immovable** | Never moved |
+| Classes | **Immovable** | Never moved |
+| Work | **Protected** | System suggests moving, doesn't execute |
+| Personal | **Protected** | System suggests moving, doesn't execute |
+| Tasks | **Flexible** | Automatically rescheduled |
 
-### שינויים טכניים
+### Technical Changes
 
-**`SchedulingResultDto.cs` — שדה חדש:**
+**`SchedulingResultDto.cs` — new field:**
 ```csharp
 public List<RelocationSuggestionDto> RelocationSuggestions { get; set; } = new();
 ```
 
-**DTO חדש:**
+**New DTO:**
 ```csharp
 public class RelocationSuggestionDto
 {
@@ -270,117 +270,117 @@ public class RelocationSuggestionDto
     public string EventType { get; set; } = null!;       // "Work" | "Personal"
     public DateTime CurrentFrom { get; set; }
     public DateTime CurrentTo { get; set; }
-    public string BlockedTaskTitle { get; set; } = null!; // איזו משימה נחסמת
-    public string Message { get; set; } = null!;          // הודעה למשתמש
+    public string BlockedTaskTitle { get; set; } = null!; // Which task is blocked
+    public string Message { get; set; } = null!;          // User-facing message
 }
 ```
 
-**`SchedulingService.cs` — לוגיקה חדשה:**
+**`SchedulingService.cs` — new logic:**
 ```
-לכל משימה שלא נמצא לה מקום (UnscheduledTask):
-  1. חפש אירועי עבודה/אישי שחופפים לזמנים שהיו יכולים להתאים
-  2. אם נמצאו — הוסף RelocationSuggestion:
-     "הזזת [אירוע אישי] מיום ג' 14:00-16:00 תפנה מקום ל-[שם המשימה]"
-  3. אל תזיז בעצמך — רק הצע
+For each task that couldn't be scheduled (UnscheduledTask):
+  1. Find work/personal events that overlap with time slots that could have fit
+  2. If found — add a RelocationSuggestion:
+     "Moving [Personal Event] from Tue 14:00-16:00 would free up space for [Task Name]"
+  3. Do NOT move it automatically — only suggest
 ```
 
-**Frontend — הודעות:**
-כאשר `RelocationSuggestions` לא ריק, הצג הודעה למשתמש:
+**Frontend — notifications:**
+When `RelocationSuggestions` is not empty, show a message to the user:
 ```
-⚠️ לא נמצא מקום ל-"מטלה 3 בקורס X"
-  💡 הצעה: אם תזיז את "יוגה" מיום ד' 16:00-17:30, יתפנה מקום
-  [הזז] [התעלם]
+⚠️ No room found for "Assignment 3 in Course X"
+  💡 Suggestion: Moving "Yoga" from Wed 16:00-17:30 would free up space
+  [Move] [Dismiss]
 ```
 
 ---
 
-## שינוי 7: עדיפות למשימות משותפות
+## Change 7: Priority Boost for Shared Tasks
 
-### מצב קיים
-משימות משותפות (`SharedTask`) לא מקבלות בונוס בשיבוץ.
+### Current Behavior
+Shared tasks (`SharedTask`) receive no scheduling bonus.
 
-### שינוי נדרש
-משימה המסומנת כמשותפת מקבלת בונוס עדיפות בחישוב הציון, כי קשה יותר לתאם אותן מחדש.
+### Required Change
+A task marked as shared gets a priority bonus in the score calculation, since they're harder to reschedule (coordination with another person).
 
-### שינויים טכניים
+### Technical Changes
 
-**`SchedulingService.cs` — שינוי נוסחת העדיפות:**
+**`SchedulingService.cs` — updated priority formula:**
 ```csharp
-// ציון עדיפות מעודכן:
+// Updated priority score:
 var isShared = task.SharedTask != null;
 var sharedBonus = isShared ? 20 : 0;
 
 var score = (1.0 / daysUntilDue) * 40
           + priorityWeight * 30
           + Math.Min(hours, 10) * 3
-          + creditBonus                 // שינוי 8
-          + sharedBonus;                // +20 למשימות משותפות
+          + creditBonus                 // Change 8
+          + sharedBonus;                // +20 for shared tasks
 ```
 
-**למה 20 נקודות?** מספיק כדי להקדים משימה משותפת על פני משימה רגילה באותה עדיפות, אבל לא מספיק כדי לדרוס משימה דחופה.
+**Why 20 points?** Enough to push a shared task ahead of a regular task at the same priority level, but not enough to override an urgent task.
 
 ---
 
-## שינוי 8: קרדיטים של הקורס משפיעים על העדיפות
+## Change 8: Course Credits Affect Priority Score
 
-### מצב קיים
-ציון העדיפות לא מתייחס לקרדיטים.
+### Current Behavior
+Priority score does not consider course credits.
 
-### שינוי נדרש
-קורס עם יותר קרדיטים = המטלות שלו חשובות יותר.
+### Required Change
+Courses with more credits = their tasks are more important.
 
-### שינויים טכניים
+### Technical Changes
 
-**`SchedulingService.cs` — שינוי נוסחת העדיפות:**
+**`SchedulingService.cs` — updated priority formula:**
 ```csharp
-// הוספת בונוס קרדיטים:
+// Add credit bonus:
 var credits = task.Course?.Credits ?? 3;
-var creditBonus = credits * 2.5;  // 3 קרדיטים = 7.5, 5 קרדיטים = 12.5
+var creditBonus = credits * 2.5;  // 3 credits = 7.5, 5 credits = 12.5
 
 var score = (1.0 / daysUntilDue) * 40
           + priorityWeight * 30
           + Math.Min(hours, 10) * 3
-          + creditBonus                 // חדש
-          + sharedBonus;                // שינוי 7
+          + creditBonus                 // New
+          + sharedBonus;                // Change 7
 ```
 
-**נוסחת העדיפות המלאה המעודכנת:**
+**Full Updated Priority Formula:**
 ```
-score = (1/daysUntilDue) * 40        — דחיפות (0-400 עבור משימות באיחור)
-      + priorityWeight * 30          — עדיפות (30/60/90)
-      + min(hours, 10) * 3           — כמות עבודה (0-30)
-      + credits * 2.5                — חשיבות הקורס (5-15 טיפוסי)
-      + sharedBonus                  — בונוס שיתופי (0 או 20)
+score = (1/daysUntilDue) * 40        — Urgency (0-400 for overdue tasks)
+      + priorityWeight * 30          — Priority (30/60/90)
+      + min(hours, 10) * 3           — Workload (0-30)
+      + credits * 2.5                — Course importance (typical 5-15)
+      + sharedBonus                  — Shared task bonus (0 or 20)
 ```
 
 ---
 
-## שינוי 9: זמן מוערך דיפולטיבי למטלה — 4 שעות, ניתן לשינוי בקורס
+## Change 9: Default Estimated Hours per Task — 4 Hours, Configurable per Course
 
-### מצב קיים
-`EstimatedHours` מוגדר ב-null (fallback ל-1 שעה בשיבוץ).
+### Current Behavior
+`EstimatedHours` defaults to null (fallback to 1 hour in the scheduler).
 
-### שינוי נדרש
-1. ברירת מחדל גלובלית: **4 שעות** (מוגדר ב-`SchedulingPreferences`)
-2. ברירת מחדל לפי קורס: ניתן לשנות בהגדרות הקורס
-3. ברגע שיש מספיק מטלות מושלמות (≥2) בקורס — חישוב ML גובר
+### Required Change
+1. Global default: **4 hours** (set in `SchedulingPreferences`)
+2. Per-course default: configurable in course settings
+3. Once enough completed tasks exist (≥2) in a course — ML calculation takes over
 
-### היררכיה:
+### Hierarchy:
 ```
-ML ratio (≥2 משימות מושלמות בקורס)
-  ↓ אם אין
-ברירת מחדל של הקורס (DefaultTaskHours)
-  ↓ אם לא הוגדר
-ברירת מחדל גלובלית (DefaultTaskEstimatedHours = 4.0)
-  ↓ אם אין העדפות
+ML ratio (≥2 completed tasks in course)
+  ↓ if not available
+Course default (Course.DefaultTaskEstimatedHours)
+  ↓ if not set
+Global default (SchedulingPreferences.DefaultTaskEstimatedHours = 4.0)
+  ↓ if no preferences
 Hardcoded fallback = 4.0
 ```
 
-### שינויים טכניים
+### Technical Changes
 
-**`Course.cs` — שדה חדש:**
+**`Course.cs` — new field:**
 ```csharp
-public double? DefaultTaskEstimatedHours { get; set; }  // null = השתמש בגלובלי
+public double? DefaultTaskEstimatedHours { get; set; }  // null = use global
 ```
 
 **`SchedulingPreferences.cs`:**
@@ -388,9 +388,9 @@ public double? DefaultTaskEstimatedHours { get; set; }  // null = השתמש ב�
 public double DefaultTaskEstimatedHours { get; set; } = 4.0;
 ```
 
-**`SchedulingService.cs` — שינוי חישוב שעות:**
+**`SchedulingService.cs` — updated hours calculation:**
 ```csharp
-// עבור כל משימה שאין לה EstimatedHours מפורש:
+// For each task without explicit EstimatedHours:
 double GetEffectiveHours(StudentTask task, Dictionary<int, double> courseRatios,
                          SchedulingPreferences prefs)
 {
@@ -402,13 +402,13 @@ double GetEffectiveHours(StudentTask task, Dictionary<int, double> courseRatios,
     }
     else
     {
-        // היררכיית ברירת מחדל
+        // Default hierarchy
         baseHours = task.Course?.DefaultTaskEstimatedHours
                     ?? prefs?.DefaultTaskEstimatedHours
                     ?? 4.0;
     }
 
-    // התאמת ML אם קיימת
+    // Apply ML ratio if available
     if (courseRatios.TryGetValue(task.CourseId, out var ratio))
         baseHours *= ratio;
 
@@ -416,46 +416,46 @@ double GetEffectiveHours(StudentTask task, Dictionary<int, double> courseRatios,
 }
 ```
 
-**`UpdateCourseDto.cs` — שדה חדש:**
+**`UpdateCourseDto.cs` — new field:**
 ```csharp
 public double? DefaultTaskEstimatedHours { get; set; }
 ```
 
-**Frontend — הגדרות קורס:**
-הוסף שדה בעריכת קורס:
+**Frontend — course settings:**
+Add field in course edit form:
 ```
-זמן מוערך דיפולטיבי למטלה: [___] שעות
-(ישמש עד שיהיו מספיק מטלות לחישוב אוטומטי)
+Default estimated hours per task: [___] hours
+(Used until enough tasks are completed for automatic calculation)
 ```
 
 ---
 
-## שינוי 10: הגדרת זמן הכנה למבחן — גלובלי + לפי קורס
+## Change 10: Exam Prep Time — Global + Per-Course Configuration
 
-### מצב קיים
-Hardcoded: 15 שעות (5 שעות × 3 ימים) לכל מבחן.
+### Current Behavior
+Hardcoded: 15 hours (5 hours × 3 days) for every exam.
 
-### שינוי נדרש
-1. **באונבורדינג**: המשתמש מגדיר ערכים גלובליים:
-   - שעות הכנה ליום (`ExamPrepHoursPerDay`, דיפולט: 5)
-   - ימי הכנה (`ExamPrepDays`, דיפולט: 3)
-2. **בהגדרות קורס**: ניתן לדרוס את הערכים הגלובליים
+### Required Change
+1. **During onboarding**: User sets global values:
+   - Prep hours per day (`ExamPrepHoursPerDay`, default: 5)
+   - Prep days (`ExamPrepDays`, default: 3)
+2. **In course settings**: Can override global values per course
 
-### היררכיה:
+### Hierarchy:
 ```
-הגדרת הקורס (Course.ExamPrepHoursPerDay + Course.ExamPrepDays)
-  ↓ אם לא הוגדר
-הגדרה גלובלית (SchedulingPreferences.ExamPrepHoursPerDay + ExamPrepDays)
-  ↓ אם אין
-Hardcoded: 5 שעות × 3 ימים
+Course setting (Course.ExamPrepHoursPerDay + Course.ExamPrepDays)
+  ↓ if not set
+Global setting (SchedulingPreferences.ExamPrepHoursPerDay + ExamPrepDays)
+  ↓ if no preferences
+Hardcoded: 5 hours × 3 days
 ```
 
-### שינויים טכניים
+### Technical Changes
 
-**`Course.cs` — שדות חדשים:**
+**`Course.cs` — new fields:**
 ```csharp
-public double? ExamPrepHoursPerDay { get; set; }  // null = גלובלי
-public int? ExamPrepDays { get; set; }             // null = גלובלי
+public double? ExamPrepHoursPerDay { get; set; }  // null = use global
+public int? ExamPrepDays { get; set; }             // null = use global
 ```
 
 **`SchedulingPreferences.cs`:**
@@ -464,11 +464,11 @@ public double ExamPrepHoursPerDay { get; set; } = 5.0;
 public int ExamPrepDays { get; set; } = 3;
 ```
 
-**`SchedulingService.cs` — שינוי יצירת משימות הכנה:**
+**`SchedulingService.cs` — updated exam prep task creation:**
 ```csharp
 foreach (var exam in exams)
 {
-    // קבלת ערכים מהקורס או מהגלובלי
+    // Get values from course or global
     var prepHoursPerDay = exam.Course?.ExamPrepHoursPerDay
                           ?? prefs?.ExamPrepHoursPerDay ?? 5.0;
     var prepDays = exam.Course?.ExamPrepDays
@@ -482,11 +482,11 @@ foreach (var exam in exams)
         ...
     };
 
-    // שיבוץ ימי הכנה
+    // Schedule prep days
     for (int d = 1; d <= prepDays; d++)
     {
         var prepDay = exam.Date.Date.AddDays(-d);
-        // שיבוץ prepHoursPerDay שעות ליום
+        // Schedule prepHoursPerDay hours per day
     }
 }
 ```
@@ -494,11 +494,11 @@ foreach (var exam in exams)
 **`Onboarding2.html`:**
 ```html
 <div class="form-group">
-    <label>כמה שעות הכנה למבחן ליום?</label>
+    <label>Exam prep hours per day</label>
     <input type="number" id="examPrepHoursPerDay" value="5" min="1" max="12">
 </div>
 <div class="form-group">
-    <label>כמה ימים לפני המבחן להתחיל הכנה?</label>
+    <label>Days before exam to start preparing</label>
     <input type="number" id="examPrepDays" value="3" min="1" max="14">
 </div>
 ```
@@ -511,30 +511,30 @@ public int? ExamPrepDays { get; set; }
 
 ---
 
-## סיכום נוסחת העדיפות המלאה (אחרי כל השינויים)
+## Full Updated Priority Formula (After All Changes)
 
 ```
-score = (1 / daysUntilDue) * 40            — דחיפות (משימה באיחור = 1/0.1 = 400 נקודות)
-      + priorityWeight * 30                — עדיפות משתמש (High=90, Medium=60, Low=30)
-      + min(effectiveHours, 10) * 3        — היקף (0-30 נקודות)
-      + credits * 2.5                      — חשיבות הקורס (5-15 טיפוסי)
-      + (isShared ? 20 : 0)               — בונוס משימה משותפת
+score = (1 / daysUntilDue) * 40            — Urgency (overdue = 1/0.1 = 400 points)
+      + priorityWeight * 30                — User priority (High=90, Medium=60, Low=30)
+      + min(effectiveHours, 10) * 3        — Workload scope (0-30 points)
+      + credits * 2.5                      — Course importance (typical 5-15)
+      + (isShared ? 20 : 0)               — Shared task bonus
 ```
 
-### דוגמאות חישוב:
+### Calculation Examples:
 
-| משימה | deadline | עדיפות | שעות | קרדיטים | משותפת | ציון |
-|-------|----------|--------|------|---------|--------|------|
-| מטלה A | מחר (1 יום) | High | 4h | 5 | כן | 40+90+12+12.5+20 = **174.5** |
-| מטלה B | עוד 3 ימים | High | 6h | 3 | לא | 13.3+90+18+7.5+0 = **128.8** |
-| מטלה C | עוד שבוע | Medium | 2h | 4 | כן | 5.7+60+6+10+20 = **101.7** |
-| מטלה D | עוד שבוע | Low | 3h | 3 | לא | 5.7+30+9+7.5+0 = **52.2** |
+| Task | Deadline | Priority | Hours | Credits | Shared | Score |
+|------|----------|----------|-------|---------|--------|-------|
+| Task A | Tomorrow (1 day) | High | 4h | 5 | Yes | 40+90+12+12.5+20 = **174.5** |
+| Task B | In 3 days | High | 6h | 3 | No | 13.3+90+18+7.5+0 = **128.8** |
+| Task C | In 1 week | Medium | 2h | 4 | Yes | 5.7+60+6+10+20 = **101.7** |
+| Task D | In 1 week | Low | 3h | 3 | No | 5.7+30+9+7.5+0 = **52.2** |
 
 ---
 
-## סיכום שינויי DB Schema
+## DB Schema Changes Summary
 
-### טבלת `SmartStudy_SchedulingPreferences` — שדות חדשים:
+### Table `SmartStudy_SchedulingPreferences` — new columns:
 ```sql
 ALTER TABLE SmartStudy_SchedulingPreferences ADD
     BreakDurationMinutes INT NOT NULL DEFAULT 15,
@@ -544,7 +544,7 @@ ALTER TABLE SmartStudy_SchedulingPreferences ADD
     ExamPrepDays INT NOT NULL DEFAULT 3;
 ```
 
-### טבלת `SmartStudy_Courses` — שדות חדשים:
+### Table `SmartStudy_Courses` — new columns:
 ```sql
 ALTER TABLE SmartStudy_Courses ADD
     DefaultTaskEstimatedHours FLOAT NULL,
@@ -552,7 +552,7 @@ ALTER TABLE SmartStudy_Courses ADD
     ExamPrepDays INT NULL;
 ```
 
-### טבלת `SmartStudy_Tasks` — שדה חדש:
+### Table `SmartStudy_Tasks` — new column:
 ```sql
 ALTER TABLE SmartStudy_Tasks ADD
     AllowSplitting BIT NOT NULL DEFAULT 0;
@@ -560,50 +560,50 @@ ALTER TABLE SmartStudy_Tasks ADD
 
 ---
 
-## סיכום שינויי קבצים
+## File Changes Summary
 
-| קובץ | שינויים |
-|-------|---------|
-| `Models/SchedulingPreferences.cs` | 5 שדות חדשים |
-| `Models/Course.cs` | 3 שדות חדשים |
-| `Models/StudentTask.cs` | שדה `AllowSplitting` |
-| `DTOs/SchedulingDtos.cs` | `RelocationSuggestionDto` + שדות ב-`DailyWorkloadDto` |
-| `DTOs/TaskDtos.cs` | `AllowSplitting` ב-Create/Update/TaskDto |
-| `DTOs/CourseDtos.cs` | שדות exam prep + default hours |
-| `DTOs/DashboardDtos.cs` | שדות `StudyLoad`, `TotalLoad` ב-StressScoreDto |
-| `Services/SchedulingService.cs` | שינוי מהותי — לוגיקת שיבוץ רציף, הפסקות, הצעות הזזה |
-| `Services/StressService.cs` | חישוב עומס כולל חדש |
-| `Controllers/TasksController.cs` | טריגר שיבוץ מחדש אחרי CRUD |
-| `Controllers/ExamsController.cs` | טריגר שיבוץ מחדש אחרי CRUD |
-| `Controllers/CoursesController.cs` | שדות חדשים ב-Update |
-| `Data/SmartStudyDbContext.cs` | הוספת השדות החדשים למיגרציה |
-| `Front/Pages/Onboarding2.html` | שדות חדשים באונבורדינג |
-| `Front/Script/modules/onboarding.js` | טיפול בשדות חדשים |
-| `Front/CSS/app.css` | עיצוב הצעות הזזה |
+| File | Changes |
+|------|---------|
+| `Models/SchedulingPreferences.cs` | 5 new fields |
+| `Models/Course.cs` | 3 new fields |
+| `Models/StudentTask.cs` | `AllowSplitting` field |
+| `DTOs/SchedulingDtos.cs` | `RelocationSuggestionDto` + new fields in `DailyWorkloadDto` |
+| `DTOs/TaskDtos.cs` | `AllowSplitting` in Create/Update/TaskDto |
+| `DTOs/CourseDtos.cs` | Exam prep + default hours fields |
+| `DTOs/DashboardDtos.cs` | `StudyLoad`, `TotalLoad` fields in StressScoreDto |
+| `Services/SchedulingService.cs` | Major rewrite — continuous scheduling logic, breaks, relocation suggestions |
+| `Services/StressService.cs` | New total load calculation |
+| `Controllers/TasksController.cs` | Auto-reschedule trigger after CRUD |
+| `Controllers/ExamsController.cs` | Auto-reschedule trigger after CRUD |
+| `Controllers/CoursesController.cs` | New fields in Update |
+| `Data/SmartStudyDbContext.cs` | Add new fields to migration |
+| `Front/Pages/Onboarding2.html` | New onboarding fields |
+| `Front/Script/modules/onboarding.js` | Handle new fields |
+| `Front/CSS/app.css` | Relocation suggestion styling |
 
 ---
 
-## סדר ביצוע מומלץ
+## Recommended Implementation Order
 
-### שלב 1: תשתית (DB + Models)
-1. הוסף שדות ל-`SchedulingPreferences`, `Course`, `StudentTask`
-2. עדכן `SmartStudyDbContext` + מיגרציה
-3. עדכן DTOs
+### Phase 1: Infrastructure (DB + Models)
+1. Add fields to `SchedulingPreferences`, `Course`, `StudentTask`
+2. Update `SmartStudyDbContext` + migration
+3. Update DTOs
 
-### שלב 2: מנוע שיבוץ
-4. שכתב `ScheduleAllTasksAsync` עם לוגיקה רציפה + הפסקות
-5. הוסף `GetEffectiveHours` עם היררכיית ברירת מחדל
-6. עדכן נוסחת עדיפות (קרדיטים + שיתופי)
-7. הוסף לוגיקת הצעות הזזה
-8. הוסף טריגרים אוטומטיים ב-Controllers
+### Phase 2: Scheduling Engine
+4. Rewrite `ScheduleAllTasksAsync` with continuous scheduling logic + breaks
+5. Add `GetEffectiveHours` with default hierarchy
+6. Update priority formula (credits + shared bonus)
+7. Add relocation suggestion logic
+8. Add automatic triggers in Controllers
 
-### שלב 3: חישוב עומסים
-9. שכתב `GetStressScoreAsync` עם Total Load
-10. שכתב `GetWeeklyStressAsync` עם חישוב כפול
+### Phase 3: Stress Calculation
+9. Rewrite `GetStressScoreAsync` with Total Load
+10. Rewrite `GetWeeklyStressAsync` with dual calculation
 
-### שלב 4: Frontend
-11. עדכן אונבורדינג (שדות חדשים)
-12. עדכן טופס משימה (AllowSplitting)
-13. עדכן הגדרות קורס (exam prep + default hours)
-14. הוסף UI להצעות הזזה
-15. עדכן דשבורד להציג עומס כולל
+### Phase 4: Frontend
+11. Update onboarding (new fields)
+12. Update task form (AllowSplitting)
+13. Update course settings (exam prep + default hours)
+14. Add UI for relocation suggestions
+15. Update dashboard to display total load
