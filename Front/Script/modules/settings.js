@@ -73,6 +73,31 @@ function renderSchedulingPrefs(prefs) {
     const dayEnd = document.getElementById('settDayEnd');
     if (dayEnd) dayEnd.value = prefs.dayEndHour;
 
+    // Break duration
+    const breakDur = document.getElementById('settBreakDuration');
+    if (breakDur) breakDur.value = prefs.breakDurationMinutes ?? 15;
+
+    // Max daily total
+    const maxTotal = document.getElementById('settMaxDailyTotal');
+    const maxTotalVal = document.getElementById('settMaxDailyTotalValue');
+    if (maxTotal) {
+        maxTotal.value = prefs.maxDailyTotalHours ?? 14;
+        if (maxTotalVal) maxTotalVal.textContent = `${maxTotal.value}h`;
+        maxTotal.addEventListener('input', () => {
+            if (maxTotalVal) maxTotalVal.textContent = `${maxTotal.value}h`;
+        });
+    }
+
+    // Default task hours
+    const defaultHours = document.getElementById('settDefaultTaskHours');
+    if (defaultHours) defaultHours.value = prefs.defaultTaskEstimatedHours ?? 4;
+
+    // Exam prep
+    const examPrepH = document.getElementById('settExamPrepHours');
+    if (examPrepH) examPrepH.value = prefs.examPrepHoursPerDay ?? 5;
+    const examPrepD = document.getElementById('settExamPrepDays');
+    if (examPrepD) examPrepD.value = prefs.examPrepDays ?? 3;
+
     // Lunch break
     const lunchEnabled = document.getElementById('settLunchEnabled');
     const lunchRow = document.getElementById('settLunchTimeRow');
@@ -140,6 +165,11 @@ function setupSave() {
                 dayStartHour: parseInt(document.getElementById('settDayStart').value),
                 dayEndHour: parseInt(document.getElementById('settDayEnd').value),
                 sleepHoursPerDay: parseFloat(document.getElementById('settSleepHours').value),
+                breakDurationMinutes: parseInt(document.getElementById('settBreakDuration')?.value) || 15,
+                maxDailyTotalHours: parseFloat(document.getElementById('settMaxDailyTotal')?.value) || 14,
+                defaultTaskEstimatedHours: parseFloat(document.getElementById('settDefaultTaskHours')?.value) || 4,
+                examPrepHoursPerDay: parseFloat(document.getElementById('settExamPrepHours')?.value) || 5,
+                examPrepDays: parseInt(document.getElementById('settExamPrepDays')?.value) || 3,
                 lunchBreakStart: lunchEnabled ? (document.getElementById('settLunchStart').value || null) : null,
                 lunchBreakEnd: lunchEnabled ? (document.getElementById('settLunchEnd').value || null) : null,
             };

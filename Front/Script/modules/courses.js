@@ -126,6 +126,9 @@ function setupAddCourse() {
             semester: document.getElementById('courseSemester').value || null,
             instructorId: parseInt(document.getElementById('courseInstructorId').value) || null,
             sharedByDefault: document.getElementById('courseSharedByDefault')?.checked || false,
+            defaultTaskEstimatedHours: parseFloat(document.getElementById('courseDefaultHours')?.value) || null,
+            examPrepHoursPerDay: parseFloat(document.getElementById('courseExamPrepHours')?.value) || null,
+            examPrepDays: parseInt(document.getElementById('courseExamPrepDays')?.value) || null,
         };
 
         try {
@@ -183,6 +186,11 @@ function editCourse(id) {
     // Set shared by default
     const sharedCheck = document.getElementById('courseSharedByDefault');
     if (sharedCheck) sharedCheck.checked = course.sharedByDefault || false;
+
+    // Set scheduling defaults
+    document.getElementById('courseDefaultHours').value = course.defaultTaskEstimatedHours || '';
+    document.getElementById('courseExamPrepHours').value = course.examPrepHoursPerDay || '';
+    document.getElementById('courseExamPrepDays').value = course.examPrepDays || '';
 
     openModal('courseModal');
 }

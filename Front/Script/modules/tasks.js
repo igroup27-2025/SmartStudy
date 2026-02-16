@@ -427,7 +427,7 @@ function setupAddTask() {
             type: document.getElementById('taskType').value,
             estimatedHours: parseFloat(document.getElementById('taskHours').value) || null,
             dueDate: document.getElementById('taskDueDate').value || null,
-            priority: document.getElementById('taskPriority').value || null,
+            allowSplitting: document.getElementById('taskAllowSplitting')?.checked || false,
         };
 
         try {
@@ -491,7 +491,8 @@ function editTask(id) {
     document.getElementById('taskType').value = task.type;
     document.getElementById('taskHours').value = task.estimatedHours || '';
     document.getElementById('taskDueDate').value = task.dueDate ? task.dueDate.split('T')[0] : '';
-    document.getElementById('taskPriority').value = task.priority || '';
+    const splitToggle = document.getElementById('taskAllowSplitting');
+    if (splitToggle) splitToggle.checked = task.allowSplitting || false;
     document.getElementById('sharedSection').style.display = 'block';
     // Pre-populate shared toggle if task is already shared
     const sharedToggle = document.getElementById('taskShared');

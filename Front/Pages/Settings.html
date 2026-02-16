@@ -184,6 +184,52 @@
                             </div>
                             <div class="settings-row">
                                 <div class="settings-info">
+                                    <div class="settings-label">Break between sessions</div>
+                                    <div class="settings-description">Break duration after each continuous study block</div>
+                                </div>
+                                <select id="settBreakDuration" class="form-input" style="width:160px">
+                                    <option value="5">5 minutes</option>
+                                    <option value="10">10 minutes</option>
+                                    <option value="15">15 minutes</option>
+                                    <option value="20">20 minutes</option>
+                                    <option value="30">30 minutes</option>
+                                </select>
+                            </div>
+                            <div class="settings-row">
+                                <div class="settings-info">
+                                    <div class="settings-label">Max total active hours per day</div>
+                                    <div class="settings-description">Study + work + classes + personal (24h minus sleep &amp; routine)</div>
+                                </div>
+                                <div class="onboarding-field__range-wrap" style="width:200px">
+                                    <input type="range" id="settMaxDailyTotal" min="6" max="20" step="0.5" value="14" class="onboarding-range">
+                                    <span class="onboarding-field__value" id="settMaxDailyTotalValue">14h</span>
+                                </div>
+                            </div>
+                            <div class="settings-row">
+                                <div class="settings-info">
+                                    <div class="settings-label">Default estimated hours per task</div>
+                                    <div class="settings-description">Used when no estimate is provided and no ML data is available</div>
+                                </div>
+                                <input type="number" id="settDefaultTaskHours" class="form-input" style="width:120px" min="0.5" max="20" step="0.5" value="4">
+                            </div>
+                            <div class="settings-row">
+                                <div class="settings-info">
+                                    <div class="settings-label">Exam preparation</div>
+                                    <div class="settings-description">Default exam prep schedule</div>
+                                </div>
+                            </div>
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label for="settExamPrepHours">Hours/day</label>
+                                    <input type="number" id="settExamPrepHours" class="form-input" min="1" max="12" step="0.5" value="5">
+                                </div>
+                                <div class="form-group">
+                                    <label for="settExamPrepDays">Days before exam</label>
+                                    <input type="number" id="settExamPrepDays" class="form-input" min="1" max="14" step="1" value="3">
+                                </div>
+                            </div>
+                            <div class="settings-row">
+                                <div class="settings-info">
                                     <div class="settings-label">Lunch break</div>
                                     <div class="settings-description">Block time for lunch daily</div>
                                 </div>

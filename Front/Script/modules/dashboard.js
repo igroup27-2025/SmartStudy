@@ -12,6 +12,7 @@ export async function initDashboard() {
         renderAlerts(data);
         renderStats(data);
         renderWorkload(data);
+        renderRelocationSuggestions(data);
         renderUnscheduled(data);
         renderSuggestion(data);
         renderWeeklySuggestions();
@@ -223,16 +224,29 @@ function renderWorkload(data) {
         const date = new Date(d.date);
         const isToday = date.getTime() === today.getTime();
         const dayName = date.toLocaleDateString('en', { weekday: 'short' });
-        const pct = Math.min(100, (d.scheduledHours / maxHours) * 100);
-        const colorClass = d.isOverloaded ? 'overloaded' : d.scheduledHours > 6 ? 'heavy' : d.scheduledHours > 3 ? 'moderate' : 'light';
+        const totalH = d.totalHours ?? d.scheduledHours;
+        const pct = Math.min(100, (totalH / maxHours) * 100);
+        const colorClass = d.isOverloaded ? 'overloaded' : totalH > 6 ? 'heavy' : totalH > 3 ? 'moderate' : 'light';
+
+        // Build tooltip with breakdown
+        const studyH = d.studyHours ?? d.scheduledHours;
+        const workH = d.workHours ?? 0;
+        const classH = d.classHours ?? 0;
+        const personalH = d.personalHours ?? 0;
+        const breakdown = [];
+        if (studyH > 0) breakdown.push(`Study: ${studyH}h`);
+        if (classH > 0) breakdown.push(`Class: ${classH}h`);
+        if (workH > 0) breakdown.push(`Work: ${workH}h`);
+        if (personalH > 0) breakdown.push(`Personal: ${personalH}h`);
+        const tooltip = breakdown.join(' | ') || `${totalH}h`;
 
         html += `
-            <div class="dash-workload__bar-group ${isToday ? 'today' : ''}">
+            <div class="dash-workload__bar-group ${isToday ? 'today' : ''}" title="${tooltip}">
                 <div class="dash-workload__bar-track">
                     <div class="dash-workload__bar dash-workload__bar--${colorClass}" style="height:${pct}%"></div>
                 </div>
                 <span class="dash-workload__bar-label">${dayName}</span>
-                <span class="dash-workload__bar-value">${d.scheduledHours}h</span>
+                <span class="dash-workload__bar-value">${totalH}h</span>
             </div>
         `;
     });
@@ -275,6 +289,46 @@ function renderUnscheduled(data) {
             <p class="dash-unscheduled__hint">These tasks couldn't fit in your schedule. Consider extending deadlines or reducing workload.</p>
         </div>
     `;
+}
+
+/* ---- Section: Relocation Suggestions ---- */
+function renderRelocationSuggestions(data) {
+    const el = document.getElementById('dashRelocationSuggestions');
+    if (!el) return;
+
+    const suggestions = data.relocationSuggestions || [];
+    if (!suggestions.length) {
+        el.innerHTML = '';
+        return;
+    }
+
+    const cards = suggestions.map((s, i) => `
+        <div class="relocation-card" data-index="${i}">
+            <div class="relocation-card__icon">&#128161;</div>
+            <div class="relocation-card__body">
+                <div class="relocation-card__title">No room for "${s.blockedTaskTitle}"</div>
+                <div class="relocation-card__message">${s.message}</div>
+            </div>
+            <button class="btn btn-sm btn-ghost relocation-dismiss" data-index="${i}" title="Dismiss">&times;</button>
+        </div>
+    `).join('');
+
+    el.innerHTML = `
+        <div class="dash-relocations__card">
+            <div class="dash-relocations__header">
+                <span class="dash-relocations__icon">&#9888;</span>
+                <h3 class="dash-relocations__title">Scheduling Suggestions</h3>
+            </div>
+            ${cards}
+        </div>
+    `;
+
+    el.querySelectorAll('.relocation-dismiss').forEach(btn => {
+        btn.addEventListener('click', () => {
+            btn.closest('.relocation-card').remove();
+            if (!el.querySelector('.relocation-card')) el.innerHTML = '';
+        });
+    });
 }
 
 /* ---- Section: Suggestion Card ---- */
@@ -465,6 +519,7 @@ function showCompletionModal(taskId, taskTitle, estHours) {
             renderAlerts(freshData);
             renderStats(freshData);
             renderWorkload(freshData);
+            renderRelocationSuggestions(freshData);
             renderUnscheduled(freshData);
             renderSuggestion(freshData);
             renderReview(freshData);

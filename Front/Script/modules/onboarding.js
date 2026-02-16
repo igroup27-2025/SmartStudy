@@ -291,6 +291,8 @@ function initStep4() {
     if (data.notifyWeekly) notifs.push('Weekly plan');
     setText('summaryNotif', `Notifications: ${notifs.length ? notifs.join(', ') : 'None'}`);
 
+    setText('summaryExamPrep', `Exam prep: ${data.examPrepHoursPerDay || 5}h/day, ${data.examPrepDays || 3} days before exam`);
+
     const cCount = (data.constraints || []).length;
     setText('summaryConstraints', `Recurring constraints: ${cCount || 'None'}`);
 
