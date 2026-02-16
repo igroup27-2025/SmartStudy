@@ -114,8 +114,8 @@ End-to-end flows tested:
 ### Login Page
 - [x] Login form displays correctly
 - [x] Valid credentials redirect to Dashboard
-- [ ] Invalid credentials show error message
-- [ ] Registration form works
+- [x] Invalid credentials show error message
+- [x] Registration form works
 - [x] Token is stored after login
 
 ### Dashboard
@@ -128,7 +128,7 @@ End-to-end flows tested:
 ### Tasks Page
 - [x] Task list loads from API (13 tasks)
 - [x] Add task modal opens and submits (created "Test Task - Integration Check")
-- [ ] Edit task works
+- [x] Edit task works
 - [x] Delete task works (deleted test task)
 - [x] Complete task updates UI and stress (toggled "Exercise 1" checkbox)
 - [x] Filter by status works (filtered to "Completed" showing 5 tasks)
@@ -137,16 +137,16 @@ End-to-end flows tested:
 
 ### Courses Page
 - [x] Course cards display correctly (5 cards in grid, color-coded)
-- [ ] Add course modal works
-- [ ] Edit course works
-- [ ] Delete course works
+- [x] Add course modal works
+- [x] Edit course works
+- [x] Delete course works
 - [x] Course details show instructor, credits, task/exam counts
 
 ### Exams Page
 - [x] Exam list loads correctly (6 exams)
-- [ ] Add exam modal works
-- [ ] Edit exam works
-- [ ] Delete exam works
+- [x] Add exam modal works
+- [x] Edit exam works
+- [x] Delete exam works
 - [x] Days until exam shows correctly (11d to 39d)
 
 ### Calendar Page
@@ -154,7 +154,7 @@ End-to-end flows tested:
 - [x] Events display in correct time slots
 - [x] Event colors match type (cyan=class, orange=personal, purple=work, yellow=personal)
 - [x] Week navigation works (prev/next/today buttons)
-- [ ] Click event shows details
+- [x] Click event shows details
 
 ### Analytics Page
 - [x] Stress score displays (100/High with red ring)
@@ -165,7 +165,7 @@ End-to-end flows tested:
 ### Settings Page
 - [x] User profile info displays (email, first/last name)
 - [x] Notification toggles work (4 toggle switches)
-- [ ] Save changes persists
+- [x] Save changes persists
 
 ### Onboarding Flow
 - [x] Step 1 (Welcome) renders centered with features list

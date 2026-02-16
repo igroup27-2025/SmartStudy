@@ -13,6 +13,7 @@ export async function initFriends() {
         pendingRequests = data.filter(c => c.status === 'pending');
     } catch (err) {
         console.error('Failed to load connections:', err);
+        showToast('Failed to load friends', 'error');
         connections = [];
         pendingRequests = [];
     }

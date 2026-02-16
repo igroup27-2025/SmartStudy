@@ -413,6 +413,8 @@ function setupAddTask() {
         document.getElementById('sharedSection').style.display = 'block';
         document.getElementById('friendSelector').style.display = 'none';
         document.getElementById('hoursSuggestion').style.display = 'none';
+        const dueDateInput = document.getElementById('taskDueDate');
+        if (dueDateInput) dueDateInput.min = new Date().toISOString().split('T')[0];
         openModal('taskModal');
     });
 
@@ -492,5 +494,7 @@ function editTask(id) {
     document.getElementById('taskPriority').value = task.priority || '';
     document.getElementById('sharedSection').style.display = 'none'; // Hide share for edit
     document.getElementById('hoursSuggestion').style.display = 'none';
+    const dueDateInput = document.getElementById('taskDueDate');
+    if (dueDateInput) dueDateInput.removeAttribute('min');
     openModal('taskModal');
 }

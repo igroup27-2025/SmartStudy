@@ -23,7 +23,7 @@ function request(method, path, body = null) {
             dataType: method === 'DELETE' ? 'text' : 'json',
             success: (data) => resolve(data),
             error: (xhr) => {
-                if (xhr.status === 401) {
+                if (xhr.status === 401 && !path.startsWith('/auth/')) {
                     localStorage.removeItem('smartstudy_token');
                     localStorage.removeItem('smartstudy_user');
                     window.location.href = '/Pages/Login.html';

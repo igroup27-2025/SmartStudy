@@ -92,12 +92,19 @@ function setupAddExam() {
     document.getElementById('examForm')?.addEventListener('submit', async (e) => {
         e.preventDefault();
         const examId = document.getElementById('examId').value;
+        const durationRaw = document.getElementById('examDuration').value;
+        const duration = durationRaw ? parseInt(durationRaw) : null;
+        if (duration !== null && duration <= 0) {
+            showToast('Duration must be a positive number', 'error');
+            return;
+        }
+
         const data = {
             courseId: parseInt(document.getElementById('examCourseId').value),
             date: document.getElementById('examDate').value,
             time: document.getElementById('examTime').value,
             session: document.getElementById('examSession').value,
-            duration: parseInt(document.getElementById('examDuration').value) || null,
+            duration,
         };
 
         try {

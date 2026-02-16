@@ -1,10 +1,36 @@
 // Modals module - generic open/close by element ID
 
+let _previousFocus = null;
+const FOCUSABLE = 'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
+
+function _trapFocus(e) {
+    const modal = document.querySelector('.modal-overlay.open');
+    if (!modal || e.key !== 'Tab') return;
+    const focusable = [...modal.querySelectorAll(FOCUSABLE)];
+    if (!focusable.length) return;
+    const first = focusable[0];
+    const last = focusable[focusable.length - 1];
+    if (e.shiftKey && document.activeElement === first) {
+        e.preventDefault();
+        last.focus();
+    } else if (!e.shiftKey && document.activeElement === last) {
+        e.preventDefault();
+        first.focus();
+    }
+}
+
 export function openModal(id) {
     const modal = document.getElementById(id);
     if (!modal) return;
+    _previousFocus = document.activeElement;
     modal.classList.add('open');
+    modal.setAttribute('role', 'dialog');
+    modal.setAttribute('aria-modal', 'true');
     document.body.style.overflow = 'hidden';
+    // Focus first focusable element
+    const first = modal.querySelector(FOCUSABLE);
+    if (first) requestAnimationFrame(() => first.focus());
+    document.addEventListener('keydown', _trapFocus);
 }
 
 export function closeModal(id) {
@@ -12,6 +38,11 @@ export function closeModal(id) {
     if (!modal) return;
     modal.classList.remove('open');
     document.body.style.overflow = '';
+    document.removeEventListener('keydown', _trapFocus);
+    if (_previousFocus) {
+        _previousFocus.focus();
+        _previousFocus = null;
+    }
 }
 
 export function initModals() {
@@ -56,6 +87,7 @@ export function showToast(message, type = 'success') {
 
     const toast = document.createElement('div');
     toast.className = `toast toast-${type}`;
+    toast.setAttribute('role', type === 'success' ? 'status' : 'alert');
     toast.innerHTML = `
         <span class="toast-message">${message}</span>
         <button class="toast-close">&times;</button>

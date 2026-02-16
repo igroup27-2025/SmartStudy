@@ -44,7 +44,7 @@ export function initLayout() {
             <img src="/Images/logo.png" alt="SmartStudy" class="sidebar-logo-img">
             <span class="sidebar-logo-text">SmartStudy</span>
         </div>
-        <nav class="sidebar-nav">
+        <nav class="sidebar-nav" role="navigation" aria-label="Main navigation">
             ${NAV.map(n => `
                 <a href="${n.href}" class="sidebar-nav-item ${currentPage === n.page ? 'active' : ''}" data-page="${n.page}">
                     ${n.label}
@@ -52,7 +52,7 @@ export function initLayout() {
             `).join('')}
         </nav>
         <div class="sidebar-user">
-            <div class="sidebar-user-avatar">${user ? user.firstName[0] + user.lastName[0] : 'U'}</div>
+            <div class="sidebar-user-avatar">${user ? (user.firstName?.[0] || '') + (user.lastName?.[0] || '') || 'U' : 'U'}</div>
             <div class="sidebar-user-info">
                 <div class="sidebar-user-name">${user ? user.firstName + ' ' + user.lastName : 'User'}</div>
                 <div class="sidebar-user-email">${user ? user.email : ''}</div>
@@ -86,7 +86,7 @@ export function initLayout() {
                 </div>
             </div>
             <div class="topbar-user">
-                <div class="topbar-avatar" id="userMenuBtn">${user ? user.firstName[0] : 'U'}</div>
+                <div class="topbar-avatar" id="userMenuBtn">${user?.firstName?.[0] || 'U'}</div>
                 <div class="topbar-dropdown" id="userDropdown">
                     <a href="/Pages/Settings.html" class="topbar-dropdown-item">Settings</a>
                     <div class="topbar-dropdown-divider"></div>
