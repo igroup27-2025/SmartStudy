@@ -1,4 +1,5 @@
 import { api } from './api.js';
+import { BASE_PATH } from './config.js';
 
 const STORE_KEY = 'smartstudy_onboarding';
 
@@ -39,7 +40,7 @@ export function initOnboarding() {
         if (step === 3) collectStep3();
 
         if (step < 4) {
-            window.location.href = `/Pages/Onboarding${step + 1}.html`;
+            window.location.href = `${BASE_PATH}/Pages/Onboarding${step + 1}.html`;
         } else {
             await finishOnboarding();
         }
@@ -57,7 +58,7 @@ export function initOnboarding() {
         if (step === 3) collectStep3();
 
         if (step > 1) {
-            window.location.href = `/Pages/Onboarding${step - 1}.html`;
+            window.location.href = `${BASE_PATH}/Pages/Onboarding${step - 1}.html`;
         }
     });
 }
@@ -310,7 +311,7 @@ async function finishOnboarding() {
     }
 
     sessionStorage.removeItem(STORE_KEY);
-    window.location.href = '/Pages/Dashboard.html';
+    window.location.href = BASE_PATH + '/Pages/Dashboard.html';
 }
 
 /* ---- Helpers ---- */

@@ -1,10 +1,11 @@
 import { api } from './api.js';
 import { saveAuth, isLoggedIn, isOnboardingCompleted } from './auth.js';
 import { showToast } from './modals.js';
+import { BASE_PATH } from './config.js';
 
 export function initLogin() {
     if (isLoggedIn()) {
-        window.location.href = '/Pages/Dashboard.html';
+        window.location.href = BASE_PATH + '/Pages/Dashboard.html';
         return;
     }
 
@@ -62,7 +63,7 @@ export function initLogin() {
             btn.textContent = 'Signing in...';
             const res = await api.login(email, password);
             saveAuth(res);
-            window.location.href = res.onboardingCompleted ? '/Pages/Dashboard.html' : '/Pages/Onboarding1.html';
+            window.location.href = BASE_PATH + (res.onboardingCompleted ? '/Pages/Dashboard.html' : '/Pages/Onboarding1.html');
         } catch (err) {
             showToast(err.message || 'Login failed', 'error');
         } finally {
@@ -87,7 +88,7 @@ export function initLogin() {
             btn.textContent = 'Creating account...';
             const res = await api.register(data);
             saveAuth(res);
-            window.location.href = '/Pages/Onboarding1.html';
+            window.location.href = BASE_PATH + '/Pages/Onboarding1.html';
         } catch (err) {
             showToast(err.message || 'Registration failed', 'error');
         } finally {
@@ -206,7 +207,7 @@ async function handleGoogleCallback(response) {
     try {
         const res = await api.googleLogin(response.credential);
         saveAuth(res);
-        window.location.href = res.onboardingCompleted ? '/Pages/Dashboard.html' : '/Pages/Onboarding1.html';
+        window.location.href = BASE_PATH + (res.onboardingCompleted ? '/Pages/Dashboard.html' : '/Pages/Onboarding1.html');
     } catch (err) {
         showToast(err.message || 'Google login failed', 'error');
     }

@@ -1,6 +1,7 @@
 import { api } from './api.js';
 import { getUser } from './auth.js';
 import { showToast } from './modals.js';
+import { BASE_PATH } from './config.js';
 
 export async function initDashboard() {
     try {
@@ -306,7 +307,7 @@ function renderSuggestion(data) {
                     ${task.estimatedHours ? `<span class="dash-suggestion__hours">${task.estimatedHours}h</span>` : ''}
                 </div>
             </div>
-            <a href="/Pages/Tasks.html" class="btn btn-sm btn-primary">View Tasks</a>
+            <a href="${BASE_PATH}/Pages/Tasks.html" class="btn btn-sm btn-primary">View Tasks</a>
         </div>
     `;
 }
@@ -355,8 +356,8 @@ function renderReview(data) {
 
         // Edit link: if task has a scheduled date, link to calendar with highlight; else to tasks page
         const editHref = t.scheduledDate
-            ? `/Pages/Calendar.html?date=${new Date(t.scheduledDate).toISOString().slice(0, 10)}&highlight=${t.taskId}`
-            : `/Pages/Tasks.html?edit=${t.taskId}`;
+            ? `${BASE_PATH}/Pages/Calendar.html?date=${new Date(t.scheduledDate).toISOString().slice(0, 10)}&highlight=${t.taskId}`
+            : `${BASE_PATH}/Pages/Tasks.html?edit=${t.taskId}`;
 
         return `
             <div class="dash-task-card">
@@ -704,7 +705,7 @@ async function renderMiniCalendar() {
     html += '<button id="miniCalPrev">&larr;</button>';
     html += '<button id="miniCalNext">&rarr;</button>';
     html += '</div>';
-    html += '<a href="/Pages/Calendar.html" class="mini-cal__link">Full Calendar</a>';
+    html += `<a href="${BASE_PATH}/Pages/Calendar.html" class="mini-cal__link">Full Calendar</a>`;
     html += '<button id="miniCalAdd" class="mini-cal__add" title="Add event">+</button>';
     html += '</div></div>';
 
@@ -784,7 +785,7 @@ async function renderMiniCalendar() {
     // Add event → navigate to calendar page
     document.getElementById('miniCalAdd')?.addEventListener('click', () => {
         const dateStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
-        window.location.href = `/Pages/Calendar.html?date=${dateStr}&add=1`;
+        window.location.href = `${BASE_PATH}/Pages/Calendar.html?date=${dateStr}&add=1`;
     });
 
     // Day header click → navigate to calendar page at that date
@@ -792,7 +793,7 @@ async function renderMiniCalendar() {
         col.querySelector('.mini-cal__day-header')?.addEventListener('click', () => {
             const dateStr = col.dataset.date;
             if (dateStr) {
-                window.location.href = `/Pages/Calendar.html?date=${dateStr}`;
+                window.location.href = `${BASE_PATH}/Pages/Calendar.html?date=${dateStr}`;
             }
         });
     });

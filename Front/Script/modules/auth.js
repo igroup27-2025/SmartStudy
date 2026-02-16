@@ -1,4 +1,5 @@
 // Auth module - manages authentication state
+import { BASE_PATH } from './config.js';
 
 export function isLoggedIn() {
     return !!localStorage.getItem('smartstudy_token');
@@ -27,12 +28,12 @@ export function isOnboardingCompleted() {
 export function logout() {
     localStorage.removeItem('smartstudy_token');
     localStorage.removeItem('smartstudy_user');
-    window.location.href = '/Pages/Login.html';
+    window.location.href = BASE_PATH + '/Pages/Login.html';
 }
 
 export function requireAuth() {
     if (!isLoggedIn()) {
-        window.location.href = '/Pages/Login.html';
+        window.location.href = BASE_PATH + '/Pages/Login.html';
         return false;
     }
     return true;

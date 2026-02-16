@@ -56,6 +56,11 @@ builder.Services.AddCors(options =>
 
 var app = builder.Build();
 
+// PathBase for IIS subpath deployment (e.g. /igroup27/test2/tar1)
+var pathBase = builder.Configuration["PathBase"] ?? "";
+if (!string.IsNullOrEmpty(pathBase))
+    app.UsePathBase(pathBase);
+
 // Create tables and seed data on first run (works on shared school DB)
 using (var scope = app.Services.CreateScope())
 {
@@ -353,8 +358,11 @@ if (app.Environment.IsDevelopment())
 
 app.UseCors();
 
-// Serve frontend static files from Front/ directory
+// Serve frontend static files from Front/ directory (dev: ../../Front, prod: ./Front)
 var frontPath = Path.GetFullPath(Path.Combine(builder.Environment.ContentRootPath, "..", "..", "Front"));
+if (!Directory.Exists(frontPath))
+    frontPath = Path.Combine(builder.Environment.ContentRootPath, "Front");
+
 if (Directory.Exists(frontPath))
 {
     app.UseStaticFiles(new StaticFileOptions
@@ -364,7 +372,7 @@ if (Directory.Exists(frontPath))
     });
 
     // Redirect root to login page
-    app.MapGet("/", () => Results.Redirect("/Pages/Login.html"));
+    app.MapGet("/", () => Results.Redirect("Pages/Login.html"));
 }
 
 app.UseAuthentication();

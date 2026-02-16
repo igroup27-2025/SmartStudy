@@ -1,15 +1,16 @@
 // Layout module - injects sidebar + topbar shell around page content
 import { getUser, logout } from './auth.js';
+import { BASE_PATH } from './config.js';
 
 const NAV = [
-    { page: 'dashboard', label: 'Dashboard', href: '/Pages/Dashboard.html' },
-    { page: 'tasks', label: 'Tasks', href: '/Pages/Tasks.html' },
-    { page: 'calendar', label: 'Calendar', href: '/Pages/Calendar.html' },
-    { page: 'courses', label: 'Courses', href: '/Pages/Courses.html' },
-    { page: 'exams', label: 'Exams', href: '/Pages/Exams.html' },
-    { page: 'analytics', label: 'Analytics', href: '/Pages/Analytics.html' },
-    { page: 'friends', label: 'Friends', href: '/Pages/Friends.html' },
-    { page: 'settings', label: 'Settings', href: '/Pages/Settings.html' },
+    { page: 'dashboard', label: 'Dashboard', href: BASE_PATH + '/Pages/Dashboard.html' },
+    { page: 'tasks', label: 'Tasks', href: BASE_PATH + '/Pages/Tasks.html' },
+    { page: 'calendar', label: 'Calendar', href: BASE_PATH + '/Pages/Calendar.html' },
+    { page: 'courses', label: 'Courses', href: BASE_PATH + '/Pages/Courses.html' },
+    { page: 'exams', label: 'Exams', href: BASE_PATH + '/Pages/Exams.html' },
+    { page: 'analytics', label: 'Analytics', href: BASE_PATH + '/Pages/Analytics.html' },
+    { page: 'friends', label: 'Friends', href: BASE_PATH + '/Pages/Friends.html' },
+    { page: 'settings', label: 'Settings', href: BASE_PATH + '/Pages/Settings.html' },
 ];
 
 export function initLayout() {
@@ -41,7 +42,7 @@ export function initLayout() {
     sidebar.className = 'sidebar';
     sidebar.innerHTML = `
         <div class="sidebar-logo">
-            <img src="/Images/logo.png" alt="SmartStudy" class="sidebar-logo-img">
+            <img src="${BASE_PATH}/Images/logo.png" alt="SmartStudy" class="sidebar-logo-img">
             <span class="sidebar-logo-text">SmartStudy</span>
         </div>
         <nav class="sidebar-nav" role="navigation" aria-label="Main navigation">
@@ -66,7 +67,7 @@ export function initLayout() {
     topbar.innerHTML = `
         <button class="sidebar-toggle" id="sidebarToggle">&#9776;</button>
         <div class="topbar-logo">
-            <img src="/Images/logo.png" alt="SmartStudy">
+            <img src="${BASE_PATH}/Images/logo.png" alt="SmartStudy">
         </div>
         <h1 class="topbar-title">${pageTitles[currentPage] || 'SmartStudy'}</h1>
         <div class="topbar-actions">
@@ -88,7 +89,7 @@ export function initLayout() {
             <div class="topbar-user">
                 <div class="topbar-avatar" id="userMenuBtn">${user?.firstName?.[0] || 'U'}</div>
                 <div class="topbar-dropdown" id="userDropdown">
-                    <a href="/Pages/Settings.html" class="topbar-dropdown-item">Settings</a>
+                    <a href="${BASE_PATH}/Pages/Settings.html" class="topbar-dropdown-item">Settings</a>
                     <div class="topbar-dropdown-divider"></div>
                     <a href="#" class="topbar-dropdown-item" id="logoutBtn">Logout</a>
                 </div>

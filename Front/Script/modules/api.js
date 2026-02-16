@@ -1,5 +1,6 @@
 // API Client module - handles all API calls with authentication (jQuery $.ajax)
-const API_BASE = '/api';
+import { BASE_PATH } from './config.js';
+const API_BASE = BASE_PATH + '/api';
 
 function toLocalISO(d) {
     return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}T${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}:${String(d.getSeconds()).padStart(2,'0')}`;
@@ -30,7 +31,7 @@ function request(method, path, body = null) {
                 if (xhr.status === 401 && !path.startsWith('/auth/')) {
                     localStorage.removeItem('smartstudy_token');
                     localStorage.removeItem('smartstudy_user');
-                    window.location.href = '/Pages/Login.html';
+                    window.location.href = BASE_PATH + '/Pages/Login.html';
                 }
                 reject(new Error(xhr.responseJSON?.message || `Request failed: ${xhr.status}`));
             }
@@ -127,7 +128,7 @@ export const api = {
                 error: (xhr) => {
                     if (xhr.status === 401) {
                         localStorage.removeItem('smartstudy_token');
-                        window.location.href = '/Pages/Login.html';
+                        window.location.href = BASE_PATH + '/Pages/Login.html';
                     }
                     reject(new Error(xhr.responseJSON?.message || 'Import failed'));
                 }

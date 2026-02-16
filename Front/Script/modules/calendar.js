@@ -1,5 +1,6 @@
 import { api } from './api.js';
 import { openModal, closeModal, showToast } from './modals.js';
+import { BASE_PATH } from './config.js';
 
 let currentView = window.innerWidth <= 768 ? '3day' : 'weekly'; // 'monthly' | 'weekly' | '3day'
 let currentDate = new Date();
@@ -1436,7 +1437,7 @@ function showEventDetails(eventId, targetEl) {
     if (event.isExam) {
         modal.querySelector('#calDetailGoExams')?.addEventListener('click', () => {
             close();
-            window.location.href = '/Pages/Exams.html';
+            window.location.href = BASE_PATH + '/Pages/Exams.html';
         });
     } else {
         modal.querySelector('#calDetailEdit').addEventListener('click', () => {
