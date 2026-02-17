@@ -347,6 +347,37 @@ using (var scope = app.Services.CreateScope())
         phase2Cmd.ExecuteNonQuery();
     }
 
+    // Scheduling redesign migrations: new columns for SchedulingPreferences, Courses, Tasks
+    using (var schedRedesignCmd = conn.CreateCommand())
+    {
+        schedRedesignCmd.CommandText = @"
+            -- Add new scheduling preference columns
+            IF COL_LENGTH('SmartStudy_SchedulingPreferences', 'BreakDurationMinutes') IS NULL
+                ALTER TABLE SmartStudy_SchedulingPreferences ADD BreakDurationMinutes INT NOT NULL DEFAULT 15;
+            IF COL_LENGTH('SmartStudy_SchedulingPreferences', 'DefaultTaskEstimatedHours') IS NULL
+                ALTER TABLE SmartStudy_SchedulingPreferences ADD DefaultTaskEstimatedHours FLOAT NOT NULL DEFAULT 4.0;
+            IF COL_LENGTH('SmartStudy_SchedulingPreferences', 'MaxDailyTotalHours') IS NULL
+                ALTER TABLE SmartStudy_SchedulingPreferences ADD MaxDailyTotalHours FLOAT NOT NULL DEFAULT 14.0;
+            IF COL_LENGTH('SmartStudy_SchedulingPreferences', 'ExamPrepHoursPerDay') IS NULL
+                ALTER TABLE SmartStudy_SchedulingPreferences ADD ExamPrepHoursPerDay FLOAT NOT NULL DEFAULT 5.0;
+            IF COL_LENGTH('SmartStudy_SchedulingPreferences', 'ExamPrepDays') IS NULL
+                ALTER TABLE SmartStudy_SchedulingPreferences ADD ExamPrepDays INT NOT NULL DEFAULT 3;
+
+            -- Add per-course scheduling overrides
+            IF COL_LENGTH('SmartStudy_Courses', 'DefaultTaskEstimatedHours') IS NULL
+                ALTER TABLE SmartStudy_Courses ADD DefaultTaskEstimatedHours FLOAT NULL;
+            IF COL_LENGTH('SmartStudy_Courses', 'ExamPrepHoursPerDay') IS NULL
+                ALTER TABLE SmartStudy_Courses ADD ExamPrepHoursPerDay FLOAT NULL;
+            IF COL_LENGTH('SmartStudy_Courses', 'ExamPrepDays') IS NULL
+                ALTER TABLE SmartStudy_Courses ADD ExamPrepDays INT NULL;
+
+            -- Add AllowSplitting to Tasks
+            IF COL_LENGTH('SmartStudy_Tasks', 'AllowSplitting') IS NULL
+                ALTER TABLE SmartStudy_Tasks ADD AllowSplitting BIT NOT NULL DEFAULT 0;
+        ";
+        schedRedesignCmd.ExecuteNonQuery();
+    }
+
     conn.Close();
 }
 
