@@ -158,6 +158,32 @@ public class SchedulingService
             examStudyTasks.Add(existingStudyTask);
         }
 
+        // Clean up orphaned exam study tasks (exam was deleted or date changed)
+        var validExamStudyIds = examStudyTasks.Select(t => t.TaskId).ToHashSet();
+        var orphanedStudyTasks = await _db.Tasks
+            .Include(t => t.TaskEvents)
+            .Where(t => t.Email == email && t.Type == "Study for exam" && !t.IsCompleted
+                && !validExamStudyIds.Contains(t.TaskId))
+            .ToListAsync();
+
+        if (orphanedStudyTasks.Any())
+        {
+            // Remove their task events first, then the tasks
+            var orphanEventIds = orphanedStudyTasks
+                .SelectMany(t => t.TaskEvents)
+                .Select(te => te.EventId)
+                .ToList();
+            if (orphanEventIds.Any())
+            {
+                var orphanEvents = await _db.Events
+                    .Where(e => orphanEventIds.Contains(e.EventId))
+                    .ToListAsync();
+                _db.Events.RemoveRange(orphanEvents);
+            }
+            _db.Tasks.RemoveRange(orphanedStudyTasks);
+            await _db.SaveChangesAsync();
+        }
+
         // Map exam dates to their study tasks for targeted scheduling
         var examStudyByDate = new Dictionary<DateTime, List<(StudentTask Task, double TargetHours)>>();
         foreach (var exam in exams)
