@@ -2509,18 +2509,7 @@ hr {
   color: var(--text-primary);
 }
 
-/* ---- Page Hero (slim action bar) ---- */
-.page-hero {
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  flex-wrap: wrap;
-  gap: var(--space-3);
-  padding: var(--space-3) 0;
-  margin-bottom: var(--space-4);
-}
-
-/* Calendar nav title (replaces old h2) */
+/* Calendar nav title */
 .calendar-nav__title {
   font-size: var(--fs-lg);
   font-weight: var(--fw-semibold);
@@ -2528,29 +2517,27 @@ hr {
   white-space: nowrap;
 }
 
-/* page-hero buttons inherit default btn styles */
-
-.page-hero .cal-view-toggle {
+.page-actions--calendar .cal-view-toggle {
   background: var(--color-gray-100);
   border-radius: var(--radius-sm);
   padding: 3px;
 }
 
-.page-hero .cal-view-btn {
+.page-actions--calendar .cal-view-btn {
   color: var(--text-secondary);
 }
 
-.page-hero .cal-view-btn:hover {
+.page-actions--calendar .cal-view-btn:hover {
   color: var(--text-primary);
 }
 
-.page-hero .cal-view-btn.active {
+.page-actions--calendar .cal-view-btn.active {
   background: var(--bg-card);
   color: var(--color-primary);
   box-shadow: none;
 }
 
-.page-hero .calendar-nav {
+.page-actions--calendar .calendar-nav {
   display: flex;
   align-items: center;
   gap: var(--space-3);
@@ -3787,23 +3774,22 @@ hr {
 
 /* ---- Calendar Responsive ---- */
 @media (max-width: 768px) {
-  /* Calendar page hero — stack vertically */
-  [data-page="calendar"] .page-hero {
+  /* Calendar actions — stack vertically */
+  .page-actions--calendar {
     flex-direction: column;
     align-items: stretch;
     gap: var(--space-3);
-    padding: var(--space-4) var(--space-5);
   }
 
-  [data-page="calendar"] .page-hero .calendar-nav {
+  .page-actions--calendar .calendar-nav {
     justify-content: center;
   }
 
-  [data-page="calendar"] .page-hero .calendar-nav__title {
+  .page-actions--calendar .calendar-nav__title {
     font-size: var(--fs-base);
   }
 
-  [data-page="calendar"] .page-hero .cal-header-actions {
+  .page-actions--calendar .cal-header-actions {
     display: flex;
     justify-content: center;
     gap: var(--space-2);
@@ -5121,9 +5107,8 @@ body[data-layout="onboarding"] {
     margin-top: 52px;
   }
 
-  /* Page hero responsive */
-  .page-hero {
-    padding: var(--space-2) 0;
+  /* Page actions responsive */
+  .page-actions {
     gap: var(--space-2);
   }
 
@@ -5365,8 +5350,8 @@ body[data-layout="onboarding"] {
     padding: var(--space-2);
   }
 
-  .page-hero {
-    padding: var(--space-1) 0;
+  .page-actions {
+    gap: var(--space-1);
   }
 
   .stat-cards {
@@ -5467,11 +5452,11 @@ body[data-layout="onboarding"] {
   }
 
   /* Calendar header actions on small screens */
-  [data-page="calendar"] .page-hero .cal-header-actions {
+  .page-actions--calendar .cal-header-actions {
     gap: var(--space-1);
   }
 
-  [data-page="calendar"] .page-hero .cal-header-actions .btn {
+  .page-actions--calendar .cal-header-actions .btn {
     font-size: var(--fs-xs);
     padding: var(--space-1) var(--space-2);
   }
@@ -5876,6 +5861,69 @@ body[data-layout="onboarding"] {
   color: var(--text-secondary);
   margin: 0;
   line-height: 1.5;
+}
+
+/* ---- Load Indicators (Motivation Card) ---- */
+.dash-motivation__content {
+  flex: 1;
+  min-width: 0;
+}
+
+.dash-load-indicators {
+  margin-top: var(--space-3);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.dash-load-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.dash-load-label {
+  font-size: var(--fs-sm);
+  color: var(--text-secondary);
+  width: 80px;
+  flex-shrink: 0;
+}
+
+.dash-load-track {
+  flex: 1;
+  height: 6px;
+  background: var(--color-gray-200);
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.dash-load-fill {
+  height: 100%;
+  border-radius: 3px;
+  transition: width 0.4s ease;
+}
+
+.dash-load-fill--study {
+  background: var(--color-accent);
+}
+
+.dash-load-fill--total {
+  background: var(--color-primary);
+}
+
+.dash-load-value {
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  color: var(--text-primary);
+  width: 36px;
+  text-align: right;
+  flex-shrink: 0;
+}
+
+.dash-load-scheduled {
+  font-size: var(--fs-xs);
+  color: var(--text-tertiary);
+  text-align: right;
 }
 
 /* ---- Semester Progress ---- */
@@ -6528,11 +6576,19 @@ body[data-layout="onboarding"] {
   color: #2E7D6F;
 }
 
-/* ---- Page Hero Actions ---- */
-.page-hero__actions {
+/* ---- Page Actions (inline action bar below topbar) ---- */
+.page-actions {
   display: flex;
-  gap: var(--space-2);
   align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-2);
+  margin-bottom: var(--space-4);
+}
+
+.page-actions--calendar {
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--space-3);
 }
 
 /* ---- Dashboard Workload Overview ---- */
@@ -7101,7 +7157,7 @@ body[data-layout="onboarding"] {
     align-items: stretch;
   }
 
-  .page-hero__actions {
+  .page-actions {
     flex-wrap: wrap;
   }
 

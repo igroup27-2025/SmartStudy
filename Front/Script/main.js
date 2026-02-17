@@ -76,4 +76,16 @@ document.addEventListener('DOMContentLoaded', async () => {
             break;
         }
     }
+
+    // Apply stagger animations to main content containers
+    requestAnimationFrame(() => {
+        const staggerSelectors = [
+            '.dashboard-grid', '.task-list', '.courses-grid', '.card-grid-3',
+            '.exam-list', '.analytics-grid', '.settings-content'
+        ];
+        staggerSelectors.forEach(sel => {
+            const el = document.querySelector(sel);
+            if (el) el.classList.add('stagger-children');
+        });
+    });
 });

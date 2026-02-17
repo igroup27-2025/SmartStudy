@@ -44,6 +44,11 @@ function renderStressOverview(stress) {
             <div class="stat-box"><span class="stat-box-value">${stress.requiredHours}h</span><span class="stat-box-label">Required Work</span></div>
             <div class="stat-box"><span class="stat-box-value">${stress.availableHours}h</span><span class="stat-box-label">Available Time</span></div>
         </div>
+        <div class="analytics-stress-info" style="margin-top:var(--space-2)">
+            <div class="stat-box"><span class="stat-box-value" style="color:${stress.studyLoad > 80 ? '#E74C3C' : stress.studyLoad > 50 ? '#F28D35' : '#27AE60'}">${Math.round(stress.studyLoad ?? 0)}%</span><span class="stat-box-label">Study Load</span></div>
+            <div class="stat-box"><span class="stat-box-value" style="color:${stress.totalLoad > 80 ? '#E74C3C' : stress.totalLoad > 50 ? '#F28D35' : '#27AE60'}">${Math.round(stress.totalLoad ?? 0)}%</span><span class="stat-box-label">Total Load</span></div>
+            <div class="stat-box"><span class="stat-box-value">${stress.totalScheduledHours ?? 0}h</span><span class="stat-box-label">Scheduled Today</span></div>
+        </div>
     `;
 }
 

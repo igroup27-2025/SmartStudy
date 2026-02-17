@@ -70,10 +70,36 @@ function renderMotivation(stress) {
         text = "You're under high pressure. Focus on essentials only!";
     }
 
+    const studyLoad = Math.round(stress?.studyLoad ?? 0);
+    const totalLoad = Math.round(stress?.totalLoad ?? 0);
+    const scheduledH = stress?.totalScheduledHours ?? 0;
+    const showLoad = studyLoad > 0 || totalLoad > 0;
+
     el.innerHTML = `
         <div class="dash-motivation__card">
             <span class="dash-motivation__icon">${icon}</span>
-            <p class="dash-motivation__text">${text}</p>
+            <div class="dash-motivation__content">
+                <p class="dash-motivation__text">${text}</p>
+                ${showLoad ? `
+                <div class="dash-load-indicators">
+                    <div class="dash-load-row">
+                        <span class="dash-load-label">Study Load</span>
+                        <div class="dash-load-track">
+                            <div class="dash-load-fill dash-load-fill--study" style="width:${Math.min(studyLoad, 100)}%"></div>
+                        </div>
+                        <span class="dash-load-value">${studyLoad}%</span>
+                    </div>
+                    <div class="dash-load-row">
+                        <span class="dash-load-label">Total Load</span>
+                        <div class="dash-load-track">
+                            <div class="dash-load-fill dash-load-fill--total" style="width:${Math.min(totalLoad, 100)}%"></div>
+                        </div>
+                        <span class="dash-load-value">${totalLoad}%</span>
+                    </div>
+                    <span class="dash-load-scheduled">${scheduledH}h scheduled today</span>
+                </div>
+                ` : ''}
+            </div>
         </div>
     `;
 }
