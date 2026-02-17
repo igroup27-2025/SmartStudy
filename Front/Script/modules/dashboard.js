@@ -302,16 +302,22 @@ function renderRelocationSuggestions(data) {
         return;
     }
 
-    const cards = suggestions.map((s, i) => `
+    const cards = suggestions.map((s, i) => {
+        const eventDate = new Date(s.currentFrom);
+        const dateStr = `${eventDate.getFullYear()}-${String(eventDate.getMonth() + 1).padStart(2, '0')}-${String(eventDate.getDate()).padStart(2, '0')}`;
+        return `
         <div class="relocation-card" data-index="${i}">
             <div class="relocation-card__icon">&#128161;</div>
             <div class="relocation-card__body">
                 <div class="relocation-card__title">No room for "${s.blockedTaskTitle}"</div>
                 <div class="relocation-card__message">${s.message}</div>
             </div>
-            <button class="btn btn-sm btn-ghost relocation-dismiss" data-index="${i}" title="Dismiss">&times;</button>
+            <div class="relocation-card__actions">
+                <a href="${BASE_PATH}/Pages/Calendar.html?date=${dateStr}" class="btn btn-sm btn-primary relocation-move" title="Go to calendar to move this event">Move</a>
+                <button class="btn btn-sm btn-ghost relocation-dismiss" data-index="${i}" title="Dismiss">&times;</button>
+            </div>
         </div>
-    `).join('');
+    `}).join('');
 
     el.innerHTML = `
         <div class="dash-relocations__card">

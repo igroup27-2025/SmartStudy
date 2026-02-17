@@ -71,8 +71,12 @@ public class SchedulingService
             .Where(e => e.Email == email && ((e.From < scheduleEnd && e.To > scheduleStart) || e.Recurring))
             .ToListAsync();
         var classEventIds = await _db.ClassEvents.Select(ce => ce.EventId).ToListAsync();
-        var workEventIds = await _db.WorkEvents.Select(we => we.EventId).ToListAsync();
-        var personalEventIds = await _db.PersonalEvents.Select(pe => pe.EventId).ToListAsync();
+        var workEvents = await _db.WorkEvents.Where(w => w.Email == email).ToListAsync();
+        var workEventIds = workEvents.Select(w => w.EventId).ToList();
+        var personalEvents = await _db.PersonalEvents.Where(p => p.Email == email).ToListAsync();
+        var personalEventIds = personalEvents.Select(p => p.EventId).ToList();
+        var workEventLookup = workEvents.ToDictionary(w => w.EventId);
+        var personalEventLookup = personalEvents.ToDictionary(p => p.EventId);
 
         // Add lunch break as blocked slots if configured
         if (prefs?.LunchBreakStart != null && prefs?.LunchBreakEnd != null)
@@ -363,7 +367,8 @@ public class SchedulingService
 
                     // Generate relocation suggestions for work/personal events
                     GenerateRelocationSuggestions(result, task, scheduleStart, dueDate, fixedEvents,
-                        newTaskEvents, dayStart, dayEnd, totalNeeded, examDays, typedEvents, workEventIds, personalEventIds);
+                        newTaskEvents, dayStart, dayEnd, totalNeeded, examDays, typedEvents, workEventIds, personalEventIds,
+                        workEventLookup, personalEventLookup);
                 }
             }
             else
@@ -463,7 +468,8 @@ public class SchedulingService
                 });
 
                 GenerateRelocationSuggestions(result, task, scheduleStart, dueDate, fixedEvents,
-                    newTaskEvents, dayStart, dayEnd, totalHours, examDays, typedEvents, workEventIds, personalEventIds);
+                    newTaskEvents, dayStart, dayEnd, totalHours, examDays, typedEvents, workEventIds, personalEventIds,
+                    workEventLookup, personalEventLookup);
             }
         }
 
@@ -589,7 +595,8 @@ public class SchedulingService
         List<Event> fixedEvents, List<TaskEvent> newTaskEvents,
         int dayStart, int dayEnd, double neededHours,
         HashSet<DateTime> examDays,
-        List<Event> typedEvents, List<int> workEventIds, List<int> personalEventIds)
+        List<Event> typedEvents, List<int> workEventIds, List<int> personalEventIds,
+        Dictionary<int, WorkEvent> workEventLookup, Dictionary<int, PersonalEvent> personalEventLookup)
     {
         for (var day = scheduleStart; day < dueDate; day = day.AddDays(1))
         {
@@ -607,15 +614,16 @@ public class SchedulingService
                 if (evtDuration >= neededHours * 0.5) // Only suggest if the event frees meaningful time
                 {
                     var eventType = workEventIds.Contains(evt.EventId) ? "Work" : "Personal";
+                    var eventTitle = GetEventTitle(evt.EventId, eventType, workEventLookup, personalEventLookup);
                     result.RelocationSuggestions.Add(new RelocationSuggestionDto
                     {
                         EventId = evt.EventId,
-                        EventTitle = eventType == "Work" ? "Work Event" : "Personal Event",
+                        EventTitle = eventTitle,
                         EventType = eventType,
                         CurrentFrom = evt.From,
                         CurrentTo = evt.To,
                         BlockedTaskTitle = task.Title,
-                        Message = $"Moving this {eventType.ToLower()} event from {evt.From:ddd HH:mm}-{evt.To:HH:mm} would free up space for \"{task.Title}\""
+                        Message = $"Moving \"{eventTitle}\" from {evt.From:ddd HH:mm}-{evt.To:HH:mm} would free up space for \"{task.Title}\""
                     });
                 }
             }
@@ -623,6 +631,17 @@ public class SchedulingService
             if (result.RelocationSuggestions.Any(rs => rs.BlockedTaskTitle == task.Title))
                 break; // One suggestion per task is enough
         }
+    }
+
+    private static string GetEventTitle(int eventId, string eventType,
+        Dictionary<int, WorkEvent> workLookup, Dictionary<int, PersonalEvent> personalLookup)
+    {
+        if (eventType == "Work" && workLookup.TryGetValue(eventId, out var work))
+            return !string.IsNullOrWhiteSpace(work.WorkPlace) ? work.WorkPlace : "Work";
+        if (eventType == "Personal" && personalLookup.TryGetValue(eventId, out var personal))
+            return !string.IsNullOrWhiteSpace(personal.Description) ? personal.Description
+                : !string.IsNullOrWhiteSpace(personal.Type) ? personal.Type : "Personal";
+        return eventType;
     }
 
     public async Task<SchedulingStatusDto> GetSchedulingStatusAsync(string email)
@@ -661,14 +680,16 @@ public class SchedulingService
         };
 
         // Load typed event IDs for breakdown and relocation suggestions
-        var workEventIds = await _db.WorkEvents
+        var workEvents = await _db.WorkEvents
             .Where(w => w.Email == email)
-            .Select(w => w.EventId)
             .ToListAsync();
-        var personalEventIds = await _db.PersonalEvents
+        var workEventIds = workEvents.Select(w => w.EventId).ToList();
+        var workEventLookup = workEvents.ToDictionary(w => w.EventId);
+        var personalEvents = await _db.PersonalEvents
             .Where(p => p.Email == email)
-            .Select(p => p.EventId)
             .ToListAsync();
+        var personalEventIds = personalEvents.Select(p => p.EventId).ToList();
+        var personalEventLookup = personalEvents.ToDictionary(p => p.EventId);
         var classEventIds = await _db.ClassEvents
             .Where(c => c.Email == email)
             .Select(c => c.EventId)
@@ -734,15 +755,16 @@ public class SchedulingService
                     if (evtDuration >= 1.0)
                     {
                         var eventType = workEventIds.Contains(evt.EventId) ? "Work" : "Personal";
+                        var eventTitle = GetEventTitle(evt.EventId, eventType, workEventLookup, personalEventLookup);
                         result.RelocationSuggestions.Add(new RelocationSuggestionDto
                         {
                             EventId = evt.EventId,
-                            EventTitle = $"{eventType} Event",
+                            EventTitle = eventTitle,
                             EventType = eventType,
                             CurrentFrom = evt.From,
                             CurrentTo = evt.To,
                             BlockedTaskTitle = task.Title,
-                            Message = $"Moving this {eventType.ToLower()} event from {evt.From:ddd HH:mm}-{evt.To:HH:mm} would free up space for \"{task.Title}\""
+                            Message = $"Moving \"{eventTitle}\" from {evt.From:ddd HH:mm}-{evt.To:HH:mm} would free up space for \"{task.Title}\""
                         });
                         break;
                     }
