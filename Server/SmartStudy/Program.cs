@@ -374,6 +374,10 @@ using (var scope = app.Services.CreateScope())
             -- Add AllowSplitting to Tasks
             IF COL_LENGTH('SmartStudy_Tasks', 'AllowSplitting') IS NULL
                 ALTER TABLE SmartStudy_Tasks ADD AllowSplitting BIT NOT NULL DEFAULT 0;
+
+            -- Add RecurrenceEndDate to Events
+            IF COL_LENGTH('SmartStudy_Events', 'RecurrenceEndDate') IS NULL
+                ALTER TABLE SmartStudy_Events ADD RecurrenceEndDate DATETIME2 NULL;
         ";
         schedRedesignCmd.ExecuteNonQuery();
     }
