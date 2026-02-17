@@ -107,7 +107,66 @@ export function initLayout() {
     overlay.className = 'sidebar-overlay';
     overlay.id = 'sidebarOverlay';
 
+    // Bottom navigation bar (mobile)
+    const BOTTOM_NAV_ICONS = {
+        dashboard: '\u{1F3E0}',
+        tasks:     '\u2705',
+        calendar:  '\u{1F4C5}',
+        exams:     '\u{1F4DD}',
+    };
+
+    const MORE_NAV_ICONS = {
+        courses:   '\u{1F4DA}',
+        analytics: '\u{1F4CA}',
+        friends:   '\u{1F465}',
+        settings:  '\u2699\uFE0F',
+    };
+
+    const primaryPages = ['dashboard', 'tasks', 'calendar', 'exams'];
+    const morePages    = ['courses', 'analytics', 'friends', 'settings'];
+
+    const bottomNav = document.createElement('nav');
+    bottomNav.className = 'bottom-nav';
+    bottomNav.setAttribute('aria-label', 'Mobile navigation');
+
+    const navItemsHTML = primaryPages.map(page => {
+        const n = NAV.find(x => x.page === page);
+        if (!n) return '';
+        const active = currentPage === page ? ' active' : '';
+        return `<a href="${n.href}" class="bottom-nav__item${active}" data-page="${page}">
+            <span class="bottom-nav__icon">${BOTTOM_NAV_ICONS[page]}</span>
+            <span class="bottom-nav__label">${n.label}</span>
+        </a>`;
+    }).join('');
+
+    const moreActive = morePages.includes(currentPage) ? ' active' : '';
+    bottomNav.innerHTML = navItemsHTML +
+        `<button class="bottom-nav__item${moreActive}" id="bottomNavMore" type="button">
+            <span class="bottom-nav__icon">\u2026</span>
+            <span class="bottom-nav__label">More</span>
+        </button>`;
+
+    const moreSheet = document.createElement('div');
+    moreSheet.className = 'bottom-nav__more-sheet';
+    moreSheet.innerHTML = `
+        <div class="bottom-nav__more-backdrop"></div>
+        <div class="bottom-nav__more-panel">
+            <div class="bottom-nav__more-handle"></div>
+            ${morePages.map(page => {
+                const n = NAV.find(x => x.page === page);
+                if (!n) return '';
+                const active = currentPage === page ? ' active' : '';
+                return `<a href="${n.href}" class="bottom-nav__more-item${active}">
+                    <span class="bottom-nav__more-icon">${MORE_NAV_ICONS[page]}</span>
+                    ${n.label}
+                </a>`;
+            }).join('')}
+        </div>
+    `;
+
     body.prepend(overlay);
+    body.prepend(moreSheet);
+    body.prepend(bottomNav);
     body.prepend(main);
     body.prepend(topbar);
     body.prepend(sidebar);
@@ -139,6 +198,22 @@ export function initLayout() {
     document.addEventListener('click', (e) => {
         if (!e.target.closest('.topbar-user')) {
             document.getElementById('userDropdown')?.classList.remove('show');
+        }
+    });
+
+    // Bottom nav "More" sheet toggle
+    const moreBtn = document.getElementById('bottomNavMore');
+    const closeMoreSheet = () => moreSheet.classList.remove('open');
+
+    moreBtn?.addEventListener('click', () => {
+        moreSheet.classList.toggle('open');
+    });
+
+    moreSheet.querySelector('.bottom-nav__more-backdrop')?.addEventListener('click', closeMoreSheet);
+
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' && moreSheet.classList.contains('open')) {
+            closeMoreSheet();
         }
     });
 }

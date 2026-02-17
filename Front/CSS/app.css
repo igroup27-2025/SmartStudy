@@ -5052,6 +5052,17 @@ body[data-layout="onboarding"] {
 }
 
 
+/* Settings row inline-width replacements (were inline styles) */
+.settings-row .onboarding-field__range-wrap { width: 200px; flex-shrink: 0; }
+.settings-select { width: 160px; }
+.settings-number { width: 120px; }
+
+/* Touch feedback for touch-only devices */
+@media (hover: none) {
+  .btn:active { transform: scale(0.97); }
+  .bottom-nav__item:active { background: var(--color-gray-50); }
+}
+
 /* ============================================================
    24. RESPONSIVE — Mobile (max-width: 768px)
    ============================================================ */
@@ -5342,12 +5353,55 @@ body[data-layout="onboarding"] {
     font-size: var(--fs-xl);
   }
 
+  /* ---- Bottom nav activation ---- */
+  .bottom-nav { display: flex; }
+  .bottom-nav__more-sheet { display: block; }
+  .main-content {
+    padding-bottom: calc(56px + env(safe-area-inset-bottom, 0px) + var(--space-4));
+    overflow-x: hidden;
+  }
+
+  /* ---- Settings responsive ---- */
+  .settings-row {
+    flex-direction: column;
+    align-items: stretch;
+    gap: var(--space-3);
+  }
+  .settings-row .onboarding-field__range-wrap,
+  .settings-select,
+  .settings-number { width: 100%; }
+
+  /* ---- iOS auto-zoom prevention ---- */
+  .form-input,
+  .form-select,
+  .form-textarea { font-size: 16px; }
+
+  /* ---- Touch target improvements ---- */
+  .btn-sm { min-height: 44px; }
+  .onboarding-day-chip,
+  .constraint-day-chip span {
+    min-height: 40px;
+    padding: 8px 12px;
+  }
+
+  /* ---- Modal scrolling ---- */
+  .modal-body {
+    overflow-y: auto;
+    max-height: calc(90vh - 120px);
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* ---- Onboarding improvements ---- */
+  .onboarding-container { padding: var(--space-3); }
+  .onboarding-external-item { flex-wrap: wrap; }
+
 }
 
 /* Small mobile */
 @media (max-width: 480px) {
   .main-content {
     padding: var(--space-2);
+    padding-bottom: calc(56px + env(safe-area-inset-bottom, 0px) + var(--space-3));
   }
 
   .page-actions {
@@ -5467,6 +5521,22 @@ body[data-layout="onboarding"] {
     max-width: 300px;
     right: -8px;
   }
+
+  /* ---- Calendar action bar — hide less-used buttons ---- */
+  #calSyncGoogle,
+  #calImportSchedule { display: none; }
+  .cal-view-btn {
+    padding: var(--space-1) var(--space-2);
+    font-size: 10px;
+  }
+
+  /* ---- Onboarding small-screen ---- */
+  .onboarding-title { font-size: var(--fs-xl); }
+  .onboarding-subtitle { font-size: var(--fs-sm); }
+
+  /* ---- Tasks filter bar ---- */
+  .filter-bar { gap: var(--space-1); }
+  .filter-bar .form-input-sm { font-size: var(--fs-xs); }
 }
 
 
@@ -7224,6 +7294,85 @@ body[data-layout="onboarding"] {
   .chart-container {
     padding: var(--space-4);
   }
+
+  /* ---- Dashboard Stats Grid ---- */
+  .dash-stat__value {
+    font-size: var(--fs-xl);
+  }
+
+  .dash-stat__label {
+    font-size: var(--fs-xs);
+  }
+
+  /* ---- Load Indicators ---- */
+  .dash-load-label {
+    width: 70px;
+    font-size: var(--fs-xs);
+  }
+
+  .dash-load-value {
+    width: 32px;
+    font-size: var(--fs-xs);
+  }
+
+  /* ---- Motivation Card ---- */
+  .dash-motivation__card {
+    padding: var(--space-3) var(--space-4);
+  }
+
+  .dash-motivation__icon {
+    font-size: 1.2rem;
+  }
+
+  .dash-motivation__text {
+    font-size: var(--fs-sm);
+  }
+
+  /* ---- Relocation Cards ---- */
+  .dash-relocations__card {
+    padding: var(--space-3);
+  }
+
+  .relocation-card {
+    flex-wrap: wrap;
+    padding: var(--space-2);
+    gap: var(--space-2);
+  }
+
+  .relocation-card__actions {
+    width: 100%;
+    justify-content: flex-end;
+  }
+
+  /* ---- Unscheduled Tasks ---- */
+  .dash-unscheduled__card {
+    padding: var(--space-3);
+  }
+
+  /* ---- Suggestion Card ---- */
+  .dash-suggestion__card {
+    padding: var(--space-3);
+    gap: var(--space-3);
+  }
+
+  /* ---- Overdue / Review Task Cards ---- */
+  .dash-task-card__actions {
+    justify-content: flex-start;
+  }
+
+  /* ---- Weekly Insights ---- */
+  .focus-task-item {
+    flex-wrap: wrap;
+    gap: var(--space-1);
+  }
+
+  .focus-task-item__title {
+    min-width: 0;
+  }
+
+  .suggestion-card {
+    font-size: var(--fs-sm);
+  }
 }
 
 /* Extra-small screens */
@@ -7257,5 +7406,86 @@ body[data-layout="onboarding"] {
 
   .chart-title {
     font-size: var(--fs-base);
+  }
+
+  /* ---- Dashboard Stats Grid — single column ---- */
+  .dash-stats {
+    grid-template-columns: 1fr;
+  }
+
+  .dash-stat {
+    padding: var(--space-3) var(--space-2);
+  }
+
+  .dash-stat__value {
+    font-size: var(--fs-lg);
+  }
+
+  /* ---- Load Indicators — stacked layout ---- */
+  .dash-load-row {
+    flex-wrap: wrap;
+  }
+
+  .dash-load-label {
+    width: 100%;
+    margin-bottom: calc(-1 * var(--space-1));
+  }
+
+  /* ---- Motivation Card ---- */
+  .dash-motivation__card {
+    padding: var(--space-2) var(--space-3);
+  }
+
+  .dash-motivation__icon {
+    font-size: 1rem;
+  }
+
+  /* ---- Relocation Cards ---- */
+  .relocation-card__icon {
+    font-size: 1rem;
+  }
+
+  .relocation-card__body {
+    min-width: 0;
+  }
+
+  .relocation-card__title {
+    font-size: var(--fs-xs);
+  }
+
+  /* ---- Suggestion Card ---- */
+  .dash-suggestion__card {
+    padding: var(--space-2) var(--space-3);
+    gap: var(--space-2);
+  }
+
+  .dash-suggestion__title {
+    font-size: var(--fs-sm);
+  }
+
+  /* ---- Overdue / Review Cards ---- */
+  .dash-task-card {
+    padding: var(--space-3);
+    gap: var(--space-2);
+  }
+
+  .dash-task-card__actions .btn {
+    font-size: var(--fs-xs);
+    padding: var(--space-1) var(--space-2);
+  }
+
+  /* ---- Weekly Insights ---- */
+  .focus-task-item {
+    padding: var(--space-1) var(--space-2);
+    font-size: var(--fs-xs);
+  }
+
+  .suggestion-card {
+    padding: var(--space-2);
+    font-size: var(--fs-xs);
+  }
+
+  .suggestion-card__icon {
+    font-size: 0.9rem;
   }
 }
