@@ -175,13 +175,32 @@ public class DashboardController : ControllerBase
             .ToList();
 
         // Next suggested task: use same priority formula as scheduling engine
+        // Build ML course ratios (same logic as SchedulingService)
+        var prefs = await _db.SchedulingPreferences.FirstOrDefaultAsync(p => p.Email == email);
+        var completedForML = await _db.Tasks
+            .Where(t => t.Email == email && t.IsCompleted && t.ActualHours.HasValue && t.EstimatedHours.HasValue && t.EstimatedHours > 0)
+            .Select(t => new { t.CourseId, Actual = (double)t.ActualHours!.Value, Estimated = (double)t.EstimatedHours!.Value })
+            .ToListAsync();
+        var courseRatios = completedForML
+            .GroupBy(t => t.CourseId)
+            .Where(g => g.Count() >= 2)
+            .ToDictionary(g => g.Key, g => g.Average(t => t.Actual / t.Estimated));
+
         TaskDto? nextSuggested = null;
         var suggested = tasksWithEvents
             .Where(t => t.DueDate.HasValue && t.DueDate > now && !t.IsCompleted)
             .OrderByDescending(t =>
             {
                 var daysUntilDue = Math.Max(0.1, (t.DueDate!.Value - now).TotalDays);
-                var hours = (double)(t.EstimatedHours ?? 4m);
+                // Full effective hours hierarchy: explicit → course default → global default → 4.0, then ML ratio
+                double hours;
+                if (t.EstimatedHours.HasValue && t.EstimatedHours > 0)
+                    hours = (double)t.EstimatedHours;
+                else
+                    hours = t.Course?.DefaultTaskEstimatedHours ?? prefs?.DefaultTaskEstimatedHours ?? 4.0;
+                if (courseRatios.TryGetValue(t.CourseId, out var ratio))
+                    hours *= ratio;
+
                 var credits = (double)(t.Course?.Credits ?? 3);
                 var isShared = t.SharedTask != null;
                 return (1.0 / daysUntilDue) * 50
