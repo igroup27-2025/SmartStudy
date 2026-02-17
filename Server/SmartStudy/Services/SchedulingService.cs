@@ -132,16 +132,27 @@ public class SchedulingService
                     EstimatedHours = (decimal)totalPrepHours,
                     DueDate = exam.Date.Date,
                     IsCompleted = false,
-                    Priority = "High"
+                    Priority = "High",
+                    AllowSplitting = true  // Exam prep spans multiple days by design
                 };
                 _db.Tasks.Add(existingStudyTask);
                 await _db.SaveChangesAsync();
             }
-            else if ((double)(existingStudyTask.EstimatedHours ?? 0) != totalPrepHours)
+            else
             {
-                // Update hours if prep settings changed
-                existingStudyTask.EstimatedHours = (decimal)totalPrepHours;
-                await _db.SaveChangesAsync();
+                bool changed = false;
+                if ((double)(existingStudyTask.EstimatedHours ?? 0) != totalPrepHours)
+                {
+                    existingStudyTask.EstimatedHours = (decimal)totalPrepHours;
+                    changed = true;
+                }
+                // Ensure exam prep tasks always allow splitting (multi-day by design)
+                if (!existingStudyTask.AllowSplitting)
+                {
+                    existingStudyTask.AllowSplitting = true;
+                    changed = true;
+                }
+                if (changed) await _db.SaveChangesAsync();
             }
 
             examStudyTasks.Add(existingStudyTask);

@@ -120,7 +120,7 @@ public class DashboardController : ControllerBase
         var schedulingStatus = await _schedulingService.GetSchedulingStatusAsync(email);
 
         var incompleteTasks = tasks.Where(t => !t.IsCompleted).ToList();
-        var tasksWithEvents = await _db.Tasks.Include(t => t.TaskEvents).Include(t => t.Course)
+        var tasksWithEvents = await _db.Tasks.Include(t => t.TaskEvents).Include(t => t.Course).Include(t => t.SharedTask)
             .Where(t => t.Email == email && !t.IsCompleted)
             .ToListAsync();
 
@@ -174,16 +174,20 @@ public class DashboardController : ControllerBase
             })
             .ToList();
 
-        // Next suggested task: weighted scoring matching scheduling engine
+        // Next suggested task: use same priority formula as scheduling engine
         TaskDto? nextSuggested = null;
         var suggested = tasksWithEvents
             .Where(t => t.DueDate.HasValue && t.DueDate > now && !t.IsCompleted)
             .OrderByDescending(t =>
             {
                 var daysUntilDue = Math.Max(0.1, (t.DueDate!.Value - now).TotalDays);
-                var priorityWeight = t.Priority == "High" ? 3.0 : t.Priority == "Medium" ? 2.0 : 1.0;
-                var hours = (double)(t.EstimatedHours ?? 1m);
-                return (1.0 / daysUntilDue) * 40 + priorityWeight * 30 + Math.Min(hours, 10) * 3;
+                var hours = (double)(t.EstimatedHours ?? 4m);
+                var credits = (double)(t.Course?.Credits ?? 3);
+                var isShared = t.SharedTask != null;
+                return (1.0 / daysUntilDue) * 50
+                     + Math.Min(hours, 10) * 5
+                     + credits * 4
+                     + (isShared ? 25 : 0);
             })
             .FirstOrDefault();
 

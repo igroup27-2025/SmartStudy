@@ -5,6 +5,7 @@ using Microsoft.EntityFrameworkCore;
 using SmartStudy.Data;
 using SmartStudy.DTOs;
 using SmartStudy.Models;
+using SmartStudy.Services;
 
 namespace SmartStudy.Controllers;
 
@@ -14,8 +15,13 @@ namespace SmartStudy.Controllers;
 public class CoursesController : ControllerBase
 {
     private readonly SmartStudyDbContext _db;
+    private readonly SchedulingService _scheduling;
 
-    public CoursesController(SmartStudyDbContext db) => _db = db;
+    public CoursesController(SmartStudyDbContext db, SchedulingService scheduling)
+    {
+        _db = db;
+        _scheduling = scheduling;
+    }
 
     private string GetEmail() => User.FindFirst(ClaimTypes.Email)!.Value;
 
@@ -154,6 +160,14 @@ public class CoursesController : ControllerBase
         }
 
         await _db.SaveChangesAsync();
+
+        // Reschedule if scheduling-relevant fields changed
+        if (dto.DefaultTaskEstimatedHours.HasValue || dto.ExamPrepHoursPerDay.HasValue
+            || dto.ExamPrepDays.HasValue || dto.Credits.HasValue)
+        {
+            await _scheduling.ScheduleAllTasksAsync(email);
+        }
+
         return Ok(new CourseDto
         {
             CourseId = course.CourseId,
