@@ -917,8 +917,10 @@ public class SchedulingService
             if (evt.Recurring)
             {
                 var duration = evt.To - evt.From;
+                var endLimit = evt.RecurrenceEndDate.HasValue && evt.RecurrenceEndDate.Value < rangeEnd
+                    ? evt.RecurrenceEndDate.Value : rangeEnd;
                 var nextFrom = evt.From.AddDays(7);
-                while (nextFrom < rangeEnd)
+                while (nextFrom < endLimit)
                 {
                     var nextTo = nextFrom.Add(duration);
                     if (nextTo > rangeStart)

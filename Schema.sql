@@ -142,6 +142,7 @@ CREATE TABLE SmartStudy_Events (
     [From]    DATETIME2      NOT NULL,
     [To]      DATETIME2      NOT NULL,
     Recurring BIT            NOT NULL DEFAULT 0,
+    RecurrenceEndDate DATETIME2 NULL,
     CONSTRAINT PK_SmartStudy_Events PRIMARY KEY (EventId),
     CONSTRAINT FK_Events_Users FOREIGN KEY (Email)
         REFERENCES SmartStudy_Users(Email) ON DELETE CASCADE

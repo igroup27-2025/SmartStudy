@@ -61,8 +61,11 @@ public class EventsController : ControllerBase
             if (evt.Recurring && from.HasValue && to.HasValue)
             {
                 var duration = evt.To - evt.From;
+                var endLimit = evt.RecurrenceEndDate.HasValue
+                    ? (to.Value < evt.RecurrenceEndDate.Value ? to.Value : evt.RecurrenceEndDate.Value)
+                    : to.Value;
                 var nextFrom = evt.From.AddDays(7);
-                while (nextFrom <= to.Value)
+                while (nextFrom <= endLimit)
                 {
                     var nextTo = nextFrom.Add(duration);
                     if (nextTo >= from.Value)
@@ -93,7 +96,8 @@ public class EventsController : ControllerBase
             EventId = evt.EventId,
             From = evt.From,
             To = evt.To,
-            Recurring = evt.Recurring
+            Recurring = evt.Recurring,
+            RecurrenceEndDate = evt.RecurrenceEndDate
         };
 
         if (classEvents.TryGetValue(evt.EventId, out var ce))
@@ -143,6 +147,7 @@ public class EventsController : ControllerBase
             From = dto.From,
             To = dto.To,
             Recurring = dto.Recurring,
+            RecurrenceEndDate = dto.RecurrenceEndDate,
             CourseId = dto.CourseId,
             Location = dto.Location,
             Duration = dto.Duration
@@ -174,6 +179,7 @@ public class EventsController : ControllerBase
             From = dto.From,
             To = dto.To,
             Recurring = dto.Recurring,
+            RecurrenceEndDate = dto.RecurrenceEndDate,
             TaskId = dto.TaskId,
             Priority = dto.Priority,
             Status = dto.Status ?? "Scheduled"
@@ -193,6 +199,7 @@ public class EventsController : ControllerBase
             From = dto.From,
             To = dto.To,
             Recurring = dto.Recurring,
+            RecurrenceEndDate = dto.RecurrenceEndDate,
             TravelTime = dto.TravelTime,
             WorkPlace = dto.WorkPlace
         };
@@ -222,6 +229,7 @@ public class EventsController : ControllerBase
             From = dto.From,
             To = dto.To,
             Recurring = dto.Recurring,
+            RecurrenceEndDate = dto.RecurrenceEndDate,
             Type = dto.Type,
             Description = dto.Description
         };
@@ -251,6 +259,7 @@ public class EventsController : ControllerBase
         evt.From = dto.From;
         evt.To = dto.To;
         evt.Recurring = dto.Recurring;
+        evt.RecurrenceEndDate = dto.RecurrenceEndDate;
         evt.CourseId = dto.CourseId;
         evt.Location = dto.Location;
         evt.Duration = dto.Duration;
@@ -269,6 +278,7 @@ public class EventsController : ControllerBase
         evt.From = dto.From;
         evt.To = dto.To;
         evt.Recurring = dto.Recurring;
+        evt.RecurrenceEndDate = dto.RecurrenceEndDate;
         evt.TravelTime = dto.TravelTime;
         evt.WorkPlace = dto.WorkPlace;
         await _db.SaveChangesAsync();
@@ -286,6 +296,7 @@ public class EventsController : ControllerBase
         evt.From = dto.From;
         evt.To = dto.To;
         evt.Recurring = dto.Recurring;
+        evt.RecurrenceEndDate = dto.RecurrenceEndDate;
         evt.TaskId = dto.TaskId;
         evt.Priority = dto.Priority;
         evt.Status = dto.Status ?? evt.Status;
@@ -303,6 +314,7 @@ public class EventsController : ControllerBase
         evt.From = dto.From;
         evt.To = dto.To;
         evt.Recurring = dto.Recurring;
+        evt.RecurrenceEndDate = dto.RecurrenceEndDate;
         evt.Type = dto.Type;
         evt.Description = dto.Description;
         await _db.SaveChangesAsync();
@@ -349,8 +361,11 @@ public class EventsController : ControllerBase
             if (evt.Recurring)
             {
                 var duration = evt.To - evt.From;
+                var loopLimit = dto.To.AddDays(7);
+                if (evt.RecurrenceEndDate.HasValue && evt.RecurrenceEndDate.Value < loopLimit)
+                    loopLimit = evt.RecurrenceEndDate.Value;
                 var nextFrom = evt.From.AddDays(7);
-                for (int i = 0; i < 52 && nextFrom < dto.To.AddDays(7); i++)
+                for (int i = 0; i < 52 && nextFrom < loopLimit; i++)
                 {
                     var nextTo = nextFrom.Add(duration);
                     if (nextFrom < dto.To && nextTo > dto.From)

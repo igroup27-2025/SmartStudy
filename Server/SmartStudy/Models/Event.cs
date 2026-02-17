@@ -7,6 +7,7 @@ public class Event
     public DateTime From { get; set; }
     public DateTime To { get; set; }
     public bool Recurring { get; set; }
+    public DateTime? RecurrenceEndDate { get; set; }
 
     // Navigation property
     public User User { get; set; } = null!;

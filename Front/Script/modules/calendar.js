@@ -665,6 +665,12 @@ function setupEventCreation() {
         updateEventFormFields(typeSelect.value);
     });
 
+    // Toggle recurrence end date visibility
+    document.getElementById('eventRecurring')?.addEventListener('change', (e) => {
+        const recEndGroup = document.getElementById('recurrenceEndDateGroup');
+        if (recEndGroup) recEndGroup.classList.toggle('hidden', !e.target.checked);
+    });
+
     form.addEventListener('submit', async (e) => {
         e.preventDefault();
 
@@ -674,6 +680,8 @@ function setupEventCreation() {
         const toDate = document.getElementById('eventToDate').value;
         const toTime = document.getElementById('eventToTime').value;
         const recurring = document.getElementById('eventRecurring')?.checked || false;
+        const recEndVal = document.getElementById('eventRecurrenceEndDate')?.value;
+        const recurrenceEndDate = recurring && recEndVal ? new Date(recEndVal + 'T23:59:59').toISOString() : null;
 
         if (type === 'exam') {
             if (!fromDate || !fromTime) {
@@ -720,6 +728,7 @@ function setupEventCreation() {
                     from: from.toISOString(),
                     to: to.toISOString(),
                     recurring,
+                    recurrenceEndDate,
                     courseId: parseInt(document.getElementById('eventCourseId').value),
                     location: document.getElementById('eventLocation')?.value || null,
                     duration: (to - from) / 3600000
@@ -731,6 +740,7 @@ function setupEventCreation() {
                     from: from.toISOString(),
                     to: to.toISOString(),
                     recurring,
+                    recurrenceEndDate,
                     workPlace: document.getElementById('eventWorkPlace')?.value || null,
                     travelTime: parseInt(document.getElementById('eventTravelTime')?.value) || null
                 };
@@ -745,6 +755,7 @@ function setupEventCreation() {
                         from: from.toISOString(),
                         to: to.toISOString(),
                         recurring,
+                        recurrenceEndDate,
                         taskId,
                         priority: existingEvent?.priority || null,
                         status: existingEvent?.status || 'Scheduled'
@@ -783,6 +794,7 @@ function setupEventCreation() {
                         from: from.toISOString(),
                         to: to.toISOString(),
                         recurring,
+                        recurrenceEndDate,
                         taskId,
                         priority: null,
                         status: 'Scheduled'
@@ -814,6 +826,7 @@ function setupEventCreation() {
                     from: from.toISOString(),
                     to: to.toISOString(),
                     recurring,
+                    recurrenceEndDate,
                     type: document.getElementById('eventPersonalType')?.value || null,
                     description: document.getElementById('eventDescription')?.value || null
                 };
@@ -1109,6 +1122,7 @@ function openEventModal(dateStr, hour, endHour) {
     const form = document.getElementById('eventForm');
     if (!form) return;
     form.reset();
+    document.getElementById('recurrenceEndDateGroup')?.classList.add('hidden');
 
     // Reset editing state
     editingEventId = null;
@@ -1194,6 +1208,14 @@ function openEventModalForEdit(event) {
     document.getElementById('eventToDate').value = dateStr(to);
     document.getElementById('eventToTime').value = timeStr(to);
     document.getElementById('eventRecurring').checked = event.recurring;
+    const recEndGroup = document.getElementById('recurrenceEndDateGroup');
+    if (recEndGroup) recEndGroup.classList.toggle('hidden', !event.recurring);
+    if (event.recurrenceEndDate) {
+        const endD = new Date(event.recurrenceEndDate);
+        document.getElementById('eventRecurrenceEndDate').value = dateStr(endD);
+    } else {
+        document.getElementById('eventRecurrenceEndDate').value = '';
+    }
 
     // Fill type-specific fields
     if (event.eventType === 'class') {
@@ -1244,6 +1266,8 @@ function updateEventFormFields(type) {
     const recurringRow = document.getElementById('eventRecurring')?.closest('.form-group');
     if (endDateRow) endDateRow.style.display = type === 'exam' ? 'none' : '';
     if (recurringRow) recurringRow.style.display = type === 'exam' ? 'none' : '';
+    const recEndGroup = document.getElementById('recurrenceEndDateGroup');
+    if (recEndGroup) recEndGroup.classList.toggle('hidden', type === 'exam' || !document.getElementById('eventRecurring')?.checked);
     // Remove required from hidden fields to prevent form validation errors
     if (endDateEl) endDateEl.required = type !== 'exam';
     if (endTimeEl) endTimeEl.required = type !== 'exam';
@@ -1398,7 +1422,7 @@ function showEventDetails(eventId, targetEl) {
                     <span class="cal-event-detail-label">Time</span>
                     <span class="cal-event-detail-value">${formatTime(from)} - ${formatTime(to)} (${durationStr})</span>
                 </div>
-                ${event.recurring ? '<div class="cal-event-detail-row"><span class="cal-event-detail-label">Recurring</span><span class="cal-event-detail-value">Yes (Weekly)</span></div>' : ''}
+                ${event.recurring ? `<div class="cal-event-detail-row"><span class="cal-event-detail-label">Recurring</span><span class="cal-event-detail-value">Weekly${event.recurrenceEndDate ? ' until ' + new Date(event.recurrenceEndDate).toLocaleDateString() : ''}</span></div>` : ''}
                 ${event.location ? `<div class="cal-event-detail-row"><span class="cal-event-detail-label">Location</span><span class="cal-event-detail-value">${event.location}</span></div>` : ''}
                 ${event.workPlace ? `<div class="cal-event-detail-row"><span class="cal-event-detail-label">Workplace</span><span class="cal-event-detail-value">${event.workPlace}</span></div>` : ''}
                 ${event.description ? `<div class="cal-event-detail-row"><span class="cal-event-detail-label">Description</span><span class="cal-event-detail-value">${event.description}</span></div>` : ''}

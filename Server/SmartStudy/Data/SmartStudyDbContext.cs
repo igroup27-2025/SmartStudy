@@ -197,6 +197,7 @@ public class SmartStudyDbContext : DbContext
             entity.Property(e => e.From).HasColumnName("From");
             entity.Property(e => e.To).HasColumnName("To");
             entity.Property(e => e.Recurring).HasDefaultValue(false);
+            entity.Property(e => e.RecurrenceEndDate).HasColumnName("RecurrenceEndDate");
 
             entity.HasOne(e => e.User)
                 .WithMany(u => u.Events)
