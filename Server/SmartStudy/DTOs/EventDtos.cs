@@ -21,6 +21,7 @@ public class EventDto
     public string? Priority { get; set; }
     public decimal? ActualHours { get; set; }
     public string? Status { get; set; }
+    public bool? IsManuallyPinned { get; set; }
 
     // WorkEvent fields
     public int? TravelTime { get; set; }
@@ -78,4 +79,15 @@ public class CheckConflictDto
     public DateTime From { get; set; }
     public DateTime To { get; set; }
     public int? ExcludeEventId { get; set; }
+}
+
+public class ChangeEventTypeDto
+{
+    public string NewType { get; set; } = null!;
+    // Work fields
+    public string? WorkPlace { get; set; }
+    public int? TravelTime { get; set; }
+    // Personal fields
+    public string? PersonalType { get; set; }
+    public string? Description { get; set; }
 }

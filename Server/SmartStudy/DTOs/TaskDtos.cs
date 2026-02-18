@@ -30,6 +30,7 @@ public class TaskDto
     public string SchedulingStatus { get; set; } = "Unscheduled"; // "Scheduled" | "Unscheduled" | "Partial"
     public List<TaskSlotDto>? ScheduledSlots { get; set; }
     public bool AllowSplitting { get; set; }
+    public bool IsManuallyPinned { get; set; }
 }
 
 public class TaskSlotDto
@@ -75,4 +76,5 @@ public class UpdateTaskDto
     public DateTime? DueDate { get; set; }
     public bool? IsCompleted { get; set; }
     public bool? AllowSplitting { get; set; }
+    public bool? IsManuallyPinned { get; set; }
 }

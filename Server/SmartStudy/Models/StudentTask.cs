@@ -14,6 +14,7 @@ public class StudentTask
     public int? ParentTaskId { get; set; }
     public string Email { get; set; } = null!;
     public bool AllowSplitting { get; set; } = false;
+    public bool IsManuallyPinned { get; set; } = false;
 
     // Navigation properties
     public Course Course { get; set; } = null!;

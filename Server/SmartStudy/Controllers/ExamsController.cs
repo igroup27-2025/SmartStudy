@@ -47,7 +47,8 @@ public class ExamsController : ControllerBase
                 Time = e.Time,
                 Session = e.Session,
                 Duration = e.Duration,
-                DaysUntil = (int)(e.Date - DateTime.Today).TotalDays
+                DaysUntil = (int)(e.Date - DateTime.Today).TotalDays,
+                IsTakingExam = e.IsTakingExam
             })
             .ToListAsync();
 
@@ -77,7 +78,8 @@ public class ExamsController : ControllerBase
             Time = exam.Time,
             Session = exam.Session,
             Duration = exam.Duration,
-            DaysUntil = (int)(exam.Date - DateTime.Today).TotalDays
+            DaysUntil = (int)(exam.Date - DateTime.Today).TotalDays,
+            IsTakingExam = exam.IsTakingExam
         });
     }
 
@@ -90,7 +92,8 @@ public class ExamsController : ControllerBase
             Date = dto.Date,
             Time = TimeSpan.Parse(dto.Time),
             Session = dto.Session,
-            Duration = dto.Duration
+            Duration = dto.Duration,
+            IsTakingExam = dto.Session != "B" // Session A and C default to taking, B defaults to not taking
         };
 
         _db.Exams.Add(exam);
@@ -110,7 +113,8 @@ public class ExamsController : ControllerBase
             Time = exam.Time,
             Session = exam.Session,
             Duration = exam.Duration,
-            DaysUntil = (int)(exam.Date - DateTime.Today).TotalDays
+            DaysUntil = (int)(exam.Date - DateTime.Today).TotalDays,
+            IsTakingExam = exam.IsTakingExam
         });
     }
 
@@ -148,7 +152,60 @@ public class ExamsController : ControllerBase
             Time = exam.Time,
             Session = exam.Session,
             Duration = exam.Duration,
-            DaysUntil = (int)(exam.Date - DateTime.Today).TotalDays
+            DaysUntil = (int)(exam.Date - DateTime.Today).TotalDays,
+            IsTakingExam = exam.IsTakingExam
+        });
+    }
+
+    [HttpPut("{id}/toggle-taking")]
+    public async Task<IActionResult> ToggleTaking(int id)
+    {
+        var email = GetEmail();
+        var courseIds = await _db.UserCourses
+            .Where(uc => uc.Email == email)
+            .Select(uc => uc.CourseId)
+            .ToListAsync();
+
+        var exam = await _db.Exams.Include(e => e.Course)
+            .FirstOrDefaultAsync(e => e.ExamId == id && courseIds.Contains(e.CourseId));
+        if (exam == null) return NotFound();
+
+        exam.IsTakingExam = !exam.IsTakingExam;
+
+        if (!exam.IsTakingExam)
+        {
+            // Remove associated study tasks and their events
+            var studyTasks = await _db.Tasks
+                .Include(t => t.TaskEvents)
+                .Where(t => t.Email == email && t.CourseId == exam.CourseId
+                    && t.Type == "Study for exam" && t.DueDate == exam.Date.Date && !t.IsCompleted)
+                .ToListAsync();
+            foreach (var st in studyTasks)
+            {
+                var eventIds = st.TaskEvents.Select(te => te.EventId).ToList();
+                if (eventIds.Any())
+                {
+                    var events = await _db.Events.Where(e => eventIds.Contains(e.EventId)).ToListAsync();
+                    _db.Events.RemoveRange(events);
+                }
+                _db.Tasks.Remove(st);
+            }
+        }
+
+        await _db.SaveChangesAsync();
+        await _scheduling.ScheduleAllTasksAsync(email);
+
+        return Ok(new ExamDto
+        {
+            ExamId = exam.ExamId,
+            CourseId = exam.CourseId,
+            CourseName = exam.Course.CourseName,
+            Date = exam.Date,
+            Time = exam.Time,
+            Session = exam.Session,
+            Duration = exam.Duration,
+            DaysUntil = (int)(exam.Date - DateTime.Today).TotalDays,
+            IsTakingExam = exam.IsTakingExam
         });
     }
 

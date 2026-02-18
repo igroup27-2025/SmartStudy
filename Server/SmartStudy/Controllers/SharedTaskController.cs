@@ -226,6 +226,7 @@ public class SharedTaskController : ControllerBase
     {
         TaskId = st.TaskId,
         TaskTitle = st.Task.Title,
+        CourseId = st.Task.CourseId,
         CourseName = st.Task.Course?.CourseName,
         CreatedByEmail = st.CreatedByEmail,
         CreatedByName = $"{st.CreatedBy.FirstName} {st.CreatedBy.LastName}",

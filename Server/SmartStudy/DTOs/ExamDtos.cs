@@ -10,6 +10,7 @@ public class ExamDto
     public string Session { get; set; } = null!;
     public int? Duration { get; set; }
     public int DaysUntil { get; set; }
+    public bool IsTakingExam { get; set; }
 }
 
 public class CreateExamDto

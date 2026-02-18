@@ -4,6 +4,7 @@ public class SharedTaskDto
 {
     public int TaskId { get; set; }
     public string TaskTitle { get; set; } = null!;
+    public int CourseId { get; set; }
     public string? CourseName { get; set; }
     public string CreatedByEmail { get; set; } = null!;
     public string CreatedByName { get; set; } = null!;

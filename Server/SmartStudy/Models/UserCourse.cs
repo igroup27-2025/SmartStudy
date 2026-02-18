@@ -6,6 +6,7 @@ public class UserCourse
     public int CourseId { get; set; }
     public string? StudyPartnerEmail { get; set; }
     public bool SharedByDefault { get; set; } = false;
+    public bool CourseShareApproved { get; set; } = false;
 
     // Navigation properties
     public User User { get; set; } = null!;

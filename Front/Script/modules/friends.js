@@ -319,32 +319,77 @@ function renderSharedTasks() {
     let html = '';
 
     if (pending.length) {
+        // Group pending tasks I need to respond to by course for bulk approval
+        const myPending = pending.filter(t => {
+            const myMember = getMyMember(t, myEmail);
+            return myMember && myMember.responseStatus === 'Pending';
+        });
+        const otherPending = pending.filter(t => {
+            const myMember = getMyMember(t, myEmail);
+            return !myMember || myMember.responseStatus !== 'Pending';
+        });
+
+        // Group my pending by courseId
+        const courseGroups = {};
+        myPending.forEach(t => {
+            const cid = t.courseId || 0;
+            if (!courseGroups[cid]) courseGroups[cid] = { courseName: t.courseName, tasks: [] };
+            courseGroups[cid].tasks.push(t);
+        });
+
         html += `<div class="shared-tasks-group">
-            <h4 class="shared-tasks-group-title">Pending Invitations</h4>
-            ${pending.map(t => {
+            <h4 class="shared-tasks-group-title">Pending Invitations</h4>`;
+
+        // Show course-level approval for groups with 2+ tasks
+        Object.entries(courseGroups).forEach(([courseId, group]) => {
+            if (group.tasks.length >= 2 && courseId !== '0') {
+                html += `
+                <div class="shared-task-course-group" data-course-id="${courseId}">
+                    <div class="shared-task-course-header">
+                        <span>&#128218; ${escapeHtml(group.courseName || 'Course')} — ${group.tasks.length} shared tasks</span>
+                        <button class="btn btn-primary btn-sm course-share-approve" data-course-id="${courseId}">Accept All for This Course</button>
+                    </div>
+                </div>`;
+            }
+
+            group.tasks.forEach(t => {
                 const partner = getPartner(t, myEmail);
-                const myMember = getMyMember(t, myEmail);
-                const iNeedToRespond = myMember && myMember.responseStatus === 'Pending';
-                return `
+                html += `
                 <div class="shared-task-card" data-task-id="${t.taskId}">
                     <div class="shared-task-card__body">
                         <div class="shared-task-card__title">${escapeHtml(t.taskTitle || 'Untitled Task')}</div>
                         <div class="shared-task-card__meta">
                             ${t.courseName ? `<span>${escapeHtml(t.courseName)}</span> · ` : ''}
-                            <span>${iNeedToRespond ? 'From' : 'To'}: ${escapeHtml(partner.name || partner.email)}</span>
+                            <span>From: ${escapeHtml(partner.name || partner.email)}</span>
                         </div>
                     </div>
                     <div class="shared-task-card__actions">
-                        ${iNeedToRespond ? `
-                            <button class="btn btn-primary btn-sm shared-task-accept" data-task-id="${t.taskId}">Accept</button>
-                            <button class="btn btn-secondary btn-sm shared-task-decline" data-task-id="${t.taskId}">Decline</button>
-                        ` : `
-                            <span class="badge badge-medium">Awaiting response</span>
-                        `}
+                        <button class="btn btn-primary btn-sm shared-task-accept" data-task-id="${t.taskId}">Accept</button>
+                        <button class="btn btn-secondary btn-sm shared-task-decline" data-task-id="${t.taskId}">Decline</button>
                     </div>
                 </div>`;
-            }).join('')}
-        </div>`;
+            });
+        });
+
+        // Show tasks awaiting partner response
+        otherPending.forEach(t => {
+            const partner = getPartner(t, myEmail);
+            html += `
+            <div class="shared-task-card" data-task-id="${t.taskId}">
+                <div class="shared-task-card__body">
+                    <div class="shared-task-card__title">${escapeHtml(t.taskTitle || 'Untitled Task')}</div>
+                    <div class="shared-task-card__meta">
+                        ${t.courseName ? `<span>${escapeHtml(t.courseName)}</span> · ` : ''}
+                        <span>To: ${escapeHtml(partner.name || partner.email)}</span>
+                    </div>
+                </div>
+                <div class="shared-task-card__actions">
+                    <span class="badge badge-medium">Awaiting response</span>
+                </div>
+            </div>`;
+        });
+
+        html += `</div>`;
     }
 
     if (confirmed.length) {
@@ -371,6 +416,21 @@ function renderSharedTasks() {
     }
 
     list.innerHTML = html;
+
+    // Bind course-level approval buttons
+    list.querySelectorAll('.course-share-approve').forEach(btn => {
+        btn.addEventListener('click', async () => {
+            const courseId = parseInt(btn.dataset.courseId);
+            try {
+                await api.approveCourseSharing(courseId);
+                showToast('Course sharing approved — all tasks accepted!');
+                sharedTasks = await api.getSharedTasks();
+                renderSharedTasks();
+            } catch (err) {
+                showToast(err.message || 'Failed to approve', 'error');
+            }
+        });
+    });
 
     // Bind accept/decline buttons
     list.querySelectorAll('.shared-task-accept').forEach(btn => {

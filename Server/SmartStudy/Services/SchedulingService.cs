@@ -48,11 +48,22 @@ public class SchedulingService
         var scheduleEnd = maxDueDate.Date.AddDays(1);
         var scheduleStart = now.Date;
 
-        // 3. Clear existing auto-scheduled TaskEvents
-        var existingTaskEventIds = await _db.TaskEvents
-            .Where(te => te.StudentTask.Email == email && (te.Status == "Scheduled" || te.Status == "Partial"))
-            .Select(te => te.EventId)
+        // Load pinned task IDs — these are excluded from auto-scheduling
+        var pinnedTaskIds = await _db.Tasks
+            .Where(t => t.Email == email && t.IsManuallyPinned)
+            .Select(t => t.TaskId)
             .ToListAsync();
+        var pinnedTaskIdSet = new HashSet<int>(pinnedTaskIds);
+
+        // 3. Clear existing auto-scheduled TaskEvents (SKIP pinned tasks)
+        var existingTaskEvents = await _db.TaskEvents
+            .Where(te => te.StudentTask.Email == email && (te.Status == "Scheduled" || te.Status == "Partial"))
+            .ToListAsync();
+
+        var existingTaskEventIds = existingTaskEvents
+            .Where(te => !pinnedTaskIdSet.Contains(te.TaskId))
+            .Select(te => te.EventId)
+            .ToList();
 
         if (existingTaskEventIds.Any())
         {
@@ -63,8 +74,26 @@ public class SchedulingService
             await _db.SaveChangesAsync();
         }
 
+        // Add pinned TaskEvents as fixed busy intervals
+        var pinnedTaskEventsList = existingTaskEvents
+            .Where(te => pinnedTaskIdSet.Contains(te.TaskId))
+            .ToList();
+
         // Reload events without the cleared task events (include recurring for expansion)
         var fixedEvents = await GetExpandedEvents(email, scheduleStart, scheduleEnd);
+
+        // Include pinned TaskEvents as fixed (busy) intervals
+        foreach (var pte in pinnedTaskEventsList)
+        {
+            fixedEvents.Add(new Event
+            {
+                EventId = pte.EventId,
+                Email = email,
+                From = pte.From,
+                To = pte.To,
+                Recurring = false
+            });
+        }
 
         // Also load typed events for relocation suggestions and workload breakdown
         var typedEvents = await _db.Events
@@ -93,11 +122,12 @@ public class SchedulingService
             }
         }
 
-        // Load exams to block exam days and reserve pre-exam study time
+        // Load exams to block exam days and reserve pre-exam study time (only exams user is taking)
         var exams = await _db.Exams
             .Include(e => e.Course)
             .Where(e => e.Course.UserCourses.Any(uc => uc.Email == email)
-                && e.Date >= scheduleStart && e.Date <= scheduleEnd)
+                && e.Date >= scheduleStart && e.Date <= scheduleEnd
+                && e.IsTakingExam)
             .ToListAsync();
 
         var examDays = new HashSet<DateTime>(exams.Select(e => e.Date.Date));
@@ -219,8 +249,9 @@ public class SchedulingService
             .Where(g => g.Count() >= 2)
             .ToDictionary(g => g.Key, g => g.Average(t => t.Actual / t.Estimated));
 
-        // 4. Compute priority score for every task (new formula — computed, not user-defined)
-        var scoredTasks = tasks.Select(t =>
+        // 4. Compute priority score for every task (exclude pinned tasks from scheduling)
+        var schedulableTasks = tasks.Where(t => !pinnedTaskIdSet.Contains(t.TaskId)).ToList();
+        var scoredTasks = schedulableTasks.Select(t =>
         {
             var daysUntilDue = Math.Max(0.1, (t.DueDate!.Value - now).TotalDays);
             var hours = GetEffectiveHours(t, courseRatios, prefs);

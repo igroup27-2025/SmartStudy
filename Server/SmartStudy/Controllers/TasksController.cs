@@ -125,12 +125,21 @@ public class TasksController : ControllerBase
             _db.SharedTasks.Add(sharedTask);
             await _db.SaveChangesAsync();
 
+            // Check if partner has approved course sharing
+            var partnerUserCourse = await _db.UserCourses.FirstOrDefaultAsync(
+                uc => uc.Email == userCourse.StudyPartnerEmail && uc.CourseId == task.CourseId);
+            var autoApproved = partnerUserCourse?.CourseShareApproved == true;
+
             _db.SharedTaskMembers.Add(new SharedTaskMember
             {
                 TaskId = task.TaskId,
                 Email = userCourse.StudyPartnerEmail,
-                ResponseStatus = "Pending"
+                ResponseStatus = autoApproved ? "Accepted" : "Pending",
+                RespondedAt = autoApproved ? DateTime.UtcNow : null
             });
+
+            if (autoApproved) sharedTask.SharedStatus = "Confirmed";
+
             await _db.SaveChangesAsync();
         }
 
@@ -161,6 +170,7 @@ public class TasksController : ControllerBase
         if (dto.DueDate.HasValue) task.DueDate = dto.DueDate;
         if (dto.IsCompleted.HasValue) task.IsCompleted = dto.IsCompleted.Value;
         if (dto.AllowSplitting.HasValue) task.AllowSplitting = dto.AllowSplitting.Value;
+        if (dto.IsManuallyPinned.HasValue) task.IsManuallyPinned = dto.IsManuallyPinned.Value;
 
         await _db.SaveChangesAsync();
 
@@ -421,7 +431,8 @@ public class TasksController : ControllerBase
                 From = te.From,
                 To = te.To
             }).OrderBy(s => s.From).ToList(),
-            AllowSplitting = t.AllowSplitting
+            AllowSplitting = t.AllowSplitting,
+            IsManuallyPinned = t.IsManuallyPinned
         };
     }
 }

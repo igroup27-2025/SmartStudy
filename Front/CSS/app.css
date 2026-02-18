@@ -997,6 +997,11 @@ hr {
   outline: 2px dashed var(--accent);
 }
 
+.cal-event-pin {
+  margin-right: 3px;
+  font-size: 0.75em;
+}
+
 /* ---- Weekly Suggestions / Insights ---- */
 .weekly-summary {
   display: flex;
@@ -3020,6 +3025,26 @@ hr {
   font-size: var(--fs-sm);
   color: var(--text-muted);
   flex-wrap: wrap;
+}
+
+.exam-card--not-taking {
+  opacity: 0.55;
+}
+
+.exam-taking-toggle {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-top: var(--space-2);
+  font-size: var(--fs-sm);
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+
+.exam-taking-toggle input[type="checkbox"] {
+  accent-color: var(--primary);
+  width: 16px;
+  height: 16px;
 }
 
 .exam-card-right {
@@ -6523,6 +6548,19 @@ body[data-layout="onboarding"] {
   font-size: var(--fs-xs);
   color: var(--text-muted);
   margin-top: var(--space-1);
+}
+
+.shared-task-course-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  background: var(--bg-tertiary);
+  border-radius: var(--radius-lg);
+  margin-bottom: var(--space-2);
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-medium);
 }
 
 .shared-task-card__actions {

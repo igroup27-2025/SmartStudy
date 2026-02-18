@@ -88,6 +88,7 @@ export const api = {
     createExam: (data) => request('POST', '/exams', data),
     updateExam: (id, data) => request('PUT', `/exams/${id}`, data),
     deleteExam: (id) => request('DELETE', `/exams/${id}`),
+    toggleExamTaking: (id) => request('PUT', `/exams/${id}/toggle-taking`),
 
     // Events
     getEvents: (from, to) => {
@@ -106,6 +107,7 @@ export const api = {
     updateWorkEvent: (id, data) => request('PUT', `/events/work/${id}`, data),
     updatePersonalEvent: (id, data) => request('PUT', `/events/personal/${id}`, data),
     deleteEvent: (id) => request('DELETE', `/events/${id}`),
+    changeEventType: (id, data) => request('PUT', `/events/${id}/change-type`, data),
     checkConflicts: (data) => request('POST', '/events/check-conflicts', data),
 
     // Schedule Import
@@ -153,6 +155,7 @@ export const api = {
 
     // Collaboration
     getSafeZones: (connectionId) => request('GET', `/collaboration/safe-zones?connectionId=${connectionId}`),
+    approveCourseSharing: (courseId) => request('POST', `/collaboration/approve-course-sharing/${courseId}`),
 
     // Shared Tasks
     getSharedTasks: () => request('GET', '/shared-tasks'),

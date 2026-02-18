@@ -41,6 +41,7 @@ builder.Services.AddScoped<SafeZoneService>();
 builder.Services.AddScoped<NotificationService>();
 builder.Services.AddScoped<WeeklySuggestionService>();
 builder.Services.AddScoped<GoogleCalendarService>();
+builder.Services.AddScoped<EmailService>();
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
@@ -374,6 +375,18 @@ using (var scope = app.Services.CreateScope())
             -- Add AllowSplitting to Tasks
             IF COL_LENGTH('SmartStudy_Tasks', 'AllowSplitting') IS NULL
                 ALTER TABLE SmartStudy_Tasks ADD AllowSplitting BIT NOT NULL DEFAULT 0;
+
+            -- Add IsManuallyPinned to Tasks
+            IF COL_LENGTH('SmartStudy_Tasks', 'IsManuallyPinned') IS NULL
+                ALTER TABLE SmartStudy_Tasks ADD IsManuallyPinned BIT NOT NULL DEFAULT 0;
+
+            -- Add IsTakingExam to Exams
+            IF COL_LENGTH('SmartStudy_Exams', 'IsTakingExam') IS NULL
+                ALTER TABLE SmartStudy_Exams ADD IsTakingExam BIT NOT NULL DEFAULT 1;
+
+            -- Add CourseShareApproved to UserCourses
+            IF COL_LENGTH('SmartStudy_UserCourses', 'CourseShareApproved') IS NULL
+                ALTER TABLE SmartStudy_UserCourses ADD CourseShareApproved BIT NOT NULL DEFAULT 0;
 
             -- Add RecurrenceEndDate to Events
             IF COL_LENGTH('SmartStudy_Events', 'RecurrenceEndDate') IS NULL

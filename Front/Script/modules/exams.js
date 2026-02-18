@@ -30,8 +30,9 @@ function renderExams() {
     el.innerHTML = exams.map(e => {
         const date = new Date(e.date);
         const urgency = e.daysUntil <= 3 ? 'imminent' : e.daysUntil <= 7 ? 'soon' : 'far';
+        const notTaking = e.isTakingExam === false;
         return `
-        <div class="exam-card" data-id="${e.examId}">
+        <div class="exam-card ${notTaking ? 'exam-card--not-taking' : ''}" data-id="${e.examId}">
             <div class="exam-card-left">
                 <div class="exam-date-block">
                     <span class="exam-date-day">${date.getDate()}</span>
@@ -45,6 +46,10 @@ function renderExams() {
                     <span>${e.time ? formatTime(e.time) : ''}</span>
                     <span>${e.duration ? e.duration + ' min' : ''}</span>
                 </div>
+                <label class="exam-taking-toggle" title="Toggle whether you are taking this exam">
+                    <input type="checkbox" class="exam-taking-check" data-id="${e.examId}" ${!notTaking ? 'checked' : ''}>
+                    <span>Taking this exam</span>
+                </label>
             </div>
             <div class="exam-card-right">
                 <div class="exam-countdown ${urgency}">
@@ -72,6 +77,22 @@ function renderExams() {
 
     el.querySelectorAll('.exam-edit').forEach(btn => {
         btn.addEventListener('click', () => editExam(parseInt(btn.dataset.id)));
+    });
+
+    el.querySelectorAll('.exam-taking-check').forEach(cb => {
+        cb.addEventListener('change', async () => {
+            const id = parseInt(cb.dataset.id);
+            try {
+                const updated = await api.toggleExamTaking(id);
+                const idx = exams.findIndex(ex => ex.examId === id);
+                if (idx >= 0) exams[idx] = updated;
+                renderExams();
+                showToast(updated.isTakingExam ? 'Exam marked as taking — study blocks will be scheduled' : 'Exam marked as not taking — study blocks removed');
+            } catch {
+                showToast('Failed to update exam', 'error');
+                cb.checked = !cb.checked;
+            }
+        });
     });
 }
 

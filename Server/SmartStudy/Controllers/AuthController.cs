@@ -7,6 +7,7 @@ using Microsoft.IdentityModel.Tokens;
 using SmartStudy.Data;
 using SmartStudy.DTOs;
 using SmartStudy.Models;
+using SmartStudy.Services;
 
 namespace SmartStudy.Controllers;
 
@@ -16,11 +17,13 @@ public class AuthController : ControllerBase
 {
     private readonly SmartStudyDbContext _db;
     private readonly IConfiguration _config;
+    private readonly EmailService _emailService;
 
-    public AuthController(SmartStudyDbContext db, IConfiguration config)
+    public AuthController(SmartStudyDbContext db, IConfiguration config, EmailService emailService)
     {
         _db = db;
         _config = config;
+        _emailService = emailService;
     }
 
     [HttpPost("login")]
@@ -84,7 +87,7 @@ public class AuthController : ControllerBase
     {
         var user = await _db.Users.FindAsync(dto.Email);
         if (user == null)
-            return Ok(new { message = "If the email exists, a reset token has been generated.", token = (string?)null });
+            return Ok(new { message = "If the email exists, a reset link has been sent." });
 
         // Generate 8-char reset token
         var token = Guid.NewGuid().ToString("N")[..8].ToUpper();
@@ -92,8 +95,14 @@ public class AuthController : ControllerBase
         user.ResetTokenExpiry = DateTime.UtcNow.AddHours(1);
         await _db.SaveChangesAsync();
 
-        // In production this would be sent via email. For demo, return it directly.
-        return Ok(new { message = "Reset token generated.", token });
+        // Send reset email (falls back to console log if SMTP not configured)
+        await _emailService.SendAsync(
+            dto.Email,
+            "SmartStudy — Password Reset",
+            $"Your password reset code: {token}\n\nThis code expires in 1 hour.\n\nIf you did not request a password reset, please ignore this email."
+        );
+
+        return Ok(new { message = "If the email exists, a reset link has been sent." });
     }
 
     [HttpPost("reset-password")]

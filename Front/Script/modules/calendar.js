@@ -352,14 +352,15 @@ function renderTimeGrid(events, startDate, dayCount) {
             const height = Math.max(25, (endHour - startHour) * 50);
             const colors = EVENT_COLORS[e.eventType] || EVENT_COLORS.personal;
             const label = e.isExam ? `Exam: ${e.courseName || 'Exam'}` : (e.courseName || e.taskTitle || e.workPlace || e.description || e.type || 'Event');
-            const isAutoScheduled = e.eventType === 'task' && e.status === 'Scheduled';
+            const isAutoScheduled = e.eventType === 'task' && e.status === 'Scheduled' && !e.isManuallyPinned;
             const isDraggable = !isAutoScheduled && !e.isExam;
+            const pinIcon = e.eventType === 'task' && e.isManuallyPinned ? '<span class="cal-event-pin" title="Pinned — excluded from auto-scheduling">&#128204;</span>' : '';
 
             html += `<div class="cal-event ${isDraggable ? 'cal-event--draggable' : ''}"
                 data-event-id="${e.eventId}" data-event-type="${e.eventType}"
                 ${isDraggable ? 'draggable="true"' : ''}
                 style="top:${top}px;height:${height}px;background:${colors.bg};border-left:3px solid ${colors.border};color:${colors.text}">
-                <div class="cal-event-title">${label}</div>
+                <div class="cal-event-title">${pinIcon}${label}</div>
                 <div class="cal-event-time">${formatTime(from)} - ${formatTime(to)}</div>
             </div>`;
         });
@@ -733,6 +734,43 @@ function setupEventCreation() {
 
         try {
             const isEditing = editingEventId !== null;
+
+            // Handle type change (work ↔ personal) on edit
+            if (isEditing && editingEventType && type !== editingEventType &&
+                (editingEventType === 'work' || editingEventType === 'personal') &&
+                (type === 'work' || type === 'personal')) {
+                const changeData = { newType: type };
+                if (type === 'work') {
+                    changeData.workPlace = document.getElementById('eventWorkPlace')?.value || null;
+                    changeData.travelTime = parseInt(document.getElementById('eventTravelTime')?.value) || null;
+                } else {
+                    changeData.personalType = document.getElementById('eventPersonalType')?.value || null;
+                    changeData.description = document.getElementById('eventDescription')?.value || null;
+                }
+                await api.changeEventType(editingEventId, changeData);
+                // Also update the time if changed
+                const updateData = {
+                    from: from.toISOString(),
+                    to: to.toISOString(),
+                    recurring,
+                    recurrenceEndDate,
+                };
+                if (type === 'work') {
+                    updateData.workPlace = changeData.workPlace;
+                    updateData.travelTime = changeData.travelTime;
+                    await api.updateWorkEvent(editingEventId, updateData);
+                } else {
+                    updateData.type = changeData.personalType;
+                    updateData.description = changeData.description;
+                    await api.updatePersonalEvent(editingEventId, updateData);
+                }
+                editingEventId = null;
+                editingEventType = null;
+                closeModal('eventModal');
+                showToast('Event type changed');
+                await navigate();
+                return;
+            }
 
             if (type === 'class') {
                 const data = {
@@ -1150,9 +1188,12 @@ function openEventModal(dateStr, hour, endHour) {
     const cw = document.getElementById('conflictWarning');
     if (cw) cw.style.display = 'none';
 
-    // Enable type selector for new events
+    // Enable type selector for new events and show all options
     const typeSelect = document.getElementById('eventTypeSelect');
-    if (typeSelect) typeSelect.disabled = false;
+    if (typeSelect) {
+        typeSelect.disabled = false;
+        Array.from(typeSelect.options).forEach(opt => { opt.hidden = false; });
+    }
 
     // Pre-fill date/time if provided
     if (dateStr) {
@@ -1199,11 +1240,20 @@ function openEventModalForEdit(event) {
     const cw = document.getElementById('conflictWarning');
     if (cw) cw.style.display = 'none';
 
-    // Set type (disable changing type on edit)
+    // Set type — allow switching between work↔personal only
     const typeSelect = document.getElementById('eventTypeSelect');
     if (typeSelect) {
         typeSelect.value = event.eventType;
-        typeSelect.disabled = true;
+        const canChangeType = event.eventType === 'work' || event.eventType === 'personal';
+        typeSelect.disabled = !canChangeType;
+        // Filter options: only show work/personal when editing those types
+        Array.from(typeSelect.options).forEach(opt => {
+            if (canChangeType) {
+                opt.hidden = opt.value !== 'work' && opt.value !== 'personal';
+            } else {
+                opt.hidden = false;
+            }
+        });
     }
     updateEventFormFields(event.eventType);
 

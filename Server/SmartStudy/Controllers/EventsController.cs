@@ -116,6 +116,7 @@ public class EventsController : ControllerBase
             dto.Priority = te.Priority;
             dto.ActualHours = te.ActualHours;
             dto.Status = te.Status;
+            dto.IsManuallyPinned = te.StudentTask.IsManuallyPinned;
         }
         else if (workEvents.TryGetValue(evt.EventId, out var we))
         {
@@ -300,8 +301,16 @@ public class EventsController : ControllerBase
         evt.TaskId = dto.TaskId;
         evt.Priority = dto.Priority;
         evt.Status = dto.Status ?? evt.Status;
+
+        // Pin the parent task so it's excluded from auto-scheduling
+        var parentTask = await _db.Tasks.FindAsync(evt.TaskId);
+        if (parentTask != null && !parentTask.IsManuallyPinned)
+        {
+            parentTask.IsManuallyPinned = true;
+        }
+
         await _db.SaveChangesAsync();
-        return Ok(new { evt.EventId, eventType = "task" });
+        return Ok(new { evt.EventId, eventType = "task", isManuallyPinned = true });
     }
 
     [HttpPut("personal/{id}")]
@@ -390,6 +399,74 @@ public class EventsController : ControllerBase
             .Where(te => te.Email == email && te.EventId != excludeEventId &&
                          te.From < to && te.To > from)
             .CountAsync();
+    }
+
+    [HttpPut("{id}/change-type")]
+    public async Task<IActionResult> ChangeType(int id, [FromBody] ChangeEventTypeDto dto)
+    {
+        var email = GetEmail();
+        var evt = await _db.Events.FirstOrDefaultAsync(e => e.EventId == id && e.Email == email);
+        if (evt == null) return NotFound();
+
+        // Determine current type
+        var isWork = await _db.WorkEvents.AnyAsync(w => w.EventId == id);
+        var isPersonal = await _db.PersonalEvents.AnyAsync(p => p.EventId == id);
+
+        if (!isWork && !isPersonal)
+            return BadRequest(new { message = "Only Work and Personal events can change type" });
+
+        var newType = dto.NewType?.ToLower();
+        if (newType != "work" && newType != "personal")
+            return BadRequest(new { message = "New type must be 'work' or 'personal'" });
+
+        if ((isWork && newType == "work") || (isPersonal && newType == "personal"))
+            return Ok(new { evt.EventId, eventType = newType, message = "Type unchanged" });
+
+        // Remove old subtype row
+        if (isWork)
+        {
+            var old = await _db.WorkEvents.FindAsync(id);
+            if (old != null) _db.WorkEvents.Remove(old);
+        }
+        else
+        {
+            var old = await _db.PersonalEvents.FindAsync(id);
+            if (old != null) _db.PersonalEvents.Remove(old);
+        }
+
+        // Create new subtype row
+        if (newType == "work")
+        {
+            _db.WorkEvents.Add(new WorkEvent
+            {
+                EventId = id,
+                Email = email,
+                From = evt.From,
+                To = evt.To,
+                Recurring = evt.Recurring,
+                RecurrenceEndDate = evt.RecurrenceEndDate,
+                WorkPlace = dto.WorkPlace,
+                TravelTime = dto.TravelTime
+            });
+        }
+        else
+        {
+            _db.PersonalEvents.Add(new PersonalEvent
+            {
+                EventId = id,
+                Email = email,
+                From = evt.From,
+                To = evt.To,
+                Recurring = evt.Recurring,
+                RecurrenceEndDate = evt.RecurrenceEndDate,
+                Type = dto.PersonalType,
+                Description = dto.Description
+            });
+        }
+
+        await _db.SaveChangesAsync();
+        await new SchedulingService(_db).ScheduleAllTasksAsync(email);
+        return Ok(new { evt.EventId, eventType = newType });
     }
 
     [HttpDelete("{id}")]
