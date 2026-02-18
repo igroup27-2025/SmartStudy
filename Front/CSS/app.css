@@ -5060,7 +5060,6 @@ body[data-layout="onboarding"] {
 /* Touch feedback for touch-only devices */
 @media (hover: none) {
   .btn:active { transform: scale(0.97); }
-  .bottom-nav__item:active { background: var(--color-gray-50); }
 }
 
 /* ============================================================
@@ -5353,13 +5352,8 @@ body[data-layout="onboarding"] {
     font-size: var(--fs-xl);
   }
 
-  /* ---- Bottom nav activation ---- */
-  .bottom-nav { display: flex; }
-  .bottom-nav__more-sheet { display: block; }
-  .main-content {
-    padding-bottom: calc(56px + env(safe-area-inset-bottom, 0px) + var(--space-4));
-    overflow-x: hidden;
-  }
+  /* ---- Overflow prevention ---- */
+  .main-content { overflow-x: hidden; }
 
   /* ---- Settings responsive ---- */
   .settings-row {
@@ -5401,7 +5395,6 @@ body[data-layout="onboarding"] {
 @media (max-width: 480px) {
   .main-content {
     padding: var(--space-2);
-    padding-bottom: calc(56px + env(safe-area-inset-bottom, 0px) + var(--space-3));
   }
 
   .page-actions {
