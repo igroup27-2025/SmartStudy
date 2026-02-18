@@ -13,7 +13,6 @@ export async function initDashboard() {
         renderStats(data);
         renderWorkload(data);
         renderRelocationSuggestions(data);
-        renderUnscheduled(data);
         renderSuggestion(data);
         renderWeeklySuggestions();
         renderMiniCalendar();
@@ -70,35 +69,11 @@ function renderMotivation(stress) {
         text = "You're under high pressure. Focus on essentials only!";
     }
 
-    const studyLoad = Math.round(stress?.studyLoad ?? 0);
-    const totalLoad = Math.round(stress?.totalLoad ?? 0);
-    const scheduledH = stress?.totalScheduledHours ?? 0;
-    const showLoad = studyLoad > 0 || totalLoad > 0;
-
     el.innerHTML = `
         <div class="dash-motivation__card">
             <span class="dash-motivation__icon">${icon}</span>
             <div class="dash-motivation__content">
                 <p class="dash-motivation__text">${text}</p>
-                ${showLoad ? `
-                <div class="dash-load-indicators">
-                    <div class="dash-load-row">
-                        <span class="dash-load-label">Study Load</span>
-                        <div class="dash-load-track">
-                            <div class="dash-load-fill dash-load-fill--study" style="width:${Math.min(studyLoad, 100)}%"></div>
-                        </div>
-                        <span class="dash-load-value">${studyLoad}%</span>
-                    </div>
-                    <div class="dash-load-row">
-                        <span class="dash-load-label">Total Load</span>
-                        <div class="dash-load-track">
-                            <div class="dash-load-fill dash-load-fill--total" style="width:${Math.min(totalLoad, 100)}%"></div>
-                        </div>
-                        <span class="dash-load-value">${totalLoad}%</span>
-                    </div>
-                    <span class="dash-load-scheduled">${scheduledH}h scheduled today</span>
-                </div>
-                ` : ''}
             </div>
         </div>
     `;
@@ -281,42 +256,6 @@ function renderWorkload(data) {
     el.innerHTML = html;
 }
 
-/* ---- Section: Unscheduled Tasks Alert ---- */
-function renderUnscheduled(data) {
-    const el = document.getElementById('dashUnscheduled');
-    if (!el) return;
-
-    const count = data.unscheduledTaskCount ?? 0;
-    if (count === 0) {
-        el.innerHTML = '';
-        return;
-    }
-
-    // Find unscheduled tasks from upcoming deadlines
-    const unscheduled = (data.upcomingDeadlines || [])
-        .filter(t => t.schedulingStatus === 'Unscheduled' || t.schedulingStatus === 'Partial');
-
-    el.innerHTML = `
-        <div class="dash-unscheduled__card">
-            <div class="dash-unscheduled__header">
-                <span class="dash-unscheduled__icon">&#9888;</span>
-                <h3 class="dash-unscheduled__title">${count} Unscheduled Task${count > 1 ? 's' : ''}</h3>
-            </div>
-            ${unscheduled.length ? `
-                <ul class="dash-unscheduled__list">
-                    ${unscheduled.map(t => `
-                        <li>
-                            <span class="dash-unscheduled__task-name">${t.title}</span>
-                            ${t.dueDate ? `<span class="dash-unscheduled__due">Due: ${new Date(t.dueDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</span>` : ''}
-                        </li>
-                    `).join('')}
-                </ul>
-            ` : ''}
-            <p class="dash-unscheduled__hint">These tasks couldn't fit in your schedule. Consider extending deadlines or reducing workload.</p>
-        </div>
-    `;
-}
-
 /* ---- Section: Relocation Suggestions ---- */
 function renderRelocationSuggestions(data) {
     const el = document.getElementById('dashRelocationSuggestions');
@@ -403,12 +342,10 @@ function renderReview(data) {
     const el = document.getElementById('dashReview');
     if (!el) return;
 
-    // Merge overdue tasks into review list (deduplicate by taskId)
+    // Filter overdue tasks OUT of review (they have their own section)
     const reviewTasks = data.needsReviewTasks || [];
-    const overdueTasks = data.overdueTasks || [];
-    const reviewIds = new Set(reviewTasks.map(t => t.taskId));
-    const merged = [...reviewTasks, ...overdueTasks.filter(t => !reviewIds.has(t.taskId))];
-    const tasks = merged.slice(0, 10);
+    const overdueIds = new Set((data.overdueTasks || []).map(t => t.taskId));
+    const tasks = reviewTasks.filter(t => !overdueIds.has(t.taskId)).slice(0, 10);
 
     const header = `
         <div class="dash-review__header">
@@ -440,10 +377,8 @@ function renderReview(data) {
             scheduleInfo = '<span class="badge badge-unscheduled">Not Scheduled</span>';
         }
 
-        // Edit link: if task has a scheduled date, link to calendar with highlight; else to tasks page
-        const editHref = t.scheduledDate
-            ? `${BASE_PATH}/Pages/Calendar.html?date=${new Date(t.scheduledDate).toISOString().slice(0, 10)}&highlight=${t.taskId}`
-            : `${BASE_PATH}/Pages/Tasks.html?edit=${t.taskId}`;
+        const isUnscheduled = t.schedulingStatus === 'Unscheduled' || t.schedulingStatus === 'Partial';
+        const editHref = `${BASE_PATH}/Pages/Tasks.html?edit=${t.taskId}`;
 
         return `
             <div class="dash-task-card">
@@ -457,10 +392,14 @@ function renderReview(data) {
                             ${isOverdue ? 'Overdue - needs rescheduling' : (dateStr ? 'Due: ' + dateStr : '')}
                         </span>
                         ${scheduleInfo}
+                        ${isUnscheduled ? '<span class="dash-task-card__reason">Could not fit in schedule</span>' : ''}
                     </div>
                 </div>
                 <div class="dash-task-card__actions">
-                    <button class="btn btn-sm btn-primary dash-approve-btn" data-task-id="${t.taskId}" data-est-hours="${t.estimatedHours || ''}" data-title="${t.title}">Approve</button>
+                    ${isUnscheduled
+                        ? `<a href="${BASE_PATH}/Pages/Calendar.html" class="btn btn-sm btn-primary">Schedule Manually</a>`
+                        : `<button class="btn btn-sm btn-primary dash-approve-btn" data-task-id="${t.taskId}" data-est-hours="${t.estimatedHours || ''}" data-title="${t.title}">Approve</button>`
+                    }
                     <a href="${editHref}" class="btn btn-sm btn-ghost">Edit</a>
                 </div>
             </div>
@@ -525,7 +464,7 @@ function showCompletionModal(taskId, taskTitle, estHours) {
             close();
             showToast('Task completed!', 'success');
 
-            // ML hint: if actual hours deviate >30% from estimate
+            // Machine Learning hint: if actual hours deviate >30% from estimate
             if (actualHours && estHours && parseFloat(estHours) > 0) {
                 const ratio = actualHours / parseFloat(estHours);
                 if (ratio > 1.3 || ratio < 0.7) {
@@ -534,7 +473,7 @@ function showCompletionModal(taskId, taskTitle, estHours) {
                 }
             }
 
-            // Show course accuracy feedback from ML stats
+            // Show course accuracy feedback from Machine Learning stats
             if (result?.mlStats?.sampleSize >= 3) {
                 const bias = result.mlStats.estimationBias;
                 if (bias && bias !== 'accurate') {
@@ -552,7 +491,6 @@ function showCompletionModal(taskId, taskTitle, estHours) {
             renderStats(freshData);
             renderWorkload(freshData);
             renderRelocationSuggestions(freshData);
-            renderUnscheduled(freshData);
             renderSuggestion(freshData);
             renderReview(freshData);
             renderOverdue(freshData);
@@ -632,7 +570,6 @@ function renderOverdue(data) {
                 renderAlerts(freshData);
                 renderStats(freshData);
                 renderWorkload(freshData);
-                renderUnscheduled(freshData);
                 renderSuggestion(freshData);
                 renderReview(freshData);
                 renderOverdue(freshData);
@@ -840,8 +777,11 @@ async function renderMiniCalendar() {
             const toTime = new Date(e.to);
             const startHour = fromTime.getHours() + fromTime.getMinutes() / 60;
             const endHour = toTime.getHours() + toTime.getMinutes() / 60;
-            const top = (startHour - startSlot) * cellHeight;
-            const height = Math.max(18, (endHour - startHour) * cellHeight);
+            const clampedStart = Math.max(startHour, startSlot);
+            const clampedEnd = Math.min(endHour, endSlot);
+            if (clampedEnd <= clampedStart) return; // skip invisible events
+            const top = (clampedStart - startSlot) * cellHeight;
+            const height = Math.max(18, (clampedEnd - clampedStart) * cellHeight);
             const colors = MINI_CAL_COLORS[e.eventType] || MINI_CAL_COLORS.personal;
             const label = e.courseName || e.taskTitle || e.workPlace || e.description || e.type || 'Event';
             const timeStr = `${fromTime.getHours().toString().padStart(2, '0')}:${fromTime.getMinutes().toString().padStart(2, '0')}`;

@@ -70,6 +70,17 @@ function setupNavigation() {
         navigate();
     });
 
+    document.getElementById('calSyncSchedule')?.addEventListener('click', async () => {
+        const btn = document.getElementById('calSyncSchedule');
+        btn.disabled = true; btn.textContent = 'Syncing...';
+        try {
+            await api.runScheduling();
+            showToast('Schedule synced!', 'success');
+            await navigate();
+        } catch { showToast('Failed to sync', 'error'); }
+        finally { btn.disabled = false; btn.textContent = 'Sync'; }
+    });
+
     // Add event button
     document.getElementById('calAddEvent')?.addEventListener('click', () => {
         openEventModal(null);

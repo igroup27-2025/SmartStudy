@@ -27,6 +27,11 @@ export async function initTasks() {
         setupSplitModal();
         setupSharedToggle();
         setupHoursSuggestion();
+
+        // Handle ?edit=ID URL param to open edit modal
+        const params = new URLSearchParams(window.location.search);
+        const editId = params.get('edit');
+        if (editId) editTask(parseInt(editId));
     } catch (err) {
         showToast('Failed to load tasks', 'error');
     }
@@ -255,7 +260,7 @@ async function doComplete(taskId, actualHours) {
         const task = allTasks.find(t => t.taskId === taskId);
         const result = await api.completeTask(taskId, { actualHours });
 
-        // ML hint: if actual hours deviate >30% from estimate
+        // Machine Learning hint: if actual hours deviate >30% from estimate
         if (actualHours && task?.estimatedHours && parseFloat(task.estimatedHours) > 0) {
             const ratio = actualHours / parseFloat(task.estimatedHours);
             if (ratio > 1.3 || ratio < 0.7) {
@@ -264,7 +269,7 @@ async function doComplete(taskId, actualHours) {
             }
         }
 
-        // Show course accuracy feedback from ML stats
+        // Show course accuracy feedback from Machine Learning stats
         if (result?.mlStats?.sampleSize >= 3) {
             const bias = result.mlStats.estimationBias;
             if (bias && bias !== 'accurate') {
@@ -359,7 +364,7 @@ function setupHoursSuggestion() {
             const data = await api.getSuggestedHours(courseId, hours || null);
             if (data.hasSuggestion) {
                 const text = data.suggestedHours
-                    ? `ML suggests ~${data.suggestedHours}h (based on ${data.sampleSize} past tasks, ${data.adjustmentFactor}x ratio)`
+                    ? `Machine Learning suggests ~${data.suggestedHours}h (based on ${data.sampleSize} past tasks, ${data.adjustmentFactor}x ratio)`
                     : `Past accuracy: ${data.adjustmentFactor}x estimated (${data.sampleSize} tasks)`;
                 suggestion.textContent = text;
                 suggestion.style.display = 'block';
@@ -374,11 +379,12 @@ function setupHoursSuggestion() {
 }
 
 function populateCourseFilter() {
-    const select = document.getElementById('filterCourse');
+    const container = document.getElementById('filterCourseCheckboxes');
     const formSelect = document.getElementById('taskCourseId');
-    if (select) {
-        select.innerHTML = '<option value="">All Courses</option>' +
-            courses.map(c => `<option value="${c.courseId}">${c.courseName}</option>`).join('');
+    if (container) {
+        container.innerHTML = courses.map(c =>
+            `<label><input type="checkbox" name="filterCourse" value="${c.courseId}"> ${c.courseName}</label>`
+        ).join('');
     }
     if (formSelect) {
         formSelect.innerHTML = '<option value="">Select course...</option>' +
@@ -387,21 +393,53 @@ function populateCourseFilter() {
 }
 
 function setupFilters() {
-    document.getElementById('filterCourse')?.addEventListener('change', () => renderTasks(applyFilters()));
-    document.getElementById('filterStatus')?.addEventListener('change', () => renderTasks(applyFilters()));
-    document.getElementById('filterPriority')?.addEventListener('change', () => renderTasks(applyFilters()));
+    const toggle = document.getElementById('filterToggle');
+    const panel = document.getElementById('filterPanel');
+    if (toggle && panel) {
+        toggle.addEventListener('click', () => {
+            const open = panel.style.display !== 'none';
+            panel.style.display = open ? 'none' : 'block';
+        });
+    }
+    // Listen to checkbox changes inside the filter panel
+    document.getElementById('filterPanel')?.addEventListener('change', () => {
+        renderTasks(applyFilters());
+        updateFilterBadge();
+    });
+}
+
+function updateFilterBadge() {
+    const toggle = document.getElementById('filterToggle');
+    if (!toggle) return;
+    const checked = document.querySelectorAll('#filterPanel input[type="checkbox"]:checked').length;
+    toggle.textContent = checked > 0 ? `Filter (${checked})` : 'Filter';
 }
 
 function applyFilters() {
     let filtered = [...allTasks];
-    const courseId = document.getElementById('filterCourse')?.value;
-    const status = document.getElementById('filterStatus')?.value;
-    const priority = document.getElementById('filterPriority')?.value;
 
-    if (courseId) filtered = filtered.filter(t => t.courseId === parseInt(courseId));
-    if (status === 'completed') filtered = filtered.filter(t => t.isCompleted);
-    if (status === 'pending') filtered = filtered.filter(t => !t.isCompleted);
-    if (priority) filtered = filtered.filter(t => t.priority?.toLowerCase() === priority);
+    // Status filter
+    const statuses = [...document.querySelectorAll('input[name="filterStatus"]:checked')].map(cb => cb.value);
+    if (statuses.length) {
+        filtered = filtered.filter(t => {
+            if (statuses.includes('completed') && t.isCompleted) return true;
+            if (statuses.includes('pending') && !t.isCompleted) return true;
+            return false;
+        });
+    }
+
+    // Course filter
+    const courseIds = [...document.querySelectorAll('input[name="filterCourse"]:checked')].map(cb => parseInt(cb.value));
+    if (courseIds.length) {
+        filtered = filtered.filter(t => courseIds.includes(t.courseId));
+    }
+
+    // Priority filter
+    const priorities = [...document.querySelectorAll('input[name="filterPriority"]:checked')].map(cb => cb.value);
+    if (priorities.length) {
+        filtered = filtered.filter(t => priorities.includes(t.priority?.toLowerCase()));
+    }
+
     return filtered;
 }
 

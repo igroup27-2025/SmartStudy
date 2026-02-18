@@ -52,6 +52,7 @@ export function initLayout() {
                 </a>
             `).join('')}
         </nav>
+        <button class="sidebar-logout" id="sidebarLogoutBtn">Logout</button>
         <div class="sidebar-user">
             <div class="sidebar-user-avatar">${user ? (user.firstName?.[0] || '') + (user.lastName?.[0] || '') || 'U' : 'U'}</div>
             <div class="sidebar-user-info">
@@ -86,14 +87,6 @@ export function initLayout() {
                     </div>
                 </div>
             </div>
-            <div class="topbar-user">
-                <div class="topbar-avatar" id="userMenuBtn">${user?.firstName?.[0] || 'U'}</div>
-                <div class="topbar-dropdown" id="userDropdown">
-                    <a href="${BASE_PATH}/Pages/Settings.html" class="topbar-dropdown-item">Settings</a>
-                    <div class="topbar-dropdown-divider"></div>
-                    <a href="#" class="topbar-dropdown-item" id="logoutBtn">Logout</a>
-                </div>
-            </div>
         </div>
     `;
 
@@ -116,14 +109,7 @@ export function initLayout() {
     pageRoot.remove();
 
     // Event listeners
-    document.getElementById('logoutBtn')?.addEventListener('click', (e) => {
-        e.preventDefault();
-        logout();
-    });
-
-    document.getElementById('userMenuBtn')?.addEventListener('click', () => {
-        document.getElementById('userDropdown')?.classList.toggle('show');
-    });
+    document.getElementById('sidebarLogoutBtn')?.addEventListener('click', () => logout());
 
     document.getElementById('sidebarToggle')?.addEventListener('click', () => {
         sidebar.classList.toggle('open');
@@ -133,13 +119,6 @@ export function initLayout() {
     overlay.addEventListener('click', () => {
         sidebar.classList.remove('open');
         overlay.classList.remove('show');
-    });
-
-    // Close dropdown on outside click
-    document.addEventListener('click', (e) => {
-        if (!e.target.closest('.topbar-user')) {
-            document.getElementById('userDropdown')?.classList.remove('show');
-        }
     });
 
 }

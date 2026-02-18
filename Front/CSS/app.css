@@ -4097,7 +4097,7 @@ hr {
 /* ---- Bar Chart (Analytics) ---- */
 .bar-chart {
   display: flex;
-  align-items: flex-end;
+  align-items: stretch;
   gap: var(--space-3);
   height: 200px;
   padding-top: var(--space-4);
@@ -7480,5 +7480,158 @@ body[data-layout="onboarding"] {
 
   .suggestion-card__icon {
     font-size: 0.9rem;
+  }
+}
+
+/* ============================================================
+   PHASE 1+2 ADDITIONS
+   ============================================================ */
+
+/* ---- Sidebar Logout Button (#4+#11) ---- */
+.sidebar-logout {
+    display: block;
+    width: calc(100% - 24px);
+    margin: 12px;
+    padding: 10px;
+    border: none;
+    border-radius: var(--radius-md);
+    background: rgba(231, 76, 60, 0.1);
+    color: #E74C3C;
+    font-size: var(--fs-sm);
+    cursor: pointer;
+    transition: background 0.2s;
+}
+.sidebar-logout:hover { background: rgba(231, 76, 60, 0.2); }
+
+/* ---- Filter Panel (#5) ---- */
+.filter-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-2);
+    padding: var(--space-2) var(--space-4);
+    border: 1px solid var(--border-light);
+    border-radius: var(--radius-md);
+    background: var(--bg-card);
+    color: var(--text-primary);
+    font-size: var(--fs-sm);
+    font-weight: var(--fw-medium);
+    cursor: pointer;
+    transition: border-color 0.2s, background 0.2s;
+}
+.filter-toggle:hover {
+    border-color: var(--color-primary);
+    background: rgba(242, 141, 53, 0.04);
+}
+
+.filter-panel {
+    background: var(--bg-card);
+    border: 1px solid var(--border-light);
+    border-radius: var(--radius-md);
+    padding: var(--space-4);
+    margin-top: var(--space-2);
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-4);
+}
+
+.filter-section h4 {
+    font-size: var(--fs-xs);
+    font-weight: var(--fw-semibold);
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: var(--space-2);
+}
+
+.filter-section label {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    font-size: var(--fs-sm);
+    color: var(--text-primary);
+    padding: var(--space-1) 0;
+    cursor: pointer;
+}
+
+.filter-section input[type="checkbox"] {
+    accent-color: var(--color-primary);
+}
+
+/* ---- Unscheduled task reason (#17) ---- */
+.dash-task-card__reason {
+    display: block;
+    font-size: var(--fs-xs);
+    color: #E74C3C;
+    font-style: italic;
+    margin-top: var(--space-1);
+}
+
+/* ---- Dashboard mobile stat cards in one row (#1) ---- */
+@media (max-width: 480px) {
+  .dash-stats {
+    display: flex;
+    flex-wrap: nowrap;
+    gap: 8px;
+    grid-template-columns: unset;
+  }
+
+  .dash-stat {
+    flex: 1;
+    min-width: 0;
+    padding: 10px 6px;
+  }
+
+  .dash-stat__value {
+    font-size: 1.2rem;
+  }
+
+  .dash-stat__label {
+    font-size: 0.65rem;
+  }
+}
+
+/* ---- Task Statistics mobile fix (#8) ---- */
+@media (max-width: 768px) {
+  .stat-boxes {
+    display: flex;
+    flex-wrap: wrap;
+  }
+
+  .stat-boxes .stat-box {
+    flex: 1 1 45%;
+    min-width: 0;
+  }
+
+  .est-vs-actual-chart {
+    overflow-x: auto;
+  }
+
+  .progress-bar-track {
+    max-width: 100%;
+  }
+}
+
+/* ---- Smaller friend cards on mobile (#10) ---- */
+@media (max-width: 768px) {
+  .friend-card {
+    padding: 8px;
+  }
+
+  .friend-card-avatar {
+    width: 36px;
+    height: 36px;
+    font-size: var(--fs-xs);
+  }
+
+  .friend-card-name {
+    font-size: var(--fs-sm);
+  }
+
+  .friend-card-email {
+    font-size: var(--fs-xs);
+  }
+
+  .friend-card-date {
+    font-size: var(--fs-xs);
   }
 }

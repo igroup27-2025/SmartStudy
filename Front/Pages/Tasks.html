@@ -14,20 +14,24 @@
         </div>
 
         <div class="filter-bar">
-            <select id="filterCourse" class="form-input form-input-sm">
-                <option value="">All Courses</option>
-            </select>
-            <select id="filterStatus" class="form-input form-input-sm">
-                <option value="">All Status</option>
-                <option value="pending">Pending</option>
-                <option value="completed">Completed</option>
-            </select>
-            <select id="filterPriority" class="form-input form-input-sm">
-                <option value="">All Priorities</option>
-                <option value="high">High</option>
-                <option value="medium">Medium</option>
-                <option value="low">Low</option>
-            </select>
+            <button class="filter-toggle" id="filterToggle">Filter</button>
+            <div class="filter-panel" id="filterPanel" style="display:none">
+                <div class="filter-section">
+                    <h4>Status</h4>
+                    <label><input type="checkbox" name="filterStatus" value="pending"> Pending</label>
+                    <label><input type="checkbox" name="filterStatus" value="completed"> Completed</label>
+                </div>
+                <div class="filter-section">
+                    <h4>Course</h4>
+                    <div id="filterCourseCheckboxes"></div>
+                </div>
+                <div class="filter-section">
+                    <h4>Priority</h4>
+                    <label><input type="checkbox" name="filterPriority" value="high"> High</label>
+                    <label><input type="checkbox" name="filterPriority" value="medium"> Medium</label>
+                    <label><input type="checkbox" name="filterPriority" value="low"> Low</label>
+                </div>
+            </div>
         </div>
 
         <!-- Shared Task Invitations -->

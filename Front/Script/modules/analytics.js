@@ -3,53 +3,18 @@ import { showToast } from './modals.js';
 
 export async function initAnalytics() {
     try {
-        const [stress, weekly, tasks, courses] = await Promise.all([
-            api.getStressScore(),
+        const [weekly, tasks, courses] = await Promise.all([
             api.getWeeklyStress(),
             api.getTasks(),
             api.getCourses()
         ]);
-        renderStressOverview(stress);
         renderWeeklyChart(weekly);
         renderWorkloadByCourse(tasks, courses);
         renderTaskStats(tasks);
-        renderEstimatedVsActual(tasks, courses);
-        renderLearningInsights();
+        renderLearningInsights(tasks, courses);
     } catch (err) {
         showToast('Failed to load analytics', 'error');
     }
-}
-
-function renderStressOverview(stress) {
-    const el = document.getElementById('stressOverview');
-    if (!el) return;
-
-    const circumference = 2 * Math.PI * 54;
-    const offset = circumference - (stress.score / 100) * circumference;
-
-    el.innerHTML = `
-        <div class="analytics-stress">
-            <svg viewBox="0 0 120 120" width="160" height="160">
-                <circle cx="60" cy="60" r="54" fill="none" stroke="#E2E8F0" stroke-width="8"/>
-                <circle cx="60" cy="60" r="54" fill="none" stroke="${stress.color}" stroke-width="8"
-                    stroke-dasharray="${circumference}" stroke-dashoffset="${offset}"
-                    stroke-linecap="round" transform="rotate(-90 60 60)"/>
-            </svg>
-            <div class="stress-meter-value">
-                <span class="stress-meter-number" style="color:${stress.color}">${Math.round(stress.score)}</span>
-                <span class="stress-meter-label">${stress.level}</span>
-            </div>
-        </div>
-        <div class="analytics-stress-info">
-            <div class="stat-box"><span class="stat-box-value">${stress.requiredHours}h</span><span class="stat-box-label">Required Work</span></div>
-            <div class="stat-box"><span class="stat-box-value">${stress.availableHours}h</span><span class="stat-box-label">Available Time</span></div>
-        </div>
-        <div class="analytics-stress-info" style="margin-top:var(--space-2)">
-            <div class="stat-box"><span class="stat-box-value" style="color:${stress.studyLoad > 80 ? '#E74C3C' : stress.studyLoad > 50 ? '#F28D35' : '#27AE60'}">${Math.round(stress.studyLoad ?? 0)}%</span><span class="stat-box-label">Study Load</span></div>
-            <div class="stat-box"><span class="stat-box-value" style="color:${stress.totalLoad > 80 ? '#E74C3C' : stress.totalLoad > 50 ? '#F28D35' : '#27AE60'}">${Math.round(stress.totalLoad ?? 0)}%</span><span class="stat-box-label">Total Load</span></div>
-            <div class="stat-box"><span class="stat-box-value">${stress.totalScheduledHours ?? 0}h</span><span class="stat-box-label">Scheduled Today</span></div>
-        </div>
-    `;
 }
 
 function renderWeeklyChart(weekly) {
@@ -126,78 +91,76 @@ function renderTaskStats(tasks) {
     `;
 }
 
-function renderEstimatedVsActual(tasks, courses) {
-    const el = document.getElementById('estimatedVsActual');
-    if (!el) return;
-
-    // Only show completed tasks with both estimated and actual hours
-    const completedWithHours = tasks.filter(t => t.isCompleted && t.estimatedHours && t.actualHours);
-
-    if (!completedWithHours.length) {
-        el.innerHTML = '<p class="text-muted">Complete tasks with actual hours to see comparison data.</p>';
-        return;
-    }
-
-    // Group by course
-    const courseColors = ['#4A90D9', '#F28D35', '#9B76FF', '#43B88C', '#E84B6A', '#54BFB5'];
-    const courseMap = {};
-    completedWithHours.forEach(t => {
-        const key = t.courseId;
-        if (!courseMap[key]) {
-            courseMap[key] = { courseName: t.courseName || 'Unknown', estimated: 0, actual: 0 };
-        }
-        courseMap[key].estimated += t.estimatedHours;
-        courseMap[key].actual += t.actualHours;
-    });
-
-    const entries = Object.values(courseMap);
-    const maxHours = Math.max(...entries.flatMap(e => [e.estimated, e.actual]), 1);
-
-    el.innerHTML = `
-        <div class="est-vs-actual-chart">
-            ${entries.map((e, i) => {
-                const estPct = Math.round((e.estimated / maxHours) * 100);
-                const actPct = Math.round((e.actual / maxHours) * 100);
-                const color = courseColors[i % courseColors.length];
-                const accuracy = e.estimated > 0 ? Math.round((e.actual / e.estimated) * 100) : 0;
-                return `
-                    <div class="est-vs-actual-row">
-                        <span class="est-vs-actual-label">${e.courseName}</span>
-                        <div class="est-vs-actual-bars">
-                            <div class="est-vs-actual-bar">
-                                <div class="est-vs-actual-fill est-vs-actual-fill--est" style="width:${estPct}%;background:${color};opacity:0.5"></div>
-                                <span class="est-vs-actual-value">${e.estimated.toFixed(1)}h est</span>
-                            </div>
-                            <div class="est-vs-actual-bar">
-                                <div class="est-vs-actual-fill est-vs-actual-fill--act" style="width:${actPct}%;background:${color}"></div>
-                                <span class="est-vs-actual-value">${e.actual.toFixed(1)}h actual</span>
-                            </div>
-                        </div>
-                        <span class="est-vs-actual-accuracy ${accuracy > 120 ? 'text-danger' : accuracy < 80 ? 'text-warning' : 'text-success'}">${accuracy}%</span>
-                    </div>
-                `;
-            }).join('')}
-        </div>
-        <div class="est-vs-actual-legend">
-            <span class="legend-item"><span class="legend-dot" style="background:#ccc;opacity:0.5"></span> Estimated</span>
-            <span class="legend-item"><span class="legend-dot" style="background:#ccc"></span> Actual</span>
-        </div>
-    `;
-}
-
-async function renderLearningInsights() {
+async function renderLearningInsights(tasks, courses) {
     const el = document.getElementById('learningInsights');
     if (!el) return;
 
+    let html = '';
+
+    // Estimated vs Actual chart (merged from standalone card)
+    const completedWithHours = tasks.filter(t => t.isCompleted && t.estimatedHours && t.actualHours);
+    if (completedWithHours.length) {
+        const courseColors = ['#4A90D9', '#F28D35', '#9B76FF', '#43B88C', '#E84B6A', '#54BFB5'];
+        const courseMap = {};
+        completedWithHours.forEach(t => {
+            const key = t.courseId;
+            if (!courseMap[key]) {
+                courseMap[key] = { courseName: t.courseName || 'Unknown', estimated: 0, actual: 0 };
+            }
+            courseMap[key].estimated += t.estimatedHours;
+            courseMap[key].actual += t.actualHours;
+        });
+
+        const entries = Object.values(courseMap);
+        const maxHours = Math.max(...entries.flatMap(e => [e.estimated, e.actual]), 1);
+
+        html += `
+            <h4 style="margin-bottom:var(--space-3);color:var(--text-secondary)">Estimated vs Actual Hours</h4>
+            <div class="est-vs-actual-chart">
+                ${entries.map((e, i) => {
+                    const estPct = Math.round((e.estimated / maxHours) * 100);
+                    const actPct = Math.round((e.actual / maxHours) * 100);
+                    const color = courseColors[i % courseColors.length];
+                    const accuracy = e.estimated > 0 ? Math.round((e.actual / e.estimated) * 100) : 0;
+                    return `
+                        <div class="est-vs-actual-row">
+                            <span class="est-vs-actual-label">${e.courseName}</span>
+                            <div class="est-vs-actual-bars">
+                                <div class="est-vs-actual-bar">
+                                    <div class="est-vs-actual-fill est-vs-actual-fill--est" style="width:${estPct}%;background:${color};opacity:0.5"></div>
+                                    <span class="est-vs-actual-value">${e.estimated.toFixed(1)}h est</span>
+                                </div>
+                                <div class="est-vs-actual-bar">
+                                    <div class="est-vs-actual-fill est-vs-actual-fill--act" style="width:${actPct}%;background:${color}"></div>
+                                    <span class="est-vs-actual-value">${e.actual.toFixed(1)}h actual</span>
+                                </div>
+                            </div>
+                            <span class="est-vs-actual-accuracy ${accuracy > 120 ? 'text-danger' : accuracy < 80 ? 'text-warning' : 'text-success'}">${accuracy}%</span>
+                        </div>
+                    `;
+                }).join('')}
+            </div>
+            <div class="est-vs-actual-legend" style="margin-bottom:var(--space-4)">
+                <span class="legend-item"><span class="legend-dot" style="background:#ccc;opacity:0.5"></span> Estimated</span>
+                <span class="legend-item"><span class="legend-dot" style="background:#ccc"></span> Actual</span>
+            </div>
+        `;
+    }
+
+    // Per-course learning insights
     try {
         const insights = await api.getLearningInsights();
 
         if (!insights || !insights.length) {
-            el.innerHTML = '<p class="text-muted">Complete more tasks with actual hours to see learning insights.</p>';
+            if (!html) {
+                el.innerHTML = '<p class="text-muted">Complete more tasks with actual hours to see learning insights.</p>';
+                return;
+            }
+            el.innerHTML = html;
             return;
         }
 
-        el.innerHTML = insights.map(i => {
+        html += insights.map(i => {
             const accuracy = i.accuracy != null ? Math.round(i.accuracy) : 100;
             const isOver = accuracy > 110;
             const isUnder = accuracy < 90;
@@ -220,7 +183,9 @@ async function renderLearningInsights() {
                 </div>
             `;
         }).join('');
+
+        el.innerHTML = html;
     } catch {
-        el.innerHTML = '<p class="text-muted">Failed to load learning insights.</p>';
+        el.innerHTML = html || '<p class="text-muted">Failed to load learning insights.</p>';
     }
 }
