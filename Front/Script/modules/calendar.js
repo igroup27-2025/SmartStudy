@@ -91,50 +91,67 @@ function setupNavigation() {
         openConstraintModal();
     });
 
-    // Google Calendar sync button
+    // Google Calendar sync button (supports both Composio and legacy flows)
     document.getElementById('calSyncGoogle')?.addEventListener('click', async () => {
+        const syncBtn = document.getElementById('calSyncGoogle');
         try {
-            // Check if Google Calendar API is enabled
-            const config = await api.getAuthConfig();
-            const clientId = config.googleClientId;
-            if (!clientId || clientId === 'PLACEHOLDER_GOOGLE_CLIENT_ID') {
-                showToast('Google Calendar sync is not configured. Set up Google API credentials.', 'error');
+            const syncStatus = await api.getCalendarSyncStatus();
+
+            if (!syncStatus.isEnabled) {
+                showToast('Google Calendar sync is not configured.', 'error');
                 return;
             }
 
-            // Request Calendar scope via Google Identity Services
-            if (typeof google === 'undefined' || !google.accounts) {
-                showToast('Google Sign-In library not loaded', 'error');
-                return;
-            }
+            if (syncStatus.useComposio) {
+                if (!syncStatus.isConnected) {
+                    showToast('Connect Google Calendar first via Settings.', 'error');
+                    return;
+                }
+                syncBtn.disabled = true;
+                syncBtn.textContent = 'Syncing...';
+                const result = await api.syncGoogleCalendar(null);
+                showToast(result.message || 'Calendar synced!', 'success');
+                await navigate();
+            } else {
+                const config = await api.getAuthConfig();
+                const clientId = config.googleClientId;
+                if (!clientId || clientId === 'PLACEHOLDER_GOOGLE_CLIENT_ID') {
+                    showToast('Google Calendar sync is not configured.', 'error');
+                    return;
+                }
 
-            const tokenClient = google.accounts.oauth2.initTokenClient({
-                client_id: clientId,
-                scope: 'https://www.googleapis.com/auth/calendar.readonly',
-                callback: async (tokenResponse) => {
-                    if (tokenResponse.access_token) {
-                        try {
-                            const syncBtn = document.getElementById('calSyncGoogle');
-                            syncBtn.disabled = true;
-                            syncBtn.textContent = 'Syncing...';
-                            const result = await api.syncGoogleCalendar(tokenResponse.access_token);
-                            showToast(result.message || 'Calendar synced!', 'success');
-                            await navigate();
-                            syncBtn.disabled = false;
-                            syncBtn.textContent = 'Sync Google';
-                        } catch (err) {
-                            showToast(err.message || 'Sync failed', 'error');
-                            const syncBtn = document.getElementById('calSyncGoogle');
-                            syncBtn.disabled = false;
-                            syncBtn.textContent = 'Sync Google';
+                if (typeof google === 'undefined' || !google.accounts) {
+                    showToast('Google Sign-In library not loaded', 'error');
+                    return;
+                }
+
+                const tokenClient = google.accounts.oauth2.initTokenClient({
+                    client_id: clientId,
+                    scope: 'https://www.googleapis.com/auth/calendar.readonly',
+                    callback: async (tokenResponse) => {
+                        if (tokenResponse.access_token) {
+                            try {
+                                syncBtn.disabled = true;
+                                syncBtn.textContent = 'Syncing...';
+                                const result = await api.syncGoogleCalendar(tokenResponse.access_token);
+                                showToast(result.message || 'Calendar synced!', 'success');
+                                await navigate();
+                            } catch (err) {
+                                showToast(err.message || 'Sync failed', 'error');
+                            }
                         }
-                    }
-                },
-            });
-            tokenClient.requestAccessToken();
+                        syncBtn.disabled = false;
+                        syncBtn.textContent = 'Sync Google';
+                    },
+                });
+                tokenClient.requestAccessToken();
+                return;
+            }
         } catch (err) {
-            showToast('Failed to start Google Calendar sync', 'error');
+            showToast(err.message || 'Failed to sync Google Calendar', 'error');
         }
+        syncBtn.disabled = false;
+        syncBtn.textContent = 'Sync Google';
     });
 
     // Import schedule button

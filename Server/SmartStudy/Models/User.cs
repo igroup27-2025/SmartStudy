@@ -17,6 +17,9 @@ public class User
     public string? GoogleCalendarRefreshToken { get; set; }
     public DateTime? LastCalendarSync { get; set; }
 
+    // Composio integration
+    public string? ComposioConnectedAccountId { get; set; }
+
     // Navigation properties
     public NotificationSettings? NotificationSettings { get; set; }
     public SchedulingPreferences? SchedulingPreferences { get; set; }

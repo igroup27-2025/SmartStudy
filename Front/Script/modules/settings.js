@@ -193,15 +193,36 @@ async function loadIntegrations() {
     const connectedActions = document.getElementById('gcalConnectedActions');
     if (!statusEl) return;
 
+    // Handle callback from Composio OAuth redirect
+    const urlParams = new URLSearchParams(window.location.search);
+    const gcalParam = urlParams.get('gcal');
+    if (gcalParam) {
+        if (gcalParam === 'success') {
+            showToast('Google Calendar connected successfully!');
+        } else if (gcalParam === 'failed') {
+            showToast('Google Calendar connection failed. Please try again.', 'error');
+        }
+        const cleanUrl = window.location.pathname + window.location.hash;
+        window.history.replaceState({}, '', cleanUrl);
+    }
+
     try {
         const syncStatus = await api.getCalendarSyncStatus();
-        if (syncStatus && syncStatus.isEnabled) {
-            statusEl.textContent = `Connected — Last synced: ${syncStatus.lastSync ? new Date(syncStatus.lastSync).toLocaleString() : 'Never'}`;
+
+        if (syncStatus && syncStatus.isConnected) {
+            const lastSyncText = syncStatus.lastSync
+                ? new Date(syncStatus.lastSync).toLocaleString()
+                : 'Never';
+            statusEl.textContent = `Connected — Last synced: ${lastSyncText} (${syncStatus.syncedEventCount || 0} events)`;
             if (connectBtn) connectBtn.style.display = 'none';
             if (connectedActions) connectedActions.style.display = 'flex';
-        } else {
+        } else if (syncStatus && syncStatus.isEnabled) {
             statusEl.textContent = 'Not connected';
             if (connectBtn) connectBtn.style.display = '';
+            if (connectedActions) connectedActions.style.display = 'none';
+        } else {
+            statusEl.textContent = 'Integration not configured';
+            if (connectBtn) connectBtn.style.display = 'none';
             if (connectedActions) connectedActions.style.display = 'none';
         }
     } catch {
@@ -210,89 +231,149 @@ async function loadIntegrations() {
         if (connectedActions) connectedActions.style.display = 'none';
     }
 
-    // Only set up event listeners once
     if (integrationListenersSetup) return;
     integrationListenersSetup = true;
 
-    // Connect button — initiate Google OAuth
+    // Connect button — initiate Composio OAuth flow
     connectBtn?.addEventListener('click', async () => {
         try {
-            const config = await api.getAuthConfig();
-            if (!config.googleClientId || config.googleClientId === 'PLACEHOLDER_GOOGLE_CLIENT_ID') {
-                showToast('Google Calendar integration is not configured yet', 'error');
-                return;
-            }
+            const syncStatus = await api.getCalendarSyncStatus();
 
-            // Load Google Identity Services if not loaded
-            if (!window.google?.accounts?.oauth2) {
-                await new Promise((resolve, reject) => {
-                    const script = document.createElement('script');
-                    script.src = 'https://accounts.google.com/gsi/client';
-                    script.onload = resolve;
-                    script.onerror = reject;
-                    document.head.appendChild(script);
-                });
-            }
+            if (syncStatus.useComposio) {
+                connectBtn.disabled = true;
+                connectBtn.textContent = 'Connecting...';
 
-            const client = google.accounts.oauth2.initTokenClient({
-                client_id: config.googleClientId,
-                scope: 'https://www.googleapis.com/auth/calendar.readonly',
-                callback: async (tokenResponse) => {
-                    if (tokenResponse.access_token) {
-                        try {
-                            await api.syncGoogleCalendar(tokenResponse.access_token);
-                            showToast('Google Calendar connected!');
-                            loadIntegrations();
-                        } catch (err) {
-                            showToast(err.message || 'Failed to sync', 'error');
-                        }
-                    }
-                },
-            });
-            client.requestAccessToken();
+                const callbackUrl = window.location.origin + window.location.pathname.replace(/\/Pages\/.*/, '') + '/api/calendar-sync/callback';
+                const result = await api.connectGoogleCalendar(callbackUrl);
+
+                if (result.redirectUrl) {
+                    window.location.href = result.redirectUrl;
+                } else {
+                    showToast('Failed to get authentication URL', 'error');
+                    connectBtn.disabled = false;
+                    connectBtn.textContent = 'Connect Google Calendar';
+                }
+            } else {
+                await connectViaGoogleIdentity();
+            }
         } catch (err) {
-            showToast('Failed to connect Google Calendar', 'error');
+            showToast(err.message || 'Failed to connect Google Calendar', 'error');
+            connectBtn.disabled = false;
+            connectBtn.textContent = 'Connect Google Calendar';
         }
     });
 
     // Sync Now button
     document.getElementById('gcalSyncBtn')?.addEventListener('click', async () => {
+        const syncBtn = document.getElementById('gcalSyncBtn');
         try {
-            const config = await api.getAuthConfig();
-            if (!config.googleClientId || config.googleClientId === 'PLACEHOLDER_GOOGLE_CLIENT_ID') {
-                showToast('Google Calendar integration is not configured', 'error');
-                return;
-            }
+            const syncStatus = await api.getCalendarSyncStatus();
 
-            if (!window.google?.accounts?.oauth2) {
-                await new Promise((resolve, reject) => {
-                    const script = document.createElement('script');
-                    script.src = 'https://accounts.google.com/gsi/client';
-                    script.onload = resolve;
-                    script.onerror = reject;
-                    document.head.appendChild(script);
-                });
-            }
+            if (syncStatus.useComposio) {
+                syncBtn.disabled = true;
+                syncBtn.textContent = 'Syncing...';
 
-            const client = google.accounts.oauth2.initTokenClient({
-                client_id: config.googleClientId,
-                scope: 'https://www.googleapis.com/auth/calendar.readonly',
-                callback: async (tokenResponse) => {
-                    if (tokenResponse.access_token) {
-                        try {
-                            await api.syncGoogleCalendar(tokenResponse.access_token);
-                            showToast('Calendar synced!');
-                            loadIntegrations();
-                        } catch (err) {
-                            showToast(err.message || 'Sync failed', 'error');
-                        }
-                    }
-                },
-            });
-            client.requestAccessToken();
+                await api.syncGoogleCalendar(null);
+                showToast('Calendar synced!');
+                loadIntegrations();
+
+                syncBtn.disabled = false;
+                syncBtn.textContent = 'Sync Now';
+            } else {
+                await syncViaGoogleIdentity();
+            }
         } catch (err) {
-            showToast('Failed to sync', 'error');
+            showToast(err.message || 'Sync failed', 'error');
+            if (syncBtn) {
+                syncBtn.disabled = false;
+                syncBtn.textContent = 'Sync Now';
+            }
         }
     });
+
+    // Disconnect button
+    document.getElementById('gcalDisconnectBtn')?.addEventListener('click', async () => {
+        if (!confirm('Disconnect Google Calendar? All synced events will be removed.')) return;
+
+        try {
+            await api.disconnectGoogleCalendar();
+            showToast('Google Calendar disconnected');
+            loadIntegrations();
+        } catch (err) {
+            showToast(err.message || 'Failed to disconnect', 'error');
+        }
+    });
+}
+
+// Legacy: connect via Google Identity Services (when Composio is disabled)
+async function connectViaGoogleIdentity() {
+    const config = await api.getAuthConfig();
+    if (!config.googleClientId || config.googleClientId === 'PLACEHOLDER_GOOGLE_CLIENT_ID') {
+        showToast('Google Calendar integration is not configured yet', 'error');
+        return;
+    }
+
+    if (!window.google?.accounts?.oauth2) {
+        await new Promise((resolve, reject) => {
+            const script = document.createElement('script');
+            script.src = 'https://accounts.google.com/gsi/client';
+            script.onload = resolve;
+            script.onerror = reject;
+            document.head.appendChild(script);
+        });
+    }
+
+    const client = google.accounts.oauth2.initTokenClient({
+        client_id: config.googleClientId,
+        scope: 'https://www.googleapis.com/auth/calendar.readonly',
+        callback: async (tokenResponse) => {
+            if (tokenResponse.access_token) {
+                try {
+                    await api.syncGoogleCalendar(tokenResponse.access_token);
+                    showToast('Google Calendar connected!');
+                    loadIntegrations();
+                } catch (err) {
+                    showToast(err.message || 'Failed to sync', 'error');
+                }
+            }
+        },
+    });
+    client.requestAccessToken();
+}
+
+// Legacy: sync via Google Identity Services
+async function syncViaGoogleIdentity() {
+    const config = await api.getAuthConfig();
+    if (!config.googleClientId || config.googleClientId === 'PLACEHOLDER_GOOGLE_CLIENT_ID') {
+        showToast('Google Calendar integration is not configured', 'error');
+        return;
+    }
+
+    if (!window.google?.accounts?.oauth2) {
+        await new Promise((resolve, reject) => {
+            const script = document.createElement('script');
+            script.src = 'https://accounts.google.com/gsi/client';
+            script.onload = resolve;
+            script.onerror = reject;
+            document.head.appendChild(script);
+        });
+    }
+
+    const client = google.accounts.oauth2.initTokenClient({
+        client_id: config.googleClientId,
+        scope: 'https://www.googleapis.com/auth/calendar.readonly',
+        callback: async (tokenResponse) => {
+            if (tokenResponse.access_token) {
+                try {
+                    await api.syncGoogleCalendar(tokenResponse.access_token);
+                    showToast('Calendar synced!');
+                    loadIntegrations();
+                } catch (err) {
+                    showToast(err.message || 'Sync failed', 'error');
+                }
+            }
+        },
+    });
+    client.requestAccessToken();
 }
 

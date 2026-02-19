@@ -177,9 +177,27 @@ export const api = {
     updateNotifications: (data) => request('PUT', '/settings/notifications', data),
     getInstructors: () => request('GET', '/settings/instructors'),
 
-    // Calendar Sync
-    syncGoogleCalendar: (accessToken) => request('POST', '/calendar-sync/google', { accessToken }),
+    // Calendar Sync (Composio)
+    connectGoogleCalendar: (callbackUrl) => request('POST', '/calendar-sync/connect', { callbackUrl }),
+    syncGoogleCalendar: (accessToken) => request('POST', '/calendar-sync/google', accessToken ? { accessToken } : {}),
     getCalendarSyncStatus: () => request('GET', '/calendar-sync/status'),
+    disconnectGoogleCalendar: () => {
+        return new Promise((resolve, reject) => {
+            $.ajax({
+                url: `${API_BASE}/calendar-sync/disconnect`,
+                method: 'DELETE',
+                headers: getHeaders(),
+                success: (data) => resolve(typeof data === 'string' ? JSON.parse(data || '{}') : data),
+                error: (xhr) => {
+                    if (xhr.status === 401) {
+                        localStorage.removeItem('smartstudy_token');
+                        window.location.href = BASE_PATH + '/Pages/Login.html';
+                    }
+                    reject(new Error(xhr.responseJSON?.message || 'Disconnect failed'));
+                }
+            });
+        });
+    },
 
     // Scheduling Preferences
     getSchedulingPrefs: () => request('GET', '/settings/scheduling'),

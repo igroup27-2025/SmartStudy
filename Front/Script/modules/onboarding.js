@@ -166,6 +166,19 @@ function initStep3() {
     }
     document.getElementById('connectGoogleCal')?.addEventListener('click', async () => {
         try {
+            const syncStatus = await api.getCalendarSyncStatus();
+
+            if (syncStatus.useComposio) {
+                const callbackUrl = window.location.origin + window.location.pathname.replace(/\/Pages\/.*/, '') + '/api/calendar-sync/callback';
+                const result = await api.connectGoogleCalendar(callbackUrl);
+                if (result.redirectUrl) {
+                    window.location.href = result.redirectUrl;
+                    return;
+                }
+                alert('Failed to connect Google Calendar.');
+                return;
+            }
+
             const config = await api.getAuthConfig();
             if (!config.googleClientId || config.googleClientId === 'PLACEHOLDER_GOOGLE_CLIENT_ID') {
                 alert('Google Calendar sync is not configured yet.');

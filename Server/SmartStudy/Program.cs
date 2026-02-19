@@ -40,6 +40,8 @@ builder.Services.AddScoped<ScheduleImportService>();
 builder.Services.AddScoped<SafeZoneService>();
 builder.Services.AddScoped<NotificationService>();
 builder.Services.AddScoped<WeeklySuggestionService>();
+builder.Services.AddHttpClient();
+builder.Services.AddScoped<ComposioService>();
 builder.Services.AddScoped<GoogleCalendarService>();
 builder.Services.AddScoped<EmailService>();
 builder.Services.AddControllers();
@@ -344,6 +346,10 @@ using (var scope = app.Services.CreateScope())
                 ALTER TABLE SmartStudy_Users ADD GoogleCalendarRefreshToken NVARCHAR(MAX) NULL;
             IF COL_LENGTH('SmartStudy_Users', 'LastCalendarSync') IS NULL
                 ALTER TABLE SmartStudy_Users ADD LastCalendarSync DATETIME2 NULL;
+
+            -- Add Composio connected account ID to Users
+            IF COL_LENGTH('SmartStudy_Users', 'ComposioConnectedAccountId') IS NULL
+                ALTER TABLE SmartStudy_Users ADD ComposioConnectedAccountId NVARCHAR(255) NULL;
         ";
         phase2Cmd.ExecuteNonQuery();
     }
