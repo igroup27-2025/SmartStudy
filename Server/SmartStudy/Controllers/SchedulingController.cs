@@ -67,4 +67,5 @@ public class SchedulingController : ControllerBase
         await _db.SaveChangesAsync();
         return Ok(new { message = "Task schedule approved.", approvedCount = reviewEvents.Count, removedPast = pastEvents.Count });
     }
+
 }

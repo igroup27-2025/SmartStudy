@@ -1,171 +1,183 @@
 <mxfile host="app.diagrams.net" modified="2026-02-10T00:00:00.000Z" agent="SmartStudy ERD" version="24.0.0" type="device">
-  <diagram id="erd" name="SmartStudy ERD">
-    <mxGraphModel dx="3000" dy="2400" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="0" pageScale="1" pageWidth="1700" pageHeight="1200" math="0" shadow="0">
+  <diagram id="erd" name="SmartStudy ERD - Database Schema">
+    <mxGraphModel dx="3200" dy="2600" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="0" pageScale="1" pageWidth="2000" pageHeight="1650" math="0" shadow="0">
       <root>
         <mxCell id="0" />
         <mxCell id="1" parent="0" />
 
-        <mxCell id="title" value="SmartStudy — Entity Relationship Diagram" style="text;html=1;align=center;verticalAlign=middle;fontFamily=Helvetica;fontSize=22;fontStyle=1;fontColor=#333;" vertex="1" parent="1">
-          <mxGeometry x="400" y="-90" width="500" height="40" as="geometry" />
+        <mxCell id="legend" value="&lt;b&gt;Legend&lt;/b&gt;&lt;br&gt;── FK Relationship&lt;br&gt;┄ Dashed = TPT Inheritance&lt;br&gt;PK = Primary Key | FK = Foreign Key" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F9F9F9;strokeColor=#CCC;fontFamily=Helvetica;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="1400" y="25" width="220" height="90" as="geometry" />
         </mxCell>
 
-        <mxCell id="legend" value="&lt;b&gt;Legend&lt;/b&gt;&lt;br&gt;── FK Relationship&lt;br&gt;┄ Dashed = TPT Inheritance&lt;br&gt;PK = Primary Key | FK = Foreign Key" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F9F9F9;strokeColor=#CCC;fontFamily=Helvetica;fontSize=11;" vertex="1" parent="1">
-          <mxGeometry x="1280" y="-85" width="200" height="90" as="geometry" />
+        <!-- User -->
+        <mxCell id="user-h" value="SmartStudy_Users" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F28D35;fontColor=#fff;strokeColor=#D47A2B;fontFamily=Helvetica;fontSize=14;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="500" y="120" width="260" height="36" as="geometry" />
+        </mxCell>
+        <mxCell id="user-b" value="PK Email NVARCHAR(255)&#xa;FirstName NVARCHAR(100), LastName NVARCHAR(100)&#xa;Password NVARCHAR(255)&#xa;ResetToken, ResetTokenExpiry, AuthProvider&#xa;OnboardingCompleted BIT&#xa;GoogleCalendarAccessToken, GoogleCalendarRefreshToken&#xa;LastCalendarSync, ComposioConnectedAccountId" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFF8F0;strokeColor=#D47A2B;fontFamily=Helvetica;fontSize=10;verticalAlign=top;" vertex="1" parent="1">
+          <mxGeometry x="500" y="156" width="260" height="140" as="geometry" />
+        </mxCell>
+
+        <!-- NotificationSettings -->
+        <mxCell id="notif-h" value="SmartStudy_NotificationSettings" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#54BFB5;fontColor=#fff;strokeColor=#3EA89E;fontFamily=Helvetica;fontSize=12;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="820" y="120" width="260" height="36" as="geometry" />
+        </mxCell>
+        <mxCell id="notif-b" value="PK/FK Email → Users&#xa;Notify_before_task BIT, Daily_morning_summary BIT&#xa;Weekly_plan_reminder BIT, Enable_push_notification BIT&#xa;Quiet_hours_start TIME, Quiet_hours_end TIME" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F0FAFA;strokeColor=#3EA89E;fontFamily=Helvetica;fontSize=10;verticalAlign=top;" vertex="1" parent="1">
+          <mxGeometry x="820" y="156" width="260" height="110" as="geometry" />
+        </mxCell>
+
+        <!-- SchedulingPreferences -->
+        <mxCell id="schedpref-h" value="SmartStudy_SchedulingPreferences" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#54BFB5;fontColor=#fff;strokeColor=#3EA89E;fontFamily=Helvetica;fontSize=12;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="820" y="180" width="260" height="36" as="geometry" />
+        </mxCell>
+        <mxCell id="schedpref-b" value="PK/FK Email → Users&#xa;MaxDailyStudyHours, MaxContinuousMinutes&#xa;DayStartHour, DayEndHour, SleepHoursPerDay&#xa;LunchBreakStart, LunchBreakEnd, BreakDurationMinutes&#xa;DefaultTaskEstimatedHours, MaxDailyTotalHours&#xa;ExamPrepHoursPerDay, ExamPrepDays" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F0FAFA;strokeColor=#3EA89E;fontFamily=Helvetica;fontSize=10;verticalAlign=top;" vertex="1" parent="1">
+          <mxGeometry x="820" y="216" width="260" height="130" as="geometry" />
+        </mxCell>
+
+        <!-- Instructor -->
+        <mxCell id="instr-h" value="SmartStudy_Instructors" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#54BFB5;fontColor=#fff;strokeColor=#3EA89E;fontFamily=Helvetica;fontSize=13;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="80" y="120" width="220" height="36" as="geometry" />
+        </mxCell>
+        <mxCell id="instr-b" value="PK InstructorId INT IDENTITY&#xa;InstructorName NVARCHAR(200)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F0FAFA;strokeColor=#3EA89E;fontFamily=Helvetica;fontSize=11;verticalAlign=top;" vertex="1" parent="1">
+          <mxGeometry x="80" y="156" width="220" height="60" as="geometry" />
+        </mxCell>
+
+        <!-- UserCourse -->
+        <mxCell id="uc-h" value="SmartStudy_UserCourses" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#9B76FF;fontColor=#fff;strokeColor=#7B5AD9;fontFamily=Helvetica;fontSize=12;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="320" y="260" width="220" height="36" as="geometry" />
+        </mxCell>
+        <mxCell id="uc-b" value="PK/FK Email → Users&#xa;PK/FK CourseId → Courses&#xa;StudyPartnerEmail NVARCHAR(255)&#xa;SharedByDefault BIT, CourseShareApproved BIT" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F5F0FF;strokeColor=#7B5AD9;fontFamily=Helvetica;fontSize=10;verticalAlign=top;" vertex="1" parent="1">
+          <mxGeometry x="320" y="296" width="220" height="95" as="geometry" />
+        </mxCell>
+
+        <!-- Course -->
+        <mxCell id="course-h" value="SmartStudy_Courses" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F28D35;fontColor=#fff;strokeColor=#D47A2B;fontFamily=Helvetica;fontSize=14;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="500" y="420" width="260" height="36" as="geometry" />
+        </mxCell>
+        <mxCell id="course-b" value="PK CourseId INT (manual)&#xa;CourseName NVARCHAR(200), WeeklyHours DECIMAL(4,1)&#xa;Credits DECIMAL(4,1), Semester NVARCHAR(50)&#xa;FK InstructorId → Instructors&#xa;DefaultTaskEstimatedHours, ExamPrepHoursPerDay, ExamPrepDays" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFF8F0;strokeColor=#D47A2B;fontFamily=Helvetica;fontSize=10;verticalAlign=top;" vertex="1" parent="1">
+          <mxGeometry x="500" y="456" width="260" height="130" as="geometry" />
+        </mxCell>
+
+        <!-- Exam -->
+        <mxCell id="exam-h" value="SmartStudy_Exams" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FF607E;fontColor=#fff;strokeColor=#D94D67;fontFamily=Helvetica;fontSize=14;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="820" y="420" width="260" height="36" as="geometry" />
+        </mxCell>
+        <mxCell id="exam-b" value="PK ExamId INT IDENTITY&#xa;FK CourseId → Courses&#xa;Date DATETIME2, Time TIME&#xa;Session NVARCHAR(10), Duration INT" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFF0F3;strokeColor=#D94D67;fontFamily=Helvetica;fontSize=10;verticalAlign=top;" vertex="1" parent="1">
+          <mxGeometry x="820" y="456" width="260" height="110" as="geometry" />
+        </mxCell>
+
+        <!-- Task -->
+        <mxCell id="task-h" value="SmartStudy_Tasks" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F28D35;fontColor=#fff;strokeColor=#D47A2B;fontFamily=Helvetica;fontSize=14;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="80" y="620" width="260" height="36" as="geometry" />
+        </mxCell>
+        <mxCell id="task-b" value="PK TaskId INT IDENTITY&#xa;FK CourseId → Courses, FK Email → Users&#xa;Title NVARCHAR(200), Type NVARCHAR(50)&#xa;EstimatedHours DECIMAL(5,2), DueDate DATETIME2&#xa;IsCompleted BIT, Priority NVARCHAR(20)&#xa;ActualHours DECIMAL(5,2), ParentTaskId INT (self-ref)&#xa;AllowSplitting BIT, IsManuallyPinned BIT" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFF8F0;strokeColor=#D47A2B;fontFamily=Helvetica;fontSize=10;verticalAlign=top;" vertex="1" parent="1">
+          <mxGeometry x="80" y="656" width="260" height="170" as="geometry" />
+        </mxCell>
+
+        <!-- Event -->
+        <mxCell id="event-h" value="SmartStudy_Events (TPT base)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#9B76FF;fontColor=#fff;strokeColor=#7B5AD9;fontFamily=Helvetica;fontSize=14;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="500" y="620" width="260" height="36" as="geometry" />
+        </mxCell>
+        <mxCell id="event-b" value="PK EventId INT IDENTITY&#xa;FK Email → Users&#xa;From DATETIME2, To DATETIME2&#xa;Recurring BIT, RecurrenceEndDate DATETIME2" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F5F0FF;strokeColor=#7B5AD9;fontFamily=Helvetica;fontSize=10;verticalAlign=top;" vertex="1" parent="1">
+          <mxGeometry x="500" y="656" width="260" height="110" as="geometry" />
+        </mxCell>
+
+        <!-- SharedTask -->
+        <mxCell id="stask-h" value="SmartStudy_SharedTasks" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#54BFB5;fontColor=#fff;strokeColor=#3EA89E;fontFamily=Helvetica;fontSize=13;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="920" y="620" width="260" height="36" as="geometry" />
+        </mxCell>
+        <mxCell id="stask-b" value="PK/FK TaskId → Tasks&#xa;FK CreatedByEmail → Users&#xa;CreatedAt DATETIME2&#xa;SharedStatus NVARCHAR(20)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F0FAFA;strokeColor=#3EA89E;fontFamily=Helvetica;fontSize=10;verticalAlign=top;" vertex="1" parent="1">
+          <mxGeometry x="920" y="656" width="260" height="95" as="geometry" />
+        </mxCell>
+
+        <!-- SharedTaskMember -->
+        <mxCell id="stm-h" value="SmartStudy_SharedTaskMembers" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#54BFB5;fontColor=#fff;strokeColor=#3EA89E;fontFamily=Helvetica;fontSize=12;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="1240" y="620" width="260" height="36" as="geometry" />
+        </mxCell>
+        <mxCell id="stm-b" value="PK/FK TaskId → SharedTasks&#xa;PK/FK Email → Users&#xa;ResponseStatus NVARCHAR(20)&#xa;RespondedAt DATETIME2" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F0FAFA;strokeColor=#3EA89E;fontFamily=Helvetica;fontSize=10;verticalAlign=top;" vertex="1" parent="1">
+          <mxGeometry x="1240" y="656" width="260" height="95" as="geometry" />
+        </mxCell>
+
+        <!-- FriendRequest -->
+        <mxCell id="freq-h" value="SmartStudy_FriendRequests" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F28D35;fontColor=#fff;strokeColor=#D47A2B;fontFamily=Helvetica;fontSize=12;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="1140" y="120" width="260" height="36" as="geometry" />
+        </mxCell>
+        <mxCell id="freq-b" value="PK RequestId INT IDENTITY&#xa;FK RequesterEmail, AddresseeEmail → Users&#xa;Status NVARCHAR(20), RequestedAt DATETIME2&#xa;RespondedAt DATETIME2" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFF8F0;strokeColor=#D47A2B;fontFamily=Helvetica;fontSize=10;verticalAlign=top;" vertex="1" parent="1">
+          <mxGeometry x="1140" y="156" width="260" height="110" as="geometry" />
+        </mxCell>
+
+        <!-- Friendship -->
+        <mxCell id="fship-h" value="SmartStudy_Friendships" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#54BFB5;fontColor=#fff;strokeColor=#3EA89E;fontFamily=Helvetica;fontSize=13;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="1140" y="470" width="260" height="36" as="geometry" />
+        </mxCell>
+        <mxCell id="fship-b" value="PK FriendshipId INT IDENTITY&#xa;FK Email1, Email2 → Users&#xa;CreatedAt DATETIME2, IsActive BIT" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F0FAFA;strokeColor=#3EA89E;fontFamily=Helvetica;fontSize=10;verticalAlign=top;" vertex="1" parent="1">
+          <mxGeometry x="1140" y="506" width="260" height="95" as="geometry" />
+        </mxCell>
+
+        <!-- Notification -->
+        <mxCell id="notif-entity-h" value="SmartStudy_Notifications" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#54BFB5;fontColor=#fff;strokeColor=#3EA89E;fontFamily=Helvetica;fontSize=12;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="1140" y="280" width="260" height="36" as="geometry" />
+        </mxCell>
+        <mxCell id="notif-entity-b" value="PK NotificationId INT IDENTITY&#xa;FK Email → Users&#xa;Type NVARCHAR(50), Title NVARCHAR(200)&#xa;Message NVARCHAR(1000), IsRead BIT&#xa;CreatedAt DATETIME2&#xa;RelatedEntityId INT, RelatedEntityType NVARCHAR(50)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F0FAFA;strokeColor=#3EA89E;fontFamily=Helvetica;fontSize=10;verticalAlign=top;" vertex="1" parent="1">
+          <mxGeometry x="1140" y="316" width="260" height="140" as="geometry" />
+        </mxCell>
+
+        <!-- ClassEvent -->
+        <mxCell id="cev-h" value="SmartStudy_ClassEvents" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#00BCD4;fontColor=#fff;strokeColor=#0097A7;fontFamily=Helvetica;fontSize=12;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="80" y="920" width="260" height="36" as="geometry" />
+        </mxCell>
+        <mxCell id="cev-b" value="PK/FK EventId → Events&#xa;FK CourseId → Courses&#xa;Location NVARCHAR(200), Duration DECIMAL(5,2)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E0F7FA;strokeColor=#0097A7;fontFamily=Helvetica;fontSize=10;verticalAlign=top;" vertex="1" parent="1">
+          <mxGeometry x="80" y="956" width="260" height="90" as="geometry" />
+        </mxCell>
+
+        <!-- TaskEvent -->
+        <mxCell id="tev-h" value="SmartStudy_TaskEvents" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F28D35;fontColor=#fff;strokeColor=#D47A2B;fontFamily=Helvetica;fontSize=12;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="370" y="920" width="260" height="36" as="geometry" />
+        </mxCell>
+        <mxCell id="tev-b" value="PK/FK EventId → Events&#xa;FK TaskId → Tasks&#xa;Priority NVARCHAR(50), ActualHours DECIMAL(5,2)&#xa;Status NVARCHAR(50)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFF8F0;strokeColor=#D47A2B;fontFamily=Helvetica;fontSize=10;verticalAlign=top;" vertex="1" parent="1">
+          <mxGeometry x="370" y="956" width="260" height="95" as="geometry" />
+        </mxCell>
+
+        <!-- WorkEvent -->
+        <mxCell id="wev-h" value="SmartStudy_WorkEvents" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#9B76FF;fontColor=#fff;strokeColor=#7B5AD9;fontFamily=Helvetica;fontSize=12;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="660" y="920" width="260" height="36" as="geometry" />
+        </mxCell>
+        <mxCell id="wev-b" value="PK/FK EventId → Events&#xa;TravelTime INT, WorkPlace NVARCHAR(200)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F5F0FF;strokeColor=#7B5AD9;fontFamily=Helvetica;fontSize=10;verticalAlign=top;" vertex="1" parent="1">
+          <mxGeometry x="660" y="956" width="260" height="70" as="geometry" />
+        </mxCell>
+
+        <!-- PersonalEvent -->
+        <mxCell id="pev-h" value="SmartStudy_PersonalEvents" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F2C777;fontColor=#333;strokeColor=#D4A84F;fontFamily=Helvetica;fontSize=12;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="950" y="920" width="260" height="36" as="geometry" />
+        </mxCell>
+        <mxCell id="pev-b" value="PK/FK EventId → Events&#xa;Type NVARCHAR(50), Description NVARCHAR(MAX)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFBF0;strokeColor=#D4A84F;fontFamily=Helvetica;fontSize=10;verticalAlign=top;" vertex="1" parent="1">
+          <mxGeometry x="950" y="956" width="260" height="70" as="geometry" />
         </mxCell>
 
         <!-- Relationships -->
         <mxCell id="r1" style="edgeStyle=orthogonalEdgeStyle;rounded=1;strokeColor=#555;strokeWidth=1.5;endArrow=ERone;endFill=0;startArrow=ERone;startFill=0;" edge="1" parent="1" source="user-b" target="notif-b"><mxGeometry relative="1" as="geometry" /></mxCell>
-        <mxCell id="r2" style="edgeStyle=orthogonalEdgeStyle;rounded=1;strokeColor=#555;strokeWidth=1.5;endArrow=ERmany;endFill=0;startArrow=ERone;startFill=0;" edge="1" parent="1" source="instr-b" target="course-h"><mxGeometry relative="1" as="geometry" /></mxCell>
-        <mxCell id="r3" style="edgeStyle=orthogonalEdgeStyle;rounded=1;strokeColor=#555;strokeWidth=1.5;endArrow=ERmany;endFill=0;startArrow=ERone;startFill=0;" edge="1" parent="1" source="user-b" target="uc-h"><mxGeometry relative="1" as="geometry" /></mxCell>
-        <mxCell id="r4" style="edgeStyle=orthogonalEdgeStyle;rounded=1;strokeColor=#555;strokeWidth=1.5;endArrow=ERmany;endFill=0;startArrow=ERone;startFill=0;" edge="1" parent="1" source="course-h" target="uc-h"><mxGeometry relative="1" as="geometry" /></mxCell>
-        <mxCell id="r5" style="edgeStyle=orthogonalEdgeStyle;rounded=1;strokeColor=#555;strokeWidth=1.5;endArrow=ERmany;endFill=0;startArrow=ERone;startFill=0;" edge="1" parent="1" source="course-h" target="exam-h"><mxGeometry relative="1" as="geometry" /></mxCell>
-        <mxCell id="r6" style="edgeStyle=orthogonalEdgeStyle;rounded=1;strokeColor=#555;strokeWidth=1.5;endArrow=ERmany;endFill=0;startArrow=ERone;startFill=0;" edge="1" parent="1" source="course-h" target="task-h"><mxGeometry relative="1" as="geometry" /></mxCell>
-        <mxCell id="r7" style="edgeStyle=orthogonalEdgeStyle;rounded=1;strokeColor=#555;strokeWidth=1.5;endArrow=ERmany;endFill=0;startArrow=ERone;startFill=0;" edge="1" parent="1" source="user-b" target="task-h"><mxGeometry relative="1" as="geometry" /></mxCell>
-        <mxCell id="r8" style="edgeStyle=orthogonalEdgeStyle;rounded=1;strokeColor=#555;strokeWidth=1.5;endArrow=ERmany;endFill=0;startArrow=ERone;startFill=0;" edge="1" parent="1" source="user-b" target="event-h"><mxGeometry relative="1" as="geometry" /></mxCell>
-        <mxCell id="r9" style="edgeStyle=orthogonalEdgeStyle;rounded=1;strokeColor=#555;strokeWidth=1.5;endArrow=ERmany;endFill=0;startArrow=ERone;startFill=0;" edge="1" parent="1" source="course-h" target="cev-h"><mxGeometry relative="1" as="geometry" /></mxCell>
-        <mxCell id="r10" style="edgeStyle=orthogonalEdgeStyle;rounded=1;strokeColor=#555;strokeWidth=1.5;endArrow=ERmany;endFill=0;startArrow=ERone;startFill=0;" edge="1" parent="1" source="task-h" target="tev-h"><mxGeometry relative="1" as="geometry" /></mxCell>
-        <mxCell id="r11" style="edgeStyle=orthogonalEdgeStyle;rounded=1;strokeColor=#555;strokeWidth=1.5;endArrow=ERone;endFill=0;startArrow=ERone;startFill=0;" edge="1" parent="1" source="task-h" target="stask-h"><mxGeometry relative="1" as="geometry" /></mxCell>
-        <mxCell id="r12" style="edgeStyle=orthogonalEdgeStyle;rounded=1;strokeColor=#555;strokeWidth=1.5;endArrow=ERmany;endFill=0;startArrow=ERone;startFill=0;" edge="1" parent="1" source="stask-h" target="stm-h"><mxGeometry relative="1" as="geometry" /></mxCell>
-        <mxCell id="r13" style="edgeStyle=orthogonalEdgeStyle;rounded=1;strokeColor=#555;strokeWidth=1.5;endArrow=ERmany;endFill=0;startArrow=ERone;startFill=0;" edge="1" parent="1" source="user-b" target="freq-b"><mxGeometry relative="1" as="geometry" /></mxCell>
-        <mxCell id="r14" style="edgeStyle=orthogonalEdgeStyle;rounded=1;strokeColor=#555;strokeWidth=1.5;endArrow=ERmany;endFill=0;startArrow=ERone;startFill=0;" edge="1" parent="1" source="user-b" target="fship-h"><mxGeometry relative="1" as="geometry" /></mxCell>
-        <mxCell id="r15" style="edgeStyle=orthogonalEdgeStyle;rounded=1;strokeColor=#555;strokeWidth=1.5;endArrow=ERmany;endFill=0;startArrow=ERone;startFill=0;" edge="1" parent="1" source="user-b" target="notif-entity-h"><mxGeometry relative="1" as="geometry" /></mxCell>
-        <mxCell id="r16" style="edgeStyle=orthogonalEdgeStyle;rounded=1;strokeColor=#555;strokeWidth=1.5;endArrow=ERone;endFill=0;startArrow=ERone;startFill=0;" edge="1" parent="1" source="user-b" target="schedpref-h"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="r2" style="edgeStyle=orthogonalEdgeStyle;rounded=1;strokeColor=#555;strokeWidth=1.5;endArrow=ERone;endFill=0;startArrow=ERone;startFill=0;" edge="1" parent="1" source="user-b" target="schedpref-h"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="r3" style="edgeStyle=orthogonalEdgeStyle;rounded=1;strokeColor=#555;strokeWidth=1.5;endArrow=ERmany;endFill=0;startArrow=ERone;startFill=0;" edge="1" parent="1" source="instr-b" target="course-h"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="r4" style="edgeStyle=orthogonalEdgeStyle;rounded=1;strokeColor=#555;strokeWidth=1.5;endArrow=ERmany;endFill=0;startArrow=ERone;startFill=0;" edge="1" parent="1" source="user-b" target="uc-h"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="r5" style="edgeStyle=orthogonalEdgeStyle;rounded=1;strokeColor=#555;strokeWidth=1.5;endArrow=ERmany;endFill=0;startArrow=ERone;startFill=0;" edge="1" parent="1" source="course-h" target="uc-h"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="r6" style="edgeStyle=orthogonalEdgeStyle;rounded=1;strokeColor=#555;strokeWidth=1.5;endArrow=ERmany;endFill=0;startArrow=ERone;startFill=0;" edge="1" parent="1" source="course-h" target="exam-h"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="r7" style="edgeStyle=orthogonalEdgeStyle;rounded=1;strokeColor=#555;strokeWidth=1.5;endArrow=ERmany;endFill=0;startArrow=ERone;startFill=0;" edge="1" parent="1" source="course-h" target="task-h"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="r8" style="edgeStyle=orthogonalEdgeStyle;rounded=1;strokeColor=#555;strokeWidth=1.5;endArrow=ERmany;endFill=0;startArrow=ERone;startFill=0;" edge="1" parent="1" source="user-b" target="task-h"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="r9" style="edgeStyle=orthogonalEdgeStyle;rounded=1;strokeColor=#555;strokeWidth=1.5;endArrow=ERmany;endFill=0;startArrow=ERone;startFill=0;" edge="1" parent="1" source="user-b" target="event-h"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="r10" style="edgeStyle=orthogonalEdgeStyle;rounded=1;strokeColor=#555;strokeWidth=1.5;endArrow=ERmany;endFill=0;startArrow=ERone;startFill=0;" edge="1" parent="1" source="course-h" target="cev-h"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="r11" style="edgeStyle=orthogonalEdgeStyle;rounded=1;strokeColor=#555;strokeWidth=1.5;endArrow=ERmany;endFill=0;startArrow=ERone;startFill=0;" edge="1" parent="1" source="task-h" target="tev-h"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="r12" style="edgeStyle=orthogonalEdgeStyle;rounded=1;strokeColor=#555;strokeWidth=1.5;endArrow=ERone;endFill=0;startArrow=ERone;startFill=0;" edge="1" parent="1" source="task-h" target="stask-h"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="r13" style="edgeStyle=orthogonalEdgeStyle;rounded=1;strokeColor=#555;strokeWidth=1.5;endArrow=ERmany;endFill=0;startArrow=ERone;startFill=0;" edge="1" parent="1" source="stask-h" target="stm-h"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="r14" style="edgeStyle=orthogonalEdgeStyle;rounded=1;strokeColor=#555;strokeWidth=1.5;endArrow=ERmany;endFill=0;startArrow=ERone;startFill=0;" edge="1" parent="1" source="user-b" target="freq-b"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="r15" style="edgeStyle=orthogonalEdgeStyle;rounded=1;strokeColor=#555;strokeWidth=1.5;endArrow=ERmany;endFill=0;startArrow=ERone;startFill=0;" edge="1" parent="1" source="user-b" target="fship-h"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="r16" style="edgeStyle=orthogonalEdgeStyle;rounded=1;strokeColor=#555;strokeWidth=1.5;endArrow=ERmany;endFill=0;startArrow=ERone;startFill=0;" edge="1" parent="1" source="user-b" target="notif-entity-h"><mxGeometry relative="1" as="geometry" /></mxCell>
         <mxCell id="r17" style="edgeStyle=orthogonalEdgeStyle;rounded=1;strokeColor=#555;strokeWidth=1.5;endArrow=ERmany;endFill=0;startArrow=ERone;startFill=0;" edge="1" parent="1" source="user-b" target="stask-h"><mxGeometry relative="1" as="geometry" /></mxCell>
         <mxCell id="r18" style="edgeStyle=orthogonalEdgeStyle;rounded=1;strokeColor=#555;strokeWidth=1.5;endArrow=ERmany;endFill=0;startArrow=ERone;startFill=0;" edge="1" parent="1" source="user-b" target="stm-h"><mxGeometry relative="1" as="geometry" /></mxCell>
 
-        <!-- TPT -->
+        <!-- TPT Inheritance -->
         <mxCell id="tpt1" style="edgeStyle=orthogonalEdgeStyle;rounded=1;strokeColor=#9B76FF;strokeWidth=2;dashed=1;dashPattern=8 4;endArrow=block;endFill=0;" edge="1" parent="1" source="event-b" target="cev-h"><mxGeometry relative="1" as="geometry" /></mxCell>
         <mxCell id="tpt2" style="edgeStyle=orthogonalEdgeStyle;rounded=1;strokeColor=#9B76FF;strokeWidth=2;dashed=1;dashPattern=8 4;endArrow=block;endFill=0;" edge="1" parent="1" source="event-b" target="tev-h"><mxGeometry relative="1" as="geometry" /></mxCell>
         <mxCell id="tpt3" style="edgeStyle=orthogonalEdgeStyle;rounded=1;strokeColor=#9B76FF;strokeWidth=2;dashed=1;dashPattern=8 4;endArrow=block;endFill=0;" edge="1" parent="1" source="event-b" target="wev-h"><mxGeometry relative="1" as="geometry" /></mxCell>
         <mxCell id="tpt4" style="edgeStyle=orthogonalEdgeStyle;rounded=1;strokeColor=#9B76FF;strokeWidth=2;dashed=1;dashPattern=8 4;endArrow=block;endFill=0;" edge="1" parent="1" source="event-b" target="pev-h"><mxGeometry relative="1" as="geometry" /></mxCell>
-
-        <!-- Entities -->
-        <mxCell id="user-h" value="User" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F28D35;fontColor=#fff;strokeColor=#D47A2B;fontFamily=Helvetica;fontSize=14;fontStyle=1;arcSize=20;" vertex="1" parent="1">
-          <mxGeometry x="500" y="0" width="220" height="36" as="geometry" />
-        </mxCell>
-        <mxCell id="user-b" value="PK Email NVARCHAR(255)&#xa;FirstName, LastName, Password&#xa;OnboardingCompleted, AuthProvider" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFF8F0;strokeColor=#D47A2B;fontFamily=Helvetica;fontSize=11;verticalAlign=top;arcSize=10;" vertex="1" parent="1">
-          <mxGeometry x="500" y="36" width="220" height="95" as="geometry" />
-        </mxCell>
-
-        <mxCell id="notif-h" value="NotificationSettings" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#54BFB5;fontColor=#fff;strokeColor=#3EA89E;fontFamily=Helvetica;fontSize=13;fontStyle=1;arcSize=20;" vertex="1" parent="1">
-          <mxGeometry x="800" y="0" width="220" height="36" as="geometry" />
-        </mxCell>
-        <mxCell id="notif-b" value="PK/FK Email → User&#xa;Notify_before_task, Daily_morning_summary&#xa;Weekly_plan_reminder, Enable_push_notification&#xa;Quiet_hours_start, Quiet_hours_end" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F0FAFA;strokeColor=#3EA89E;fontFamily=Helvetica;fontSize=11;verticalAlign=top;arcSize=10;" vertex="1" parent="1">
-          <mxGeometry x="800" y="36" width="220" height="115" as="geometry" />
-        </mxCell>
-
-        <mxCell id="schedpref-h" value="SchedulingPreferences" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#54BFB5;fontColor=#fff;strokeColor=#3EA89E;fontFamily=Helvetica;fontSize=12;fontStyle=1;arcSize=20;" vertex="1" parent="1">
-          <mxGeometry x="800" y="180" width="220" height="36" as="geometry" />
-        </mxCell>
-        <mxCell id="schedpref-b" value="PK/FK Email → User&#xa;MaxDailyStudyHours, MaxContinuousMinutes&#xa;DayStartHour, DayEndHour, SleepHoursPerDay&#xa;BreakDurationMinutes, DefaultTaskEstimatedHours" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F0FAFA;strokeColor=#3EA89E;fontFamily=Helvetica;fontSize=11;verticalAlign=top;arcSize=10;" vertex="1" parent="1">
-          <mxGeometry x="800" y="216" width="220" height="100" as="geometry" />
-        </mxCell>
-
-        <mxCell id="instr-h" value="Instructor" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#54BFB5;fontColor=#fff;strokeColor=#3EA89E;fontFamily=Helvetica;fontSize=14;fontStyle=1;arcSize=20;" vertex="1" parent="1">
-          <mxGeometry x="80" y="0" width="200" height="36" as="geometry" />
-        </mxCell>
-        <mxCell id="instr-b" value="PK InstructorId INT&#xa;InstructorName NVARCHAR(200)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F0FAFA;strokeColor=#3EA89E;fontFamily=Helvetica;fontSize=11;verticalAlign=top;arcSize=10;" vertex="1" parent="1">
-          <mxGeometry x="80" y="36" width="200" height="60" as="geometry" />
-        </mxCell>
-
-        <mxCell id="uc-h" value="UserCourse" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#9B76FF;fontColor=#fff;strokeColor=#7B5AD9;fontFamily=Helvetica;fontSize=13;fontStyle=1;arcSize=20;" vertex="1" parent="1">
-          <mxGeometry x="280" y="230" width="180" height="36" as="geometry" />
-        </mxCell>
-        <mxCell id="uc-b" value="PK/FK Email → User&#xa;PK/FK CourseId → Course&#xa;StudyPartnerEmail, SharedByDefault" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F5F0FF;strokeColor=#7B5AD9;fontFamily=Helvetica;fontSize=11;verticalAlign=top;arcSize=10;" vertex="1" parent="1">
-          <mxGeometry x="280" y="266" width="180" height="75" as="geometry" />
-        </mxCell>
-
-        <mxCell id="course-h" value="Course" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F28D35;fontColor=#fff;strokeColor=#D47A2B;fontFamily=Helvetica;fontSize=14;fontStyle=1;arcSize=20;" vertex="1" parent="1">
-          <mxGeometry x="500" y="360" width="220" height="36" as="geometry" />
-        </mxCell>
-        <mxCell id="course-b" value="PK CourseId INT (manual)&#xa;CourseName, WeeklyHours, Credits, Semester&#xa;FK InstructorId → Instructor&#xa;DefaultTaskEstimatedHours, ExamPrepHoursPerDay" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFF8F0;strokeColor=#D47A2B;fontFamily=Helvetica;fontSize=11;verticalAlign=top;arcSize=10;" vertex="1" parent="1">
-          <mxGeometry x="500" y="396" width="220" height="130" as="geometry" />
-        </mxCell>
-
-        <mxCell id="exam-h" value="Exam" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FF607E;fontColor=#fff;strokeColor=#D94D67;fontFamily=Helvetica;fontSize=14;fontStyle=1;arcSize=20;" vertex="1" parent="1">
-          <mxGeometry x="800" y="360" width="220" height="36" as="geometry" />
-        </mxCell>
-        <mxCell id="exam-b" value="PK ExamId INT&#xa;FK CourseId → Course&#xa;Date, Time, Session, Duration" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFF0F3;strokeColor=#D94D67;fontFamily=Helvetica;fontSize=11;verticalAlign=top;arcSize=10;" vertex="1" parent="1">
-          <mxGeometry x="800" y="396" width="220" height="110" as="geometry" />
-        </mxCell>
-
-        <mxCell id="task-h" value="Task (StudentTask)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F28D35;fontColor=#fff;strokeColor=#D47A2B;fontFamily=Helvetica;fontSize=14;fontStyle=1;arcSize=20;" vertex="1" parent="1">
-          <mxGeometry x="150" y="560" width="220" height="36" as="geometry" />
-        </mxCell>
-        <mxCell id="task-b" value="PK TaskId INT&#xa;FK CourseId, Email → Course, User&#xa;Title, Type, EstimatedHours, DueDate&#xa;IsCompleted, Priority, ParentTaskId&#xa;ActualHours, AllowSplitting" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFF8F0;strokeColor=#D47A2B;fontFamily=Helvetica;fontSize=11;verticalAlign=top;arcSize=10;" vertex="1" parent="1">
-          <mxGeometry x="150" y="596" width="220" height="150" as="geometry" />
-        </mxCell>
-
-        <mxCell id="event-h" value="Event (Base)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#9B76FF;fontColor=#fff;strokeColor=#7B5AD9;fontFamily=Helvetica;fontSize=14;fontStyle=1;arcSize=20;" vertex="1" parent="1">
-          <mxGeometry x="500" y="560" width="220" height="36" as="geometry" />
-        </mxCell>
-        <mxCell id="event-b" value="PK EventId INT&#xa;FK Email → User&#xa;From, To, Recurring&#xa;RecurrenceEndDate" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F5F0FF;strokeColor=#7B5AD9;fontFamily=Helvetica;fontSize=11;verticalAlign=top;arcSize=10;" vertex="1" parent="1">
-          <mxGeometry x="500" y="596" width="220" height="120" as="geometry" />
-        </mxCell>
-
-        <mxCell id="stask-h" value="SharedTask" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#54BFB5;fontColor=#fff;strokeColor=#3EA89E;fontFamily=Helvetica;fontSize=13;fontStyle=1;arcSize=20;" vertex="1" parent="1">
-          <mxGeometry x="900" y="560" width="240" height="36" as="geometry" />
-        </mxCell>
-        <mxCell id="stask-b" value="PK/FK TaskId → Task&#xa;FK CreatedByEmail → User&#xa;CreatedAt, SharedStatus" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F0FAFA;strokeColor=#3EA89E;fontFamily=Helvetica;fontSize=11;verticalAlign=top;arcSize=10;" vertex="1" parent="1">
-          <mxGeometry x="900" y="596" width="240" height="95" as="geometry" />
-        </mxCell>
-
-        <mxCell id="stm-h" value="SharedTaskMember" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#54BFB5;fontColor=#fff;strokeColor=#3EA89E;fontFamily=Helvetica;fontSize=13;fontStyle=1;arcSize=20;" vertex="1" parent="1">
-          <mxGeometry x="1200" y="560" width="240" height="36" as="geometry" />
-        </mxCell>
-        <mxCell id="stm-b" value="PK/FK TaskId → SharedTask&#xa;PK/FK Email → User&#xa;ResponseStatus, RespondedAt" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F0FAFA;strokeColor=#3EA89E;fontFamily=Helvetica;fontSize=11;verticalAlign=top;arcSize=10;" vertex="1" parent="1">
-          <mxGeometry x="1200" y="596" width="240" height="95" as="geometry" />
-        </mxCell>
-
-        <mxCell id="freq-h" value="FriendRequest" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F28D35;fontColor=#fff;strokeColor=#D47A2B;fontFamily=Helvetica;fontSize=13;fontStyle=1;arcSize=20;" vertex="1" parent="1">
-          <mxGeometry x="1100" y="0" width="240" height="36" as="geometry" />
-        </mxCell>
-        <mxCell id="freq-b" value="PK RequestId INT&#xa;FK RequesterEmail, AddresseeEmail → User&#xa;Status, RequestedAt, RespondedAt" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFF8F0;strokeColor=#D47A2B;fontFamily=Helvetica;fontSize=11;verticalAlign=top;arcSize=10;" vertex="1" parent="1">
-          <mxGeometry x="1100" y="36" width="240" height="110" as="geometry" />
-        </mxCell>
-
-        <mxCell id="fship-h" value="Friendship" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#54BFB5;fontColor=#fff;strokeColor=#3EA89E;fontFamily=Helvetica;fontSize=14;fontStyle=1;arcSize=20;" vertex="1" parent="1">
-          <mxGeometry x="1100" y="280" width="240" height="36" as="geometry" />
-        </mxCell>
-        <mxCell id="fship-b" value="PK FriendshipId INT&#xa;FK Email1, Email2 → User&#xa;CreatedAt, IsActive" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F0FAFA;strokeColor=#3EA89E;fontFamily=Helvetica;fontSize=11;verticalAlign=top;arcSize=10;" vertex="1" parent="1">
-          <mxGeometry x="1100" y="316" width="240" height="100" as="geometry" />
-        </mxCell>
-
-        <mxCell id="notif-entity-h" value="Notification" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#54BFB5;fontColor=#fff;strokeColor=#3EA89E;fontFamily=Helvetica;fontSize=13;fontStyle=1;arcSize=20;" vertex="1" parent="1">
-          <mxGeometry x="500" y="-120" width="220" height="36" as="geometry" />
-        </mxCell>
-        <mxCell id="notif-entity-b" value="PK NotificationId INT&#xa;FK Email → User&#xa;Type, Title, Message, IsRead&#xa;CreatedAt, RelatedEntityId, RelatedEntityType" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F0FAFA;strokeColor=#3EA89E;fontFamily=Helvetica;fontSize=11;verticalAlign=top;arcSize=10;" vertex="1" parent="1">
-          <mxGeometry x="500" y="-84" width="220" height="130" as="geometry" />
-        </mxCell>
-
-        <!-- Event subtypes -->
-        <mxCell id="cev-h" value="ClassEvent" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#00BCD4;fontColor=#fff;strokeColor=#0097A7;fontFamily=Helvetica;fontSize=13;fontStyle=1;arcSize=20;" vertex="1" parent="1">
-          <mxGeometry x="80" y="850" width="220" height="36" as="geometry" />
-        </mxCell>
-        <mxCell id="cev-b" value="PK/FK EventId → Event&#xa;FK CourseId → Course&#xa;Location, Duration" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E0F7FA;strokeColor=#0097A7;fontFamily=Helvetica;fontSize=11;verticalAlign=top;arcSize=10;" vertex="1" parent="1">
-          <mxGeometry x="80" y="886" width="220" height="90" as="geometry" />
-        </mxCell>
-
-        <mxCell id="tev-h" value="TaskEvent" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F28D35;fontColor=#fff;strokeColor=#D47A2B;fontFamily=Helvetica;fontSize=13;fontStyle=1;arcSize=20;" vertex="1" parent="1">
-          <mxGeometry x="330" y="850" width="220" height="36" as="geometry" />
-        </mxCell>
-        <mxCell id="tev-b" value="PK/FK EventId → Event&#xa;FK TaskId → Task&#xa;Priority, ActualHours, Status" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFF8F0;strokeColor=#D47A2B;fontFamily=Helvetica;fontSize=11;verticalAlign=top;arcSize=10;" vertex="1" parent="1">
-          <mxGeometry x="330" y="886" width="220" height="90" as="geometry" />
-        </mxCell>
-
-        <mxCell id="wev-h" value="WorkEvent" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#9B76FF;fontColor=#fff;strokeColor=#7B5AD9;fontFamily=Helvetica;fontSize=13;fontStyle=1;arcSize=20;" vertex="1" parent="1">
-          <mxGeometry x="580" y="850" width="220" height="36" as="geometry" />
-        </mxCell>
-        <mxCell id="wev-b" value="PK/FK EventId → Event&#xa;TravelTime, WorkPlace" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F5F0FF;strokeColor=#7B5AD9;fontFamily=Helvetica;fontSize=11;verticalAlign=top;arcSize=10;" vertex="1" parent="1">
-          <mxGeometry x="580" y="886" width="220" height="70" as="geometry" />
-        </mxCell>
-
-        <mxCell id="pev-h" value="PersonalEvent" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F2C777;fontColor=#333;strokeColor=#D4A84F;fontFamily=Helvetica;fontSize=13;fontStyle=1;arcSize=20;" vertex="1" parent="1">
-          <mxGeometry x="830" y="850" width="220" height="36" as="geometry" />
-        </mxCell>
-        <mxCell id="pev-b" value="PK/FK EventId → Event&#xa;Type, Description" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFBF0;strokeColor=#D4A84F;fontFamily=Helvetica;fontSize=11;verticalAlign=top;arcSize=10;" vertex="1" parent="1">
-          <mxGeometry x="830" y="886" width="220" height="70" as="geometry" />
-        </mxCell>
 
       </root>
     </mxGraphModel>
