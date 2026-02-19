@@ -41,9 +41,6 @@ export function initLayout() {
     const sidebar = document.createElement('aside');
     sidebar.className = 'sidebar';
     sidebar.innerHTML = `
-        <div class="sidebar-logo">
-            <img src="${BASE_PATH}/Images/logo.png" alt="SmartStudy" class="sidebar-logo-img">
-        </div>
         <nav class="sidebar-nav" role="navigation" aria-label="Main navigation">
             ${NAV.map(n => `
                 <a href="${n.href}" class="sidebar-nav-item ${currentPage === n.page ? 'active' : ''}" data-page="${n.page}">

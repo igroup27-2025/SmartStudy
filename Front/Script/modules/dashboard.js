@@ -744,7 +744,7 @@ async function renderMiniCalendar() {
 
     // Time labels column
     html += '<div class="mini-cal__time-col">';
-    html += '<div class="mini-cal__day-header mini-cal__time-header"></div>'; // empty corner
+    html += '<div class="mini-cal__day-header mini-cal__time-header"><span class="mini-cal__day-name" style="visibility:hidden">&nbsp;</span><span class="mini-cal__day-num" style="visibility:hidden">&nbsp;</span></div>'; // invisible placeholder to match day-header height
     for (let h = startSlot; h < endSlot; h++) {
         html += `<div class="mini-cal__time-label" style="height:${cellHeight}px">${h.toString().padStart(2, '0')}:00</div>`;
     }

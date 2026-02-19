@@ -357,7 +357,7 @@ hr {
 /* ---- Navigation ---- */
 .sidebar-nav {
   flex: 1;
-  padding: 0 var(--space-3);
+  padding: var(--space-4) var(--space-3) 0;
   overflow-y: auto;
 }
 
@@ -5357,6 +5357,10 @@ body[data-layout="onboarding"] {
   .modal-overlay {
     overflow-y: auto;
     -webkit-overflow-scrolling: touch;
+  }
+
+  .task-info-card {
+    flex-wrap: wrap;
   }
 
   /* Task cards */
