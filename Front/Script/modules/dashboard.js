@@ -11,8 +11,7 @@ function escapeHtml(str) {
 export async function initDashboard() {
     try {
         const data = await api.getDashboard();
-        renderHero();
-        renderMotivation(data.stress);
+        renderHeroWithMotivation(data.stress);
         renderProgress(data);
         renderAlerts(data);
         renderStats(data);
@@ -28,8 +27,8 @@ export async function initDashboard() {
     }
 }
 
-/* ---- Section 1: Hero Greeting ---- */
-function renderHero() {
+/* ---- Section 1: Hero Greeting + Motivation ---- */
+function renderHeroWithMotivation(stress) {
     const el = document.getElementById('dashHero');
     if (!el) return;
 
@@ -43,45 +42,29 @@ function renderHero() {
         weekday: 'long', month: 'long', day: 'numeric'
     });
 
-    el.innerHTML = `
-        <h1 class="dash-hero__title">${greeting}, ${firstName}</h1>
-        <p class="dash-hero__date">${dateStr}</p>
-    `;
-}
-
-/* ---- Section 2: Motivational Card ---- */
-function renderMotivation(stress) {
-    const el = document.getElementById('dashMotivation');
-    if (!el) return;
-
     const score = stress?.score ?? 0;
-    let icon, text;
+    let text;
 
     if (score <= 25) {
-        icon = '\u2728'; // sparkle
         text = "You're in great shape! Enjoy the calm.";
     } else if (score <= 40) {
-        icon = '\u2728';
         text = "You're balancing things well. Stay focused!";
     } else if (score <= 60) {
-        icon = '\u26A0\uFE0F'; // warning
         text = 'Things are picking up. Prioritize your top tasks!';
     } else if (score <= 80) {
-        icon = '\u26A0\uFE0F';
         text = 'Your workload is heavy. Consider what can wait.';
     } else {
-        icon = '\uD83D\uDD25'; // fire
         text = "You're under high pressure. Focus on essentials only!";
     }
 
     el.innerHTML = `
-        <div class="dash-motivation__card">
-            <span class="dash-motivation__icon">${icon}</span>
-            <div class="dash-motivation__content">
-                <p class="dash-motivation__text">${text}</p>
-            </div>
-        </div>
+        <h1 class="dash-hero__title">${greeting}, ${firstName}</h1>
+        <p class="dash-hero__date">${dateStr}</p>
+        <p class="dash-hero__motivation">${text}</p>
     `;
+
+    const motEl = document.getElementById('dashMotivation');
+    if (motEl) motEl.innerHTML = '';
 }
 
 /* ---- Section 3: Semester Progress ---- */
@@ -323,6 +306,18 @@ function renderSuggestion(data) {
         ? new Date(task.dueDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
         : '';
 
+    // Build reason hints
+    const reasons = [];
+    if (task.dueDate) {
+        const daysLeft = Math.ceil((new Date(task.dueDate) - new Date()) / (1000 * 60 * 60 * 24));
+        if (daysLeft <= 1) reasons.push('Due very soon');
+        else if (daysLeft <= 3) reasons.push(`Due in ${daysLeft} days`);
+        else if (daysLeft <= 7) reasons.push('Due this week');
+    }
+    if (task.estimatedHours && task.estimatedHours >= 4) reasons.push('Large task');
+    if (task.isShared) reasons.push('Shared with friend');
+    const reasonText = reasons.length ? reasons.join(' · ') : 'Based on deadline, workload & course weight';
+
     el.innerHTML = `
         <div class="dash-suggestion__card">
             <div class="dash-suggestion__header">
@@ -336,6 +331,7 @@ function renderSuggestion(data) {
                     ${dueStr ? `<span class="dash-suggestion__due">Due: ${dueStr}</span>` : ''}
                     ${task.estimatedHours ? `<span class="dash-suggestion__hours">${task.estimatedHours}h</span>` : ''}
                 </div>
+                <div class="dash-suggestion__reason">${reasonText}</div>
             </div>
             <a href="${BASE_PATH}/Pages/Tasks.html" class="btn btn-sm btn-primary">View Tasks</a>
         </div>

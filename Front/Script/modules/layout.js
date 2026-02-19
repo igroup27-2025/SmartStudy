@@ -25,7 +25,7 @@ export function initLayout() {
     pageRoot.innerHTML = '';
 
     const pageTitles = {
-        dashboard: 'Dashboard',
+        dashboard: '',
         tasks: 'Tasks',
         calendar: 'Calendar',
         courses: 'Courses',
@@ -43,7 +43,6 @@ export function initLayout() {
     sidebar.innerHTML = `
         <div class="sidebar-logo">
             <img src="${BASE_PATH}/Images/logo.png" alt="SmartStudy" class="sidebar-logo-img">
-            <span class="sidebar-logo-text">SmartStudy</span>
         </div>
         <nav class="sidebar-nav" role="navigation" aria-label="Main navigation">
             ${NAV.map(n => `

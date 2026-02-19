@@ -84,8 +84,10 @@
                             </div>
                         </div>
                         <div class="form-group">
-                            <label class="form-checkbox-label">
-                                <input type="checkbox" id="eventRecurring"> Recurring weekly
+                            <label class="toggle-label">
+                                <input type="checkbox" id="eventRecurring" class="toggle-input">
+                                <span class="toggle-switch"></span>
+                                Recurring weekly
                             </label>
                         </div>
                         <div class="form-group hidden" id="recurrenceEndDateGroup">
@@ -117,6 +119,7 @@
                             <div class="form-group">
                                 <label for="eventTravelTime">Travel Time (min)</label>
                                 <input type="number" id="eventTravelTime" class="form-input" min="0">
+                                <small class="form-hint">Event will start earlier to include commute time</small>
                             </div>
                         </div>
 

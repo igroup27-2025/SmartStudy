@@ -18,8 +18,8 @@
             <div class="filter-panel" id="filterPanel" style="display:none">
                 <div class="filter-section">
                     <h4>Status</h4>
-                    <label><input type="checkbox" name="filterStatus" value="pending"> Pending</label>
-                    <label><input type="checkbox" name="filterStatus" value="completed"> Completed</label>
+                    <label class="toggle-label"><input type="checkbox" name="filterStatus" value="pending" class="toggle-input"><span class="toggle-switch"></span> Pending</label>
+                    <label class="toggle-label"><input type="checkbox" name="filterStatus" value="completed" class="toggle-input"><span class="toggle-switch"></span> Completed</label>
                 </div>
                 <div class="filter-section">
                     <h4>Course</h4>
@@ -27,9 +27,9 @@
                 </div>
                 <div class="filter-section">
                     <h4>Priority</h4>
-                    <label><input type="checkbox" name="filterPriority" value="high"> High</label>
-                    <label><input type="checkbox" name="filterPriority" value="medium"> Medium</label>
-                    <label><input type="checkbox" name="filterPriority" value="low"> Low</label>
+                    <label class="toggle-label"><input type="checkbox" name="filterPriority" value="high" class="toggle-input"><span class="toggle-switch"></span> High</label>
+                    <label class="toggle-label"><input type="checkbox" name="filterPriority" value="medium" class="toggle-input"><span class="toggle-switch"></span> Medium</label>
+                    <label class="toggle-label"><input type="checkbox" name="filterPriority" value="low" class="toggle-input"><span class="toggle-switch"></span> Low</label>
                 </div>
             </div>
         </div>
@@ -68,7 +68,6 @@
                                 <label for="taskType">Type *</label>
                                 <select id="taskType" class="form-input" required>
                                     <option value="Assignment">Assignment</option>
-                                    <option value="Homework">Homework</option>
                                     <option value="Project">Project</option>
                                     <option value="Lab">Lab</option>
                                     <option value="Reading">Reading</option>

@@ -8,7 +8,7 @@
 </head>
 <body data-page="onboarding" data-layout="onboarding" data-step="2">
     <div class="onboarding-container">
-        <div class="onboarding-logo">S</div>
+        <div class="onboarding-logo"><img src="../Images/logo.png" alt="SmartStudy" class="onboarding-logo-img"></div>
         <div class="onboarding-dots">
             <span class="onboarding-dot"></span>
             <span class="onboarding-dot"></span>
@@ -38,6 +38,17 @@
                         <option value="60">60 minutes</option>
                         <option value="90" selected>90 minutes</option>
                         <option value="120">120 minutes</option>
+                    </select>
+                </div>
+
+                <div class="onboarding-field">
+                    <label class="onboarding-field__label">Break between study sessions</label>
+                    <select id="breakDuration" class="form-input">
+                        <option value="5">5 minutes</option>
+                        <option value="10">10 minutes</option>
+                        <option value="15" selected>15 minutes</option>
+                        <option value="20">20 minutes</option>
+                        <option value="30">30 minutes</option>
                     </select>
                 </div>
 
@@ -79,17 +90,6 @@
                         <input type="range" id="sleepHours" min="5" max="10" step="0.5" value="8" class="onboarding-range">
                         <span class="onboarding-field__value" id="sleepHoursValue">8h</span>
                     </div>
-                </div>
-
-                <div class="onboarding-field">
-                    <label class="onboarding-field__label">Break between study sessions</label>
-                    <select id="breakDuration" class="form-input">
-                        <option value="5">5 minutes</option>
-                        <option value="10">10 minutes</option>
-                        <option value="15" selected>15 minutes</option>
-                        <option value="20">20 minutes</option>
-                        <option value="30">30 minutes</option>
-                    </select>
                 </div>
 
                 <div class="onboarding-field">

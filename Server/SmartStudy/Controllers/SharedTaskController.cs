@@ -181,14 +181,45 @@ public class SharedTaskController : ControllerBase
         // Notify the creator about the response
         var responder = await _db.Users.FindAsync(email);
         var responderName = responder != null ? $"{responder.FirstName} {responder.LastName}" : email;
-        var task = await _db.Tasks.FindAsync(taskId);
+        var task = await _db.Tasks.Include(t => t.Course).FirstOrDefaultAsync(t => t.TaskId == taskId);
         var taskTitle = task?.Title ?? "Task";
         await _notifications.CreateSharedTaskResponseNotificationAsync(
             member.SharedTask.CreatedByEmail, responderName, taskId, taskTitle, dto.Accept);
 
-        // When confirmed, reschedule for both users
-        if (member.SharedTask.SharedStatus == "Confirmed")
+        // When confirmed, create a task copy for the accepting user and reschedule both
+        if (member.SharedTask.SharedStatus == "Confirmed" && task != null)
         {
+            // Check if accepting user already has a copy
+            var existingCopy = await _db.Tasks
+                .FirstOrDefaultAsync(t => t.Email == email && t.Title == task.Title
+                    && t.CourseId == task.CourseId && t.DueDate == task.DueDate);
+
+            if (existingCopy == null)
+            {
+                // Ensure the accepting user is enrolled in the same course
+                var enrolled = await _db.UserCourses.AnyAsync(uc => uc.Email == email && uc.CourseId == task.CourseId);
+                if (!enrolled)
+                {
+                    _db.UserCourses.Add(new UserCourse { Email = email, CourseId = task.CourseId });
+                    await _db.SaveChangesAsync();
+                }
+
+                var taskCopy = new StudentTask
+                {
+                    CourseId = task.CourseId,
+                    Title = task.Title,
+                    Type = task.Type,
+                    EstimatedHours = task.EstimatedHours,
+                    DueDate = task.DueDate,
+                    Priority = task.Priority,
+                    Email = email,
+                    IsCompleted = false,
+                    AllowSplitting = task.AllowSplitting
+                };
+                _db.Tasks.Add(taskCopy);
+                await _db.SaveChangesAsync();
+            }
+
             var allMembers = await _db.SharedTaskMembers
                 .Where(m => m.TaskId == taskId)
                 .Select(m => m.Email)

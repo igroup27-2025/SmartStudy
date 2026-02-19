@@ -16,11 +16,13 @@ public class CoursesController : ControllerBase
 {
     private readonly SmartStudyDbContext _db;
     private readonly SchedulingService _scheduling;
+    private readonly NotificationService _notifications;
 
-    public CoursesController(SmartStudyDbContext db, SchedulingService scheduling)
+    public CoursesController(SmartStudyDbContext db, SchedulingService scheduling, NotificationService notifications)
     {
         _db = db;
         _scheduling = scheduling;
+        _notifications = notifications;
     }
 
     private string GetEmail() => User.FindFirst(ClaimTypes.Email)!.Value;
@@ -201,6 +203,27 @@ public class CoursesController : ControllerBase
 
         uc.StudyPartnerEmail = string.IsNullOrEmpty(dto.Email) ? null : dto.Email;
         await _db.SaveChangesAsync();
+
+        // Notify the study partner
+        if (!string.IsNullOrEmpty(dto.Email))
+        {
+            var sender = await _db.Users.FindAsync(email);
+            var senderName = sender != null ? $"{sender.FirstName} {sender.LastName}" : email;
+            var course = await _db.Courses.FindAsync(id);
+            var courseName = course?.CourseName ?? "a course";
+
+            _db.Notifications.Add(new Notification
+            {
+                Email = dto.Email,
+                Type = "study_partner",
+                Title = "Study Partner Invitation",
+                Message = $"{senderName} set you as a study partner for \"{courseName}\". Tasks may be shared automatically.",
+                CreatedAt = DateTime.Now,
+                RelatedEntityId = id,
+                RelatedEntityType = "Course"
+            });
+            await _db.SaveChangesAsync();
+        }
 
         return Ok(new { courseId = id, studyPartnerEmail = uc.StudyPartnerEmail });
     }

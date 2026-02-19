@@ -791,13 +791,15 @@ function setupEventCreation() {
                 if (isEditing) await api.updateClassEvent(editingEventId, data);
                 else await api.createClassEvent(data);
             } else if (type === 'work') {
+                const travelMin = parseInt(document.getElementById('eventTravelTime')?.value) || 0;
+                const adjustedFrom = new Date(from.getTime() - travelMin * 60000);
                 const data = {
-                    from: from.toISOString(),
+                    from: adjustedFrom.toISOString(),
                     to: to.toISOString(),
                     recurring,
                     recurrenceEndDate,
                     workPlace: document.getElementById('eventWorkPlace')?.value || null,
-                    travelTime: parseInt(document.getElementById('eventTravelTime')?.value) || null
+                    travelTime: travelMin || null
                 };
                 if (isEditing) await api.updateWorkEvent(editingEventId, data);
                 else await api.createWorkEvent(data);

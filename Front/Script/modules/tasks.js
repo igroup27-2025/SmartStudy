@@ -87,7 +87,10 @@ function renderTasks(tasks) {
                 <div class="subtask-list" id="subtasks-${t.taskId}" style="display:none;">
                     ${(t.subTasks || []).map(s => `
                         <div class="subtask-card ${s.isCompleted ? 'completed' : ''}">
-                            <input type="checkbox" ${s.isCompleted ? 'checked' : ''} class="subtask-check" data-task-id="${s.taskId}">
+                            <label class="toggle-switch toggle-switch--sm">
+                                <input type="checkbox" ${s.isCompleted ? 'checked' : ''} class="subtask-check" data-task-id="${s.taskId}">
+                                <span class="toggle-slider"></span>
+                            </label>
                             <span>${s.title}</span>
                             ${s.estimatedHours ? `<span class="text-muted">${s.estimatedHours}h</span>` : ''}
                         </div>
@@ -97,8 +100,11 @@ function renderTasks(tasks) {
 
         return `
         <div class="task-card ${t.isCompleted ? 'completed' : ''}" data-id="${t.taskId}">
-            <div class="task-checkbox">
-                <input type="checkbox" ${t.isCompleted ? 'checked' : ''} data-task-id="${t.taskId}" class="task-check">
+            <div class="task-toggle">
+                <label class="toggle-switch">
+                    <input type="checkbox" ${t.isCompleted ? 'checked' : ''} data-task-id="${t.taskId}" class="task-check">
+                    <span class="toggle-slider"></span>
+                </label>
             </div>
             <div class="task-info">
                 <div class="task-title">${t.title}</div>
@@ -383,7 +389,7 @@ function populateCourseFilter() {
     const formSelect = document.getElementById('taskCourseId');
     if (container) {
         container.innerHTML = courses.map(c =>
-            `<label><input type="checkbox" name="filterCourse" value="${c.courseId}"> ${c.courseName}</label>`
+            `<label class="toggle-label"><input type="checkbox" name="filterCourse" value="${c.courseId}" class="toggle-input"><span class="toggle-switch"></span> ${c.courseName}</label>`
         ).join('');
     }
     if (formSelect) {
@@ -473,7 +479,21 @@ function setupAddTask() {
                 const updated = await api.updateTask(parseInt(taskId), data);
                 const idx = allTasks.findIndex(t => t.taskId === parseInt(taskId));
                 if (idx >= 0) allTasks[idx] = updated;
-                showToast('Task updated');
+
+                // Handle sharing changes on edit
+                const isShared = document.getElementById('taskShared')?.checked;
+                const friendEmail = document.getElementById('taskFriend')?.value;
+                const existingTask = allTasks.find(t => t.taskId === parseInt(taskId));
+                const wasShared = existingTask?.isShared;
+
+                if (isShared && friendEmail && !wasShared) {
+                    try {
+                        await api.createSharedTask({ taskId: parseInt(taskId), partnerEmail: friendEmail });
+                        showToast('Task updated and shared with friend');
+                    } catch (err) { showToast('Task updated but sharing failed: ' + err.message, 'error'); }
+                } else {
+                    showToast('Task updated');
+                }
             } else {
                 const created = await api.createTask(data);
                 allTasks.push(created);
