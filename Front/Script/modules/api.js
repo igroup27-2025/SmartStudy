@@ -1,6 +1,6 @@
 // API Client module - handles all API calls with authentication (jQuery $.ajax)
-import { BASE_PATH } from './config.js';
-const API_BASE = BASE_PATH + '/api';
+import { BASE_PATH, API_BASE_PATH } from './config.js';
+const API_BASE = API_BASE_PATH + '/api';
 
 function toLocalISO(d) {
     return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}T${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}:${String(d.getSeconds()).padStart(2,'0')}`;
