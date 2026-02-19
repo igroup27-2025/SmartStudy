@@ -23,11 +23,12 @@ public class ComposioService
     private HttpClient CreateClient()
     {
         var client = _httpClientFactory.CreateClient("Composio");
-        client.BaseAddress = new Uri(BaseUrl);
         client.DefaultRequestHeaders.Add("x-api-key", ApiKey);
         client.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
         return client;
     }
+
+    private static string Url(string path) => $"{BaseUrl}{path}";
 
     /// <summary>
     /// Initiates a Google Calendar OAuth connection via Composio hosted auth.
@@ -45,7 +46,7 @@ public class ComposioService
         };
 
         var content = new StringContent(JsonSerializer.Serialize(body), Encoding.UTF8, "application/json");
-        var response = await client.PostAsync("/connected_accounts", content);
+        var response = await client.PostAsync(Url("/connected_accounts"), content);
         var json = await response.Content.ReadAsStringAsync();
 
         if (!response.IsSuccessStatusCode)
@@ -85,7 +86,7 @@ public class ComposioService
         if (!string.IsNullOrEmpty(status))
             url += $"&statuses={Uri.EscapeDataString(status)}";
 
-        var response = await client.GetAsync(url);
+        var response = await client.GetAsync(Url(url));
         if (!response.IsSuccessStatusCode)
             return new List<ComposioAccount>();
 
@@ -119,7 +120,7 @@ public class ComposioService
     public async Task<ComposioAccount?> GetConnectedAccountAsync(string connectedAccountId)
     {
         using var client = CreateClient();
-        var response = await client.GetAsync($"/connected_accounts/{connectedAccountId}");
+        var response = await client.GetAsync(Url($"/connected_accounts/{connectedAccountId}"));
 
         if (!response.IsSuccessStatusCode) return null;
 
@@ -146,7 +147,7 @@ public class ComposioService
             body["connected_account_id"] = connectedAccountId;
 
         var content = new StringContent(JsonSerializer.Serialize(body), Encoding.UTF8, "application/json");
-        var response = await client.PostAsync($"/tools/execute/{toolSlug}", content);
+        var response = await client.PostAsync(Url($"/tools/execute/{toolSlug}"), content);
         var json = await response.Content.ReadAsStringAsync();
 
         return new ComposioToolResult
@@ -163,7 +164,7 @@ public class ComposioService
     public async Task<bool> DeleteConnectedAccountAsync(string connectedAccountId)
     {
         using var client = CreateClient();
-        var response = await client.DeleteAsync($"/connected_accounts/{connectedAccountId}");
+        var response = await client.DeleteAsync(Url($"/connected_accounts/{connectedAccountId}"));
         return response.IsSuccessStatusCode;
     }
 
