@@ -185,6 +185,8 @@ function setupSave() {
 
 /* ── Integrations ── */
 
+let integrationListenersSetup = false;
+
 async function loadIntegrations() {
     const statusEl = document.getElementById('gcalStatus');
     const connectBtn = document.getElementById('gcalConnectBtn');
@@ -193,7 +195,7 @@ async function loadIntegrations() {
 
     try {
         const syncStatus = await api.getCalendarSyncStatus();
-        if (syncStatus && syncStatus.connected) {
+        if (syncStatus && syncStatus.isEnabled) {
             statusEl.textContent = `Connected — Last synced: ${syncStatus.lastSync ? new Date(syncStatus.lastSync).toLocaleString() : 'Never'}`;
             if (connectBtn) connectBtn.style.display = 'none';
             if (connectedActions) connectedActions.style.display = 'flex';
@@ -207,6 +209,10 @@ async function loadIntegrations() {
         if (connectBtn) connectBtn.style.display = '';
         if (connectedActions) connectedActions.style.display = 'none';
     }
+
+    // Only set up event listeners once
+    if (integrationListenersSetup) return;
+    integrationListenersSetup = true;
 
     // Connect button — initiate Google OAuth
     connectBtn?.addEventListener('click', async () => {

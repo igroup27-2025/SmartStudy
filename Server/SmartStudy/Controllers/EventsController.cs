@@ -15,8 +15,13 @@ namespace SmartStudy.Controllers;
 public class EventsController : ControllerBase
 {
     private readonly SmartStudyDbContext _db;
+    private readonly SchedulingService _scheduling;
 
-    public EventsController(SmartStudyDbContext db) => _db = db;
+    public EventsController(SmartStudyDbContext db, SchedulingService scheduling)
+    {
+        _db = db;
+        _scheduling = scheduling;
+    }
 
     private string GetEmail() => User.FindFirst(ClaimTypes.Email)!.Value;
 
@@ -158,7 +163,7 @@ public class EventsController : ControllerBase
 
         // Check conflicts before rescheduling
         var conflictsBefore = await CountConflictingTaskEvents(email, dto.From, dto.To, evt.EventId);
-        await new SchedulingService(_db).ScheduleAllTasksAsync(email);
+        await _scheduling.ScheduleAllTasksAsync(email);
         var conflictsAfter = await CountConflictingTaskEvents(email, dto.From, dto.To, evt.EventId);
 
         return CreatedAtAction(nameof(GetAll), new { }, new
@@ -208,7 +213,7 @@ public class EventsController : ControllerBase
         await _db.SaveChangesAsync();
 
         var conflictsBefore = await CountConflictingTaskEvents(email, dto.From, dto.To, evt.EventId);
-        await new SchedulingService(_db).ScheduleAllTasksAsync(email);
+        await _scheduling.ScheduleAllTasksAsync(email);
         var conflictsAfter = await CountConflictingTaskEvents(email, dto.From, dto.To, evt.EventId);
 
         return CreatedAtAction(nameof(GetAll), new { }, new
@@ -238,7 +243,7 @@ public class EventsController : ControllerBase
         await _db.SaveChangesAsync();
 
         var conflictsBefore = await CountConflictingTaskEvents(email, dto.From, dto.To, evt.EventId);
-        await new SchedulingService(_db).ScheduleAllTasksAsync(email);
+        await _scheduling.ScheduleAllTasksAsync(email);
         var conflictsAfter = await CountConflictingTaskEvents(email, dto.From, dto.To, evt.EventId);
 
         return CreatedAtAction(nameof(GetAll), new { }, new
@@ -265,7 +270,7 @@ public class EventsController : ControllerBase
         evt.Location = dto.Location;
         evt.Duration = dto.Duration;
         await _db.SaveChangesAsync();
-        await new SchedulingService(_db).ScheduleAllTasksAsync(email);
+        await _scheduling.ScheduleAllTasksAsync(email);
         return Ok(new { evt.EventId, eventType = "class" });
     }
 
@@ -283,7 +288,7 @@ public class EventsController : ControllerBase
         evt.TravelTime = dto.TravelTime;
         evt.WorkPlace = dto.WorkPlace;
         await _db.SaveChangesAsync();
-        await new SchedulingService(_db).ScheduleAllTasksAsync(email);
+        await _scheduling.ScheduleAllTasksAsync(email);
         return Ok(new { evt.EventId, eventType = "work" });
     }
 
@@ -327,7 +332,7 @@ public class EventsController : ControllerBase
         evt.Type = dto.Type;
         evt.Description = dto.Description;
         await _db.SaveChangesAsync();
-        await new SchedulingService(_db).ScheduleAllTasksAsync(email);
+        await _scheduling.ScheduleAllTasksAsync(email);
         return Ok(new { evt.EventId, eventType = "personal" });
     }
 
@@ -422,50 +427,38 @@ public class EventsController : ControllerBase
         if ((isWork && newType == "work") || (isPersonal && newType == "personal"))
             return Ok(new { evt.EventId, eventType = newType, message = "Type unchanged" });
 
-        // Remove old subtype row
+        // Use raw SQL for subtype swap to avoid EF Core TPT tracking conflicts
         if (isWork)
         {
-            var old = await _db.WorkEvents.FindAsync(id);
-            if (old != null) _db.WorkEvents.Remove(old);
+            await _db.Database.ExecuteSqlRawAsync(
+                "DELETE FROM SmartStudy_WorkEvents WHERE EventId = {0}", id);
         }
         else
         {
-            var old = await _db.PersonalEvents.FindAsync(id);
-            if (old != null) _db.PersonalEvents.Remove(old);
+            await _db.Database.ExecuteSqlRawAsync(
+                "DELETE FROM SmartStudy_PersonalEvents WHERE EventId = {0}", id);
         }
 
-        // Create new subtype row
         if (newType == "work")
         {
-            _db.WorkEvents.Add(new WorkEvent
-            {
-                EventId = id,
-                Email = email,
-                From = evt.From,
-                To = evt.To,
-                Recurring = evt.Recurring,
-                RecurrenceEndDate = evt.RecurrenceEndDate,
-                WorkPlace = dto.WorkPlace,
-                TravelTime = dto.TravelTime
-            });
+            await _db.Database.ExecuteSqlRawAsync(
+                "INSERT INTO SmartStudy_WorkEvents (EventId, WorkPlace, TravelTime) VALUES ({0}, {1}, {2})",
+                id, dto.WorkPlace ?? (object)DBNull.Value, dto.TravelTime ?? (object)DBNull.Value);
         }
         else
         {
-            _db.PersonalEvents.Add(new PersonalEvent
-            {
-                EventId = id,
-                Email = email,
-                From = evt.From,
-                To = evt.To,
-                Recurring = evt.Recurring,
-                RecurrenceEndDate = evt.RecurrenceEndDate,
-                Type = dto.PersonalType,
-                Description = dto.Description
-            });
+            await _db.Database.ExecuteSqlRawAsync(
+                "INSERT INTO SmartStudy_PersonalEvents (EventId, Type, Description) VALUES ({0}, {1}, {2})",
+                id, dto.PersonalType ?? (object)DBNull.Value, dto.Description ?? (object)DBNull.Value);
         }
 
-        await _db.SaveChangesAsync();
-        await new SchedulingService(_db).ScheduleAllTasksAsync(email);
+        // Detach cached subtype entities to avoid tracking conflicts
+        foreach (var entry in _db.ChangeTracker.Entries().Where(e =>
+            e.Entity is WorkEvent || e.Entity is PersonalEvent).ToList())
+        {
+            entry.State = EntityState.Detached;
+        }
+        await _scheduling.ScheduleAllTasksAsync(email);
         return Ok(new { evt.EventId, eventType = newType });
     }
 
@@ -478,7 +471,7 @@ public class EventsController : ControllerBase
 
         _db.Events.Remove(evt);
         await _db.SaveChangesAsync();
-        await new SchedulingService(_db).ScheduleAllTasksAsync(email);
+        await _scheduling.ScheduleAllTasksAsync(email);
         return NoContent();
     }
 }

@@ -398,7 +398,7 @@ function setupFilters() {
     if (toggle && panel) {
         toggle.addEventListener('click', () => {
             const open = panel.style.display !== 'none';
-            panel.style.display = open ? 'none' : 'block';
+            panel.style.display = open ? 'none' : 'flex';
         });
     }
     // Listen to checkbox changes inside the filter panel

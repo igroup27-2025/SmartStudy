@@ -3,6 +3,11 @@ import { getUser } from './auth.js';
 import { showToast } from './modals.js';
 import { BASE_PATH } from './config.js';
 
+function escapeHtml(str) {
+    if (!str) return '';
+    return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
 export async function initDashboard() {
     try {
         const data = await api.getDashboard();
@@ -274,8 +279,8 @@ function renderRelocationSuggestions(data) {
         <div class="relocation-card" data-index="${i}">
             <div class="relocation-card__icon">&#128161;</div>
             <div class="relocation-card__body">
-                <div class="relocation-card__title">No room for "${s.blockedTaskTitle}"</div>
-                <div class="relocation-card__message">${s.message}</div>
+                <div class="relocation-card__title">No room for "${escapeHtml(s.blockedTaskTitle)}"</div>
+                <div class="relocation-card__message">${escapeHtml(s.message)}</div>
             </div>
             <div class="relocation-card__actions">
                 <a href="${BASE_PATH}/Pages/Calendar.html?date=${dateStr}" class="btn btn-sm btn-primary relocation-move" title="Go to calendar to move this event">Move</a>
@@ -324,9 +329,9 @@ function renderSuggestion(data) {
                 <span class="dash-suggestion__label">Next task to work on</span>
             </div>
             <div class="dash-suggestion__body">
-                <div class="dash-suggestion__title">${task.title}</div>
+                <div class="dash-suggestion__title">${escapeHtml(task.title)}</div>
                 <div class="dash-suggestion__meta">
-                    <span class="dash-suggestion__course">${task.courseName}</span>
+                    <span class="dash-suggestion__course">${escapeHtml(task.courseName)}</span>
                     <span class="badge badge-priority-${priorityClass}">${task.priority || 'Medium'}</span>
                     ${dueStr ? `<span class="dash-suggestion__due">Due: ${dueStr}</span>` : ''}
                     ${task.estimatedHours ? `<span class="dash-suggestion__hours">${task.estimatedHours}h</span>` : ''}
@@ -384,8 +389,8 @@ function renderReview(data) {
             <div class="dash-task-card">
                 <div class="dash-task-card__body">
                     <div class="dash-task-card__top">
-                        <span class="dash-task-card__title">${t.title}</span>
-                        <span class="dash-task-card__priority dash-task-card__priority--${priorityClass}">${t.priority || 'Medium'}</span>
+                        <span class="dash-task-card__title">${escapeHtml(t.title)}</span>
+                        <span class="dash-task-card__priority dash-task-card__priority--${priorityClass}">${escapeHtml(t.priority) || 'Medium'}</span>
                     </div>
                     <div class="dash-task-card__bottom">
                         <span class="dash-task-card__status ${isOverdue ? 'dash-task-card__status--overdue' : ''}">
@@ -398,7 +403,7 @@ function renderReview(data) {
                 <div class="dash-task-card__actions">
                     ${isUnscheduled
                         ? `<a href="${BASE_PATH}/Pages/Calendar.html" class="btn btn-sm btn-primary">Schedule Manually</a>`
-                        : `<button class="btn btn-sm btn-primary dash-approve-btn" data-task-id="${t.taskId}" data-est-hours="${t.estimatedHours || ''}" data-title="${t.title}">Approve</button>`
+                        : `<button class="btn btn-sm btn-primary dash-approve-btn" data-task-id="${t.taskId}" data-est-hours="${t.estimatedHours || ''}" data-title="${escapeHtml(t.title)}">Approve</button>`
                     }
                     <a href="${editHref}" class="btn btn-sm btn-ghost">Edit</a>
                 </div>
@@ -520,18 +525,18 @@ function renderOverdue(data) {
             <div class="dash-task-card dash-task-card--overdue">
                 <div class="dash-task-card__body">
                     <div class="dash-task-card__top">
-                        <span class="dash-task-card__title">${t.title}</span>
-                        <span class="dash-task-card__priority dash-task-card__priority--${priorityClass}">${t.priority || 'Medium'}</span>
+                        <span class="dash-task-card__title">${escapeHtml(t.title)}</span>
+                        <span class="dash-task-card__priority dash-task-card__priority--${priorityClass}">${escapeHtml(t.priority) || 'Medium'}</span>
                     </div>
                     <div class="dash-task-card__bottom">
                         <span class="dash-task-card__status dash-task-card__status--overdue">
                             ${daysOverdue} day${daysOverdue !== 1 ? 's' : ''} overdue
                         </span>
-                        <span class="dash-task-card__course">${t.courseName || ''}</span>
+                        <span class="dash-task-card__course">${escapeHtml(t.courseName)}</span>
                     </div>
                 </div>
                 <div class="dash-task-card__actions">
-                    <button class="btn btn-sm btn-primary dash-complete-overdue-btn" data-task-id="${t.taskId}" data-title="${t.title}" data-est-hours="${t.estimatedHours || ''}">Mark Complete</button>
+                    <button class="btn btn-sm btn-primary dash-complete-overdue-btn" data-task-id="${t.taskId}" data-title="${escapeHtml(t.title)}" data-est-hours="${t.estimatedHours || ''}">Mark Complete</button>
                     <button class="btn btn-sm btn-ghost dash-reschedule-btn" data-task-id="${t.taskId}">Reschedule</button>
                 </div>
             </div>
@@ -570,6 +575,7 @@ function renderOverdue(data) {
                 renderAlerts(freshData);
                 renderStats(freshData);
                 renderWorkload(freshData);
+                renderRelocationSuggestions(freshData);
                 renderSuggestion(freshData);
                 renderReview(freshData);
                 renderOverdue(freshData);

@@ -352,8 +352,7 @@ function renderTimeGrid(events, startDate, dayCount) {
             const height = Math.max(25, (endHour - startHour) * 50);
             const colors = EVENT_COLORS[e.eventType] || EVENT_COLORS.personal;
             const label = e.isExam ? `Exam: ${e.courseName || 'Exam'}` : (e.courseName || e.taskTitle || e.workPlace || e.description || e.type || 'Event');
-            const isAutoScheduled = e.eventType === 'task' && e.status === 'Scheduled' && !e.isManuallyPinned;
-            const isDraggable = !isAutoScheduled && !e.isExam;
+            const isDraggable = !e.isExam;
             const pinIcon = e.eventType === 'task' && e.isManuallyPinned ? '<span class="cal-event-pin" title="Pinned — excluded from auto-scheduling">&#128204;</span>' : '';
 
             html += `<div class="cal-event ${isDraggable ? 'cal-event--draggable' : ''}"
@@ -457,6 +456,12 @@ function setupDragAndDrop(grid) {
             const newFrom = new Date(`${newDate}T${String(newHour).padStart(2, '0')}:00`);
             const newTo = new Date(newFrom.getTime() + duration);
 
+            // Validate within visible 7AM-10PM range
+            if (newFrom.getHours() < 7 || newTo.getHours() > 22 || (newTo.getHours() === 22 && newTo.getMinutes() > 0)) {
+                showToast('Cannot move event outside 7AM-10PM range', 'error');
+                return;
+            }
+
             try {
                 const data = {
                     from: newFrom.toISOString(),
@@ -553,8 +558,9 @@ function setupDragToCreate(grid) {
         grid.querySelectorAll('.cal-cell-selecting').forEach(c => c.classList.remove('cal-cell-selecting'));
         dragCreateState = null;
 
-        // Only trigger if range is > 0 cells
-        if (maxH > minH + 1 || maxH === minH + 1) {
+        // Only trigger drag-to-create if the user dragged across 2+ cells
+        // Single-cell clicks are handled by the cell click handler
+        if (maxH - minH >= 2) {
             openEventModal(startDate, minH, maxH);
         }
     });

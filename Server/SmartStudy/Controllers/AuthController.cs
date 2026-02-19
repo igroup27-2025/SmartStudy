@@ -102,6 +102,10 @@ public class AuthController : ControllerBase
             $"Your password reset code: {token}\n\nThis code expires in 1 hour.\n\nIf you did not request a password reset, please ignore this email."
         );
 
+        // In dev/no-SMTP mode, return token so the frontend flow works
+        if (!_emailService.IsConfigured)
+            return Ok(new { message = "If the email exists, a reset link has been sent.", resetToken = token });
+
         return Ok(new { message = "If the email exists, a reset link has been sent." });
     }
 

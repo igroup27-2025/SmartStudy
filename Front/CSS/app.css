@@ -617,26 +617,6 @@ hr {
   border: 2px solid var(--bg-topbar);
 }
 
-/* User avatar / dropdown */
-.topbar-avatar {
-  width: 38px;
-  height: 38px;
-  border-radius: var(--radius-full);
-  background: linear-gradient(135deg, var(--color-primary), var(--color-accent));
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: var(--fs-sm);
-  font-weight: var(--fw-bold);
-  color: var(--text-inverse);
-  cursor: pointer;
-  transition: box-shadow var(--transition-fast);
-}
-
-.topbar-avatar:hover {
-  box-shadow: 0 0 0 3px var(--color-primary-bg);
-}
-
 .topbar-dropdown {
   position: absolute;
   top: calc(100% + 8px);
@@ -990,6 +970,7 @@ hr {
 .cal-event--draggable.dragging {
   cursor: grabbing;
   opacity: 0.5;
+  z-index: 100;
 }
 
 .cal-cell.drag-over {
@@ -1257,25 +1238,30 @@ hr {
   flex-shrink: 0;
 }
 
-.est-vs-actual-bars {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
 .est-vs-actual-bar {
   position: relative;
-  height: 16px;
+  height: 22px;
   background: var(--bg-surface);
   border-radius: 8px;
   overflow: hidden;
+  flex: 1;
 }
 
-.est-vs-actual-fill {
+.est-vs-actual-bar--overlay .est-vs-actual-fill {
+  position: absolute;
+  top: 0;
+  left: 0;
   height: 100%;
   border-radius: 8px;
   transition: width 0.3s ease;
+}
+
+.est-vs-actual-fill--est {
+  z-index: 1;
+}
+
+.est-vs-actual-fill--act {
+  z-index: 2;
 }
 
 .est-vs-actual-value {
@@ -1287,6 +1273,7 @@ hr {
   align-items: center;
   font-size: 10px;
   color: var(--text-secondary);
+  z-index: 3;
 }
 
 .est-vs-actual-accuracy {
@@ -2641,6 +2628,10 @@ hr {
   width: auto;
   min-width: 220px;
   height: 40px;
+}
+
+.task-filter-bar {
+  margin-bottom: var(--space-4);
 }
 
 .filter-tabs {
@@ -6880,72 +6871,6 @@ body[data-layout="onboarding"] {
   font-size: 1.1rem;
 }
 
-.dash-unscheduled {
-  margin-bottom: var(--space-5);
-}
-
-.dash-unscheduled__card {
-  background: #FFF8E1;
-  border: 1px solid #FFE082;
-  border-radius: var(--radius-lg);
-  padding: var(--space-5);
-}
-
-.dash-unscheduled__header {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  margin-bottom: var(--space-3);
-}
-
-.dash-unscheduled__icon {
-  font-size: 1.3rem;
-  color: #F57F17;
-}
-
-.dash-unscheduled__title {
-  font-size: var(--fs-base);
-  font-weight: var(--fw-semibold);
-  color: #F57F17;
-  margin: 0;
-}
-
-.dash-unscheduled__list {
-  list-style: none;
-  padding: 0;
-  margin: 0 0 var(--space-3);
-}
-
-.dash-unscheduled__list li {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: var(--space-2) 0;
-  border-bottom: 1px solid rgba(255, 224, 130, 0.5);
-  font-size: var(--fs-sm);
-}
-
-.dash-unscheduled__list li:last-child {
-  border-bottom: none;
-}
-
-.dash-unscheduled__task-name {
-  color: var(--text-primary);
-  font-weight: var(--fw-medium);
-}
-
-.dash-unscheduled__due {
-  color: var(--text-muted);
-  font-size: var(--fs-xs);
-}
-
-.dash-unscheduled__hint {
-  font-size: var(--fs-xs);
-  color: #BF8D00;
-  margin: 0;
-  line-height: 1.4;
-}
-
 /* ---- Dashboard Suggestion Card ---- */
 .dash-suggestion {
   margin-bottom: var(--space-5);
@@ -7373,11 +7298,6 @@ body[data-layout="onboarding"] {
   .relocation-card__actions {
     width: 100%;
     justify-content: flex-end;
-  }
-
-  /* ---- Unscheduled Tasks ---- */
-  .dash-unscheduled__card {
-    padding: var(--space-3);
   }
 
   /* ---- Suggestion Card ---- */

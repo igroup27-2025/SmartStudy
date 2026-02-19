@@ -12,6 +12,15 @@ public class EmailService
         _config = config;
     }
 
+    public bool IsConfigured
+    {
+        get
+        {
+            var smtp = _config.GetSection("Smtp");
+            return !string.IsNullOrEmpty(smtp["Host"]) && !string.IsNullOrEmpty(smtp["Username"]);
+        }
+    }
+
     public async Task SendAsync(string to, string subject, string body)
     {
         var smtp = _config.GetSection("Smtp");
@@ -22,8 +31,9 @@ public class EmailService
 
         if (string.IsNullOrEmpty(host) || string.IsNullOrEmpty(username))
         {
-            // SMTP not configured — log instead of sending
-            Console.WriteLine($"[EmailService] Would send email to {to}: {subject}\n{body}");
+            // SMTP not configured — log masked summary instead of full body
+            var maskedBody = body.Length > 40 ? body[..40] + "..." : body;
+            Console.WriteLine($"[EmailService] Would send email to {to}: {subject} (body: {maskedBody})");
             return;
         }
 

@@ -125,15 +125,10 @@ async function renderLearningInsights(tasks, courses) {
                     return `
                         <div class="est-vs-actual-row">
                             <span class="est-vs-actual-label">${e.courseName}</span>
-                            <div class="est-vs-actual-bars">
-                                <div class="est-vs-actual-bar">
-                                    <div class="est-vs-actual-fill est-vs-actual-fill--est" style="width:${estPct}%;background:${color};opacity:0.5"></div>
-                                    <span class="est-vs-actual-value">${e.estimated.toFixed(1)}h est</span>
-                                </div>
-                                <div class="est-vs-actual-bar">
-                                    <div class="est-vs-actual-fill est-vs-actual-fill--act" style="width:${actPct}%;background:${color}"></div>
-                                    <span class="est-vs-actual-value">${e.actual.toFixed(1)}h actual</span>
-                                </div>
+                            <div class="est-vs-actual-bar est-vs-actual-bar--overlay">
+                                <div class="est-vs-actual-fill est-vs-actual-fill--est" style="width:${estPct}%;background:${color};opacity:0.35"></div>
+                                <div class="est-vs-actual-fill est-vs-actual-fill--act" style="width:${actPct}%;background:${color}"></div>
+                                <span class="est-vs-actual-value">${e.actual.toFixed(1)}h / ${e.estimated.toFixed(1)}h</span>
                             </div>
                             <span class="est-vs-actual-accuracy ${accuracy > 120 ? 'text-danger' : accuracy < 80 ? 'text-warning' : 'text-success'}">${accuracy}%</span>
                         </div>
@@ -141,8 +136,8 @@ async function renderLearningInsights(tasks, courses) {
                 }).join('')}
             </div>
             <div class="est-vs-actual-legend" style="margin-bottom:var(--space-4)">
-                <span class="legend-item"><span class="legend-dot" style="background:#ccc;opacity:0.5"></span> Estimated</span>
-                <span class="legend-item"><span class="legend-dot" style="background:#ccc"></span> Actual</span>
+                <span class="legend-item"><span class="legend-dot" style="opacity:0.35;background:#888"></span> Estimated</span>
+                <span class="legend-item"><span class="legend-dot" style="background:#888"></span> Actual</span>
             </div>
         `;
     }
