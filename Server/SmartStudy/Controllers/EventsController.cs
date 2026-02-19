@@ -25,6 +25,9 @@ public class EventsController : ControllerBase
 
     private string GetEmail() => User.FindFirst(ClaimTypes.Email)!.Value;
 
+    private static string? StripGcalTag(string? desc) =>
+        desc == null ? null : System.Text.RegularExpressions.Regex.Replace(desc, @"\s*\[gcal:[^\]]*\]", "").Trim();
+
     [HttpGet]
     public async Task<IActionResult> GetAll([FromQuery] DateTime? from, [FromQuery] DateTime? to)
     {
@@ -133,7 +136,7 @@ public class EventsController : ControllerBase
         {
             dto.EventType = "personal";
             dto.Type = pe.Type;
-            dto.Description = pe.Description;
+            dto.Description = StripGcalTag(pe.Description);
         }
         else
         {
