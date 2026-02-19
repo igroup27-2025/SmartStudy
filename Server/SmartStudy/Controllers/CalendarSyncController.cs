@@ -95,7 +95,9 @@ public class CalendarSyncController : ControllerBase
             }
         }
 
-        var redirectPath = $"{Request.PathBase}/Pages/Settings.html?gcal={status ?? "unknown"}";
+        // Redirect to frontend (tar2) instead of API (tar1)
+        var frontendBase = Request.PathBase.ToString().Replace("/tar1", "/tar2");
+        var redirectPath = $"{frontendBase}/Pages/Settings.html?gcal={status ?? "unknown"}";
         return Redirect(redirectPath);
     }
 

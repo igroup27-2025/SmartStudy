@@ -1,6 +1,7 @@
 import { api } from './api.js';
 import { showToast } from './modals.js';
 import { getUser, saveAuth } from './auth.js';
+import { API_BASE_PATH } from './config.js';
 
 export async function initSettings() {
     try {
@@ -243,7 +244,7 @@ async function loadIntegrations() {
                 connectBtn.disabled = true;
                 connectBtn.textContent = 'Connecting...';
 
-                const callbackUrl = window.location.origin + window.location.pathname.replace(/\/Pages\/.*/, '') + '/api/calendar-sync/callback';
+                const callbackUrl = window.location.origin + API_BASE_PATH + '/api/calendar-sync/callback';
                 const result = await api.connectGoogleCalendar(callbackUrl);
 
                 if (result.redirectUrl) {

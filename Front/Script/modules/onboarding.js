@@ -1,5 +1,5 @@
 import { api } from './api.js';
-import { BASE_PATH } from './config.js';
+import { BASE_PATH, API_BASE_PATH } from './config.js';
 
 const STORE_KEY = 'smartstudy_onboarding';
 
@@ -169,7 +169,7 @@ function initStep3() {
             const syncStatus = await api.getCalendarSyncStatus();
 
             if (syncStatus.useComposio) {
-                const callbackUrl = window.location.origin + window.location.pathname.replace(/\/Pages\/.*/, '') + '/api/calendar-sync/callback';
+                const callbackUrl = window.location.origin + API_BASE_PATH + '/api/calendar-sync/callback';
                 const result = await api.connectGoogleCalendar(callbackUrl);
                 if (result.redirectUrl) {
                     window.location.href = result.redirectUrl;

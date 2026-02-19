@@ -193,6 +193,8 @@ async function initGoogleSignIn() {
                     client_id: clientId,
                     callback: handleGoogleCallback,
                 });
+                const btn = document.getElementById('googleSignIn');
+                if (btn) btn.style.display = '';
             }
         };
         document.head.appendChild(script);
