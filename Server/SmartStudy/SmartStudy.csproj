@@ -19,4 +19,13 @@
     <PackageReference Include="Google.Apis.Auth" Version="1.68.0" />
   </ItemGroup>
 
+  <ItemGroup>
+    <FrontFiles Include="..\..\Front\**\*" />
+  </ItemGroup>
+
+  <Target Name="CopyFrontToPublish" AfterTargets="Publish">
+    <Copy SourceFiles="@(FrontFiles)"
+          DestinationFiles="@(FrontFiles->'$(PublishDir)Front\%(RecursiveDir)%(Filename)%(Extension)')" />
+  </Target>
+
 </Project>

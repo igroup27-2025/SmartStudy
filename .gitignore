@@ -26,6 +26,9 @@ obj/
 !Front/Images/**
 !screenshots/**
 
+# Publish output
+publish/
+
 # Documents
 *.pdf
 *.docx
