@@ -915,6 +915,7 @@ function setupEventCreation() {
             await navigate();
         } catch (err) {
             showToast(err.message || 'Failed to save event', 'error');
+            await navigate(); // refresh to get correct state from server
         }
     });
 }

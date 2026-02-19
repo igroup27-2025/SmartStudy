@@ -420,8 +420,11 @@ public class EventsController : ControllerBase
         var isWork = await _db.WorkEvents.AnyAsync(w => w.EventId == id);
         var isPersonal = await _db.PersonalEvents.AnyAsync(p => p.EventId == id);
 
-        if (!isWork && !isPersonal)
-            return BadRequest(new { message = "Only Work and Personal events can change type" });
+        // Class and Task events truly cannot change type
+        var isClass = await _db.ClassEvents.AnyAsync(c => c.EventId == id);
+        var isTask = await _db.TaskEvents.AnyAsync(t => t.EventId == id);
+        if (isClass || isTask)
+            return BadRequest(new { message = "Class and Task events cannot change type" });
 
         var newType = dto.NewType?.ToLower();
         if (newType != "work" && newType != "personal")
@@ -431,28 +434,40 @@ public class EventsController : ControllerBase
             return Ok(new { evt.EventId, eventType = newType, message = "Type unchanged" });
 
         // Use raw SQL for subtype swap to avoid EF Core TPT tracking conflicts
-        if (isWork)
+        // Wrap in transaction to prevent orphaned events if INSERT fails after DELETE
+        using var transaction = await _db.Database.BeginTransactionAsync();
+        try
         {
-            await _db.Database.ExecuteSqlRawAsync(
-                "DELETE FROM SmartStudy_WorkEvents WHERE EventId = {0}", id);
-        }
-        else
-        {
-            await _db.Database.ExecuteSqlRawAsync(
-                "DELETE FROM SmartStudy_PersonalEvents WHERE EventId = {0}", id);
-        }
+            if (isWork)
+            {
+                await _db.Database.ExecuteSqlRawAsync(
+                    "DELETE FROM SmartStudy_WorkEvents WHERE EventId = {0}", id);
+            }
+            else if (isPersonal)
+            {
+                await _db.Database.ExecuteSqlRawAsync(
+                    "DELETE FROM SmartStudy_PersonalEvents WHERE EventId = {0}", id);
+            }
 
-        if (newType == "work")
-        {
-            await _db.Database.ExecuteSqlRawAsync(
-                "INSERT INTO SmartStudy_WorkEvents (EventId, WorkPlace, TravelTime) VALUES ({0}, {1}, {2})",
-                id, dto.WorkPlace ?? (object)DBNull.Value, dto.TravelTime ?? (object)DBNull.Value);
+            if (newType == "work")
+            {
+                await _db.Database.ExecuteSqlRawAsync(
+                    "INSERT INTO SmartStudy_WorkEvents (EventId, WorkPlace, TravelTime) VALUES ({0}, {1}, {2})",
+                    id, dto.WorkPlace ?? (object)DBNull.Value, dto.TravelTime ?? (object)DBNull.Value);
+            }
+            else
+            {
+                await _db.Database.ExecuteSqlRawAsync(
+                    "INSERT INTO SmartStudy_PersonalEvents (EventId, Type, Description) VALUES ({0}, {1}, {2})",
+                    id, dto.PersonalType ?? (object)DBNull.Value, dto.Description ?? (object)DBNull.Value);
+            }
+
+            await transaction.CommitAsync();
         }
-        else
+        catch
         {
-            await _db.Database.ExecuteSqlRawAsync(
-                "INSERT INTO SmartStudy_PersonalEvents (EventId, Type, Description) VALUES ({0}, {1}, {2})",
-                id, dto.PersonalType ?? (object)DBNull.Value, dto.Description ?? (object)DBNull.Value);
+            await transaction.RollbackAsync();
+            throw;
         }
 
         // Detach cached subtype entities to avoid tracking conflicts
