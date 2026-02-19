@@ -40,9 +40,17 @@ public class ComposioService
 
         var body = new
         {
-            user_id = userId,
-            auth_config_id = AuthConfigId,
-            callback_url = callbackUrl
+            auth_config = new { id = AuthConfigId },
+            connection = new
+            {
+                user_id = userId,
+                callback_url = callbackUrl,
+                state = new
+                {
+                    auth_scheme = "OAUTH2",
+                    val = new { status = "INITIALIZING" }
+                }
+            }
         };
 
         var content = new StringContent(JsonSerializer.Serialize(body), Encoding.UTF8, "application/json");
@@ -61,9 +69,18 @@ public class ComposioService
         var doc = JsonDocument.Parse(json);
         var root = doc.RootElement;
 
-        var redirectUrl = root.TryGetProperty("redirect_url", out var ru)
-            ? ru.GetString()
-            : root.TryGetProperty("redirectUrl", out var ru2) ? ru2.GetString() : null;
+        // Extract redirect URL from nested response
+        string? redirectUrl = null;
+        if (root.TryGetProperty("connection_data", out var connData) &&
+            connData.TryGetProperty("val", out var val))
+        {
+            if (val.TryGetProperty("redirect_url", out var ru))
+                redirectUrl = ru.GetString();
+        }
+        if (redirectUrl == null && root.TryGetProperty("redirect_url", out var ru2))
+            redirectUrl = ru2.GetString();
+        if (redirectUrl == null && root.TryGetProperty("redirectUrl", out var ru3))
+            redirectUrl = ru3.GetString();
 
         var connId = root.TryGetProperty("id", out var idProp) ? idProp.GetString() : null;
 
