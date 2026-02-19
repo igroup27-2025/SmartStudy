@@ -5156,6 +5156,10 @@ body[data-layout="onboarding"] {
     pointer-events: auto;
   }
 
+  .sidebar-nav {
+    padding-top: calc(var(--topbar-height) + var(--space-2));
+  }
+
   .sidebar-toggle {
     display: flex !important;
   }
