@@ -3773,6 +3773,7 @@ input:checked + .toggle-switch--sm::after,
   align-items: flex-start;
   justify-content: flex-end;
   border-bottom: 1px solid var(--color-gray-100);
+  box-sizing: border-box;
   line-height: 1;
   padding-top: 2px;
 }
@@ -3831,6 +3832,7 @@ input:checked + .toggle-switch--sm::after,
 
 .mini-cal__cell {
   border-bottom: 1px solid var(--color-gray-100);
+  box-sizing: border-box;
 }
 
 .mini-cal__event {
