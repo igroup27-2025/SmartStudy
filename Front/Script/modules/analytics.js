@@ -26,7 +26,7 @@ function renderWeeklyChart(weekly) {
             ${weekly.map(d => `
                 <div class="bar-chart-col">
                     <div class="bar-chart-bar-container">
-                        <div class="bar-chart-bar" style="height:${(d.score / 100) * 100}%;background:${d.color}" title="${d.dayName}: ${d.score}%"></div>
+                        <div class="bar-chart-bar" style="height:${Math.round(d.score)}%;background:${d.color}" title="${d.dayName}: ${Math.round(d.score)}%"></div>
                     </div>
                     <div class="bar-chart-label">${d.dayName}</div>
                     <div class="bar-chart-value">${Math.round(d.score)}%</div>
