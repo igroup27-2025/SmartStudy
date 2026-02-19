@@ -360,6 +360,9 @@ function renderReview(data) {
         return;
     }
 
+    const formatSlotTime = (d) => d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false });
+    const formatSlotDate = (d) => d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+
     const cards = tasks.map(t => {
         const due = t.dueDate ? new Date(t.dueDate) : null;
         const now = new Date();
@@ -367,23 +370,37 @@ function renderReview(data) {
         const dateStr = due ? due.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '';
         const priorityClass = (t.priority || 'medium').toLowerCase();
 
-        // Scheduling info
+        const isNeedReview = t.schedulingStatus === 'NeedReview';
+        const isUnscheduled = t.schedulingStatus === 'Unscheduled' || t.schedulingStatus === 'Partial';
+
+        // Build scheduled time slots display
+        let slotsHtml = '';
+        const slots = t.scheduledSlots || [];
+        if (slots.length) {
+            const slotItems = slots.map(s => {
+                const from = new Date(s.from);
+                const to = new Date(s.to);
+                return `<span class="dash-review-slot">${formatSlotDate(from)}, ${formatSlotTime(from)}-${formatSlotTime(to)}</span>`;
+            }).join('');
+            slotsHtml = `<div class="dash-review-slots">${slotItems}</div>`;
+        }
+
+        // Status badge
         let scheduleInfo = '';
-        if (t.schedulingStatus === 'NeedReview' && t.scheduledDate) {
-            const sd = new Date(t.scheduledDate);
-            scheduleInfo = `<span class="badge badge-review">Shared Task – ${sd.toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</span>`;
-        } else if (t.schedulingStatus === 'Scheduled' && t.scheduledDate) {
-            const sd = new Date(t.scheduledDate);
-            scheduleInfo = `<span class="badge badge-scheduled">Scheduled: ${sd.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</span>`;
+        if (isNeedReview) {
+            scheduleInfo = `<span class="badge badge-review">Pending Review</span>`;
+        } else if (t.schedulingStatus === 'Scheduled') {
+            scheduleInfo = `<span class="badge badge-scheduled">Scheduled</span>`;
         } else if (t.schedulingStatus === 'Partial') {
             scheduleInfo = '<span class="badge badge-partial">Partially Scheduled</span>';
-        } else if (t.schedulingStatus === 'Unscheduled') {
+        } else if (isUnscheduled) {
             scheduleInfo = '<span class="badge badge-unscheduled">Not Scheduled</span>';
         }
 
-        const isNeedReview = t.schedulingStatus === 'NeedReview';
-        const isUnscheduled = t.schedulingStatus === 'Unscheduled' || t.schedulingStatus === 'Partial';
-        const editHref = `${BASE_PATH}/Pages/Tasks.html?edit=${t.taskId}`;
+        // Edit goes to calendar (with date param for first slot)
+        const firstSlot = slots.length ? new Date(slots[0].from) : null;
+        const calDateParam = firstSlot ? `?date=${firstSlot.getFullYear()}-${String(firstSlot.getMonth()+1).padStart(2,'0')}-${String(firstSlot.getDate()).padStart(2,'0')}` : '';
+        const editHref = `${BASE_PATH}/Pages/Calendar.html${calDateParam}`;
 
         return `
             <div class="dash-task-card">
@@ -399,13 +416,14 @@ function renderReview(data) {
                         ${scheduleInfo}
                         ${isUnscheduled ? '<span class="dash-task-card__reason">Could not fit in schedule</span>' : ''}
                     </div>
+                    ${slotsHtml}
                 </div>
                 <div class="dash-task-card__actions">
                     ${isUnscheduled
                         ? `<a href="${BASE_PATH}/Pages/Calendar.html" class="btn btn-sm btn-primary">Schedule Manually</a>`
-                        : `<button class="btn btn-sm btn-primary dash-approve-btn" data-task-id="${t.taskId}" data-est-hours="${t.estimatedHours || ''}" data-title="${escapeHtml(t.title)}">Approve</button>`
+                        : `<button class="btn btn-sm btn-primary dash-approve-btn" data-task-id="${t.taskId}">Approve</button>`
                     }
-                    <a href="${editHref}" class="btn btn-sm btn-ghost">Edit</a>
+                    <a href="${editHref}" class="btn btn-sm btn-ghost">Edit in Calendar</a>
                 </div>
             </div>
         `;
@@ -413,13 +431,29 @@ function renderReview(data) {
 
     el.innerHTML = header + '<div class="dash-review__list">' + cards + '</div>';
 
-    // Bind approve buttons — open completion modal
+    // Bind approve buttons — call approve endpoint (keeps schedule, removes from review)
     el.querySelectorAll('.dash-approve-btn').forEach(btn => {
-        btn.addEventListener('click', () => {
+        btn.addEventListener('click', async () => {
             const taskId = btn.dataset.taskId;
-            const taskTitle = btn.dataset.title;
-            const estHours = btn.dataset.estHours;
-            showCompletionModal(taskId, taskTitle, estHours);
+            btn.disabled = true;
+            btn.textContent = 'Approving...';
+            try {
+                await api.approveScheduledTask(taskId);
+                showToast('Schedule approved!', 'success');
+                const freshData = await api.getDashboard();
+                renderProgress(freshData);
+                renderAlerts(freshData);
+                renderStats(freshData);
+                renderWorkload(freshData);
+                renderRelocationSuggestions(freshData);
+                renderSuggestion(freshData);
+                renderReview(freshData);
+                renderOverdue(freshData);
+            } catch (err) {
+                showToast('Failed to approve schedule', 'error');
+                btn.disabled = false;
+                btn.textContent = 'Approve';
+            }
         });
     });
 }

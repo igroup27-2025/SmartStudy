@@ -1053,6 +1053,24 @@ hr {
   font-size: 0.75em;
 }
 
+.cal-event--need-review {
+  opacity: 0.85;
+  border-style: dashed !important;
+}
+
+.cal-event-review-badge {
+  display: inline-block;
+  background: #90CAF9;
+  color: #0D47A1;
+  font-size: 0.6em;
+  font-weight: 700;
+  padding: 1px 5px;
+  border-radius: 6px;
+  margin-right: 4px;
+  vertical-align: middle;
+  line-height: 1.4;
+}
+
 /* ---- Weekly Suggestions / Insights ---- */
 .weekly-summary {
   display: flex;
@@ -7502,6 +7520,23 @@ body[data-layout="onboarding"] {
     color: #E74C3C;
     font-style: italic;
     margin-top: var(--space-1);
+}
+
+.dash-review-slots {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-top: 6px;
+}
+
+.dash-review-slot {
+    display: inline-block;
+    background: #E3F2FD;
+    color: #1565C0;
+    font-size: var(--fs-xs);
+    font-weight: 600;
+    padding: 2px 8px;
+    border-radius: 8px;
 }
 
 /* ---- Dashboard mobile stat cards in one row (#1) ---- */

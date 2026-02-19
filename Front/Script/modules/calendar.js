@@ -371,12 +371,15 @@ function renderTimeGrid(events, startDate, dayCount) {
             const label = e.isExam ? `Exam: ${e.courseName || 'Exam'}` : (e.courseName || e.taskTitle || e.workPlace || e.description || e.type || 'Event');
             const isDraggable = !e.isExam;
             const pinIcon = e.eventType === 'task' && e.isManuallyPinned ? '<span class="cal-event-pin" title="Pinned — excluded from auto-scheduling">&#128204;</span>' : '';
+            const isNeedReview = e.eventType === 'task' && e.status === 'NeedReview';
+            const reviewClass = isNeedReview ? ' cal-event--need-review' : '';
+            const reviewBadge = isNeedReview ? '<span class="cal-event-review-badge">Pending</span>' : '';
 
-            html += `<div class="cal-event ${isDraggable ? 'cal-event--draggable' : ''}"
+            html += `<div class="cal-event ${isDraggable ? 'cal-event--draggable' : ''}${reviewClass}"
                 data-event-id="${e.eventId}" data-event-type="${e.eventType}"
                 ${isDraggable ? 'draggable="true"' : ''}
-                style="top:${top}px;height:${height}px;background:${colors.bg};border-left:3px solid ${colors.border};color:${colors.text}">
-                <div class="cal-event-title">${pinIcon}${label}</div>
+                style="top:${top}px;height:${height}px;background:${isNeedReview ? 'repeating-linear-gradient(135deg,' + colors.bg + ',' + colors.bg + ' 4px,rgba(255,255,255,0.4) 4px,rgba(255,255,255,0.4) 8px)' : colors.bg};border-left:3px solid ${isNeedReview ? '#90CAF9' : colors.border};color:${colors.text}">
+                <div class="cal-event-title">${pinIcon}${reviewBadge}${label}</div>
                 <div class="cal-event-time">${formatTime(from)} - ${formatTime(to)}</div>
             </div>`;
         });

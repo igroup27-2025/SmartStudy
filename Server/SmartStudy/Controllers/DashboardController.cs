@@ -156,7 +156,10 @@ public class DashboardController : ControllerBase
                 SharedStatus = t.SharedTask?.SharedStatus,
                 ScheduledDate = t.TaskEvents.OrderBy(te => te.From).FirstOrDefault()?.From,
                 SchedulingStatus = t.TaskEvents.Any(te => te.Status == "NeedReview") ? "NeedReview"
-                    : t.TaskEvents.Any() ? "Scheduled" : "Unscheduled"
+                    : t.TaskEvents.Any() ? "Scheduled" : "Unscheduled",
+                ScheduledSlots = t.TaskEvents.OrderBy(te => te.From)
+                    .Select(te => new TaskSlotDto { From = te.From, To = te.To })
+                    .ToList()
             })
             .ToList();
 

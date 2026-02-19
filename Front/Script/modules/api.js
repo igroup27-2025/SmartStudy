@@ -141,6 +141,7 @@ export const api = {
     // Scheduling
     runScheduling: () => request('POST', '/scheduling/run'),
     getSchedulingStatus: () => request('GET', '/scheduling/status'),
+    approveScheduledTask: (taskId) => request('POST', `/scheduling/approve/${taskId}`),
 
     // Stress
     getStressScore: () => request('GET', '/stress/score'),
