@@ -33,7 +33,7 @@ public class GoogleCalendarService
             var timeMax = to.ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ");
 
             var toolResult = await _composio.ExecuteToolAsync(
-                "GOOGLECALENDAR_LIST_EVENTS",
+                "GOOGLECALENDAR_EVENTS_LIST",
                 email,
                 connectedAccountId,
                 new Dictionary<string, object>
