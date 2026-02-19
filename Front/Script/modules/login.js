@@ -160,11 +160,10 @@ export function initLogin() {
     // Google Sign-In
     document.getElementById('googleSignIn')?.addEventListener('click', async () => {
         try {
-            // Use Google Identity Services popup
-            if (typeof google !== 'undefined' && google.accounts) {
+            if (typeof google !== 'undefined' && google.accounts && google.accounts.id) {
                 google.accounts.id.prompt();
             } else {
-                showToast('Google Sign-In is not available', 'error');
+                showToast('Google Sign-In is not configured. Please use email & password.', 'error');
             }
         } catch {
             showToast('Google Sign-In failed', 'error');
