@@ -47,7 +47,7 @@ public class ComposioService
                 callback_url = callbackUrl,
                 state = new
                 {
-                    auth_scheme = "OAUTH2",
+                    authScheme = "OAUTH2",
                     val = new { status = "INITIALIZING" }
                 }
             }
