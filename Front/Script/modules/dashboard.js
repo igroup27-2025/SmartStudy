@@ -373,15 +373,25 @@ function renderReview(data) {
         const isNeedReview = t.schedulingStatus === 'NeedReview';
         const isUnscheduled = t.schedulingStatus === 'Unscheduled' || t.schedulingStatus === 'Partial';
 
-        // Build scheduled time slots display
+        // Build scheduled time slots display — group by day
         let slotsHtml = '';
         const slots = t.scheduledSlots || [];
         if (slots.length) {
-            const slotItems = slots.map(s => {
+            // Group slots by date key, merge into earliest-start / latest-end per day
+            const byDay = {};
+            slots.forEach(s => {
                 const from = new Date(s.from);
                 const to = new Date(s.to);
-                return `<span class="dash-review-slot">${formatSlotDate(from)}, ${formatSlotTime(from)}-${formatSlotTime(to)}</span>`;
-            }).join('');
+                const key = from.toDateString();
+                if (!byDay[key]) byDay[key] = { from, to };
+                else {
+                    if (from < byDay[key].from) byDay[key].from = from;
+                    if (to > byDay[key].to) byDay[key].to = to;
+                }
+            });
+            const slotItems = Object.values(byDay).map(s =>
+                `<span class="dash-review-slot">${formatSlotDate(s.from)}, ${formatSlotTime(s.from)}-${formatSlotTime(s.to)}</span>`
+            ).join('');
             slotsHtml = `<div class="dash-review-slots">${slotItems}</div>`;
         }
 

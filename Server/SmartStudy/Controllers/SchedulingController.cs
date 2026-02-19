@@ -43,22 +43,28 @@ public class SchedulingController : ControllerBase
     public async Task<IActionResult> ApproveScheduledTask(int taskId)
     {
         var email = GetEmail();
+        var now = DateTime.Now;
 
         var task = await _db.Tasks
             .FirstOrDefaultAsync(t => t.TaskId == taskId && t.Email == email);
         if (task == null) return NotFound();
 
+        // Change NeedReview events to Scheduled
         var reviewEvents = await _db.TaskEvents
             .Where(te => te.TaskId == taskId && te.Status == "NeedReview")
             .ToListAsync();
 
-        if (!reviewEvents.Any())
-            return BadRequest(new { message = "No events to approve for this task." });
-
         foreach (var ev in reviewEvents)
             ev.Status = "Scheduled";
 
+        // Remove past events (missed study sessions) so task leaves the review list
+        var pastEvents = await _db.TaskEvents
+            .Where(te => te.TaskId == taskId && te.From < now && te.Status != "NeedReview")
+            .ToListAsync();
+
+        _db.TaskEvents.RemoveRange(pastEvents);
+
         await _db.SaveChangesAsync();
-        return Ok(new { message = "Task schedule approved.", approvedCount = reviewEvents.Count });
+        return Ok(new { message = "Task schedule approved.", approvedCount = reviewEvents.Count, removedPast = pastEvents.Count });
     }
 }
