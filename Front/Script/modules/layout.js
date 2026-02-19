@@ -69,7 +69,7 @@ export function initLayout() {
         <div class="topbar-logo">
             <img src="${BASE_PATH}/Images/logo.png" alt="SmartStudy">
         </div>
-        <h1 class="topbar-title">${pageTitles[currentPage] || 'SmartStudy'}</h1>
+        <span class="topbar-title">${pageTitles[currentPage] || ''}</span>
         <div class="topbar-actions">
             <div class="notif-wrapper">
                 <button class="notif-bell" id="notifBell" title="Notifications">

@@ -515,9 +515,9 @@ hr {
 }
 
 .topbar-title {
-  font-size: var(--fs-xl);
-  font-weight: var(--fw-bold);
-  color: var(--text-primary);
+  font-size: var(--fs-md);
+  font-weight: var(--fw-medium);
+  color: var(--text-secondary);
   flex: 1;
   text-align: center;
 }
@@ -791,7 +791,7 @@ hr {
 
 .toggle-input { display: none; }
 
-.toggle-switch {
+.toggle-input + .toggle-switch {
   width: 40px;
   height: 22px;
   background: var(--border-color);
@@ -801,7 +801,7 @@ hr {
   flex-shrink: 0;
 }
 
-.toggle-switch::after {
+.toggle-input + .toggle-switch::after {
   content: '';
   position: absolute;
   top: 2px;
@@ -814,25 +814,24 @@ hr {
 }
 
 .toggle-input:checked + .toggle-switch {
-  background: var(--primary);
+  background: var(--color-primary);
 }
 
 .toggle-input:checked + .toggle-switch::after {
   transform: translateX(18px);
 }
 
-.toggle-switch--sm {
+.toggle-input + .toggle-switch--sm {
   width: 32px;
   height: 18px;
 }
 
-.toggle-switch--sm::after {
+.toggle-input + .toggle-switch--sm::after {
   width: 14px;
   height: 14px;
 }
 
-input:checked + .toggle-switch--sm::after,
-.toggle-switch--sm input:checked ~ .toggle-slider {
+.toggle-input:checked + .toggle-switch--sm::after {
   transform: translateX(14px);
 }
 
@@ -846,6 +845,12 @@ input:checked + .toggle-switch--sm::after,
 .toggle-switch {
   position: relative;
   display: inline-block;
+  width: 40px;
+  height: 22px;
+}
+
+.toggle-switch input[type="checkbox"] {
+  display: none;
 }
 
 .toggle-switch .toggle-slider {
@@ -3762,6 +3767,9 @@ input:checked + .toggle-switch--sm::after,
 
 .mini-cal__time-header {
   border-bottom: 1px solid var(--border-color);
+  display: flex;
+  align-items: center;
+  padding: var(--space-1) 0;
 }
 
 .mini-cal__time-label {
