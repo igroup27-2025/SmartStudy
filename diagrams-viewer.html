@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="he" dir="ltr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SmartStudy — ERD & Use Case Diagrams</title>
+  <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+  <style>
+    * { box-sizing: border-box; }
+    body { font-family: system-ui, -apple-system, sans-serif; margin: 0; padding: 24px; background: #f5f5f5; }
+    h1 { color: #333; margin-bottom: 8px; }
+    .subtitle { color: #666; margin-bottom: 24px; font-size: 14px; }
+    .diagram-section { background: white; border-radius: 12px; padding: 24px; margin-bottom: 32px; box-shadow: 0 2px 8px rgba(0,0,0,0.08); }
+    .diagram-section h2 { color: #F28D35; margin-top: 0; font-size: 20px; }
+    .mermaid { background: #fafafa; padding: 20px; border-radius: 8px; }
+    .export-hint { background: #FFF8F0; border: 1px solid #F28D35; border-radius: 8px; padding: 12px 16px; margin-top: 16px; font-size: 13px; color: #333; }
+    .export-hint strong { color: #D47A2B; }
+    .drawio-link { display: inline-block; margin-top: 12px; padding: 8px 16px; background: #54BFB5; color: white; text-decoration: none; border-radius: 8px; font-size: 14px; }
+    .drawio-link:hover { background: #3EA89E; }
+  </style>
+</head>
+<body>
+  <h1>SmartStudy — תרשימי מערכת</h1>
+  <p class="subtitle">פתח את הקובץ בדפדפן. לשמירה כ-PNG: קליק ימני על התרשים → "Save image as" / צילום מסך</p>
+
+  <div class="diagram-section">
+    <h2>ERD — Entity Relationship Diagram</h2>
+    <div class="mermaid">
+erDiagram
+    User ||--o| NotificationSettings : has
+    User ||--o| SchedulingPreferences : has
+    User ||--o{ UserCourse : enrolls
+    User ||--o{ Task : owns
+    User ||--o{ Event : owns
+    User ||--o{ FriendRequest : sends
+    User ||--o{ Friendship : has
+    User ||--o{ Notification : receives
+    User ||--o{ SharedTask : creates
+    User ||--o{ SharedTaskMember : is
+
+    Instructor ||--o{ Course : teaches
+    Course ||--o{ UserCourse : "N:N"
+    Course ||--o{ Exam : has
+    Course ||--o{ Task : has
+    Course ||--o{ ClassEvent : has
+
+    Task ||--o| SharedTask : "1:1"
+    Task ||--o{ TaskEvent : has
+    SharedTask ||--o{ SharedTaskMember : has
+
+    Event ||--|| ClassEvent : "TPT"
+    Event ||--|| TaskEvent : "TPT"
+    Event ||--|| WorkEvent : "TPT"
+    Event ||--|| PersonalEvent : "TPT"
+
+    User {
+        string Email PK
+        string FirstName
+        string LastName
+        string Password
+        bool OnboardingCompleted
+        string AuthProvider
+    }
+
+    Course {
+        int CourseId PK
+        string CourseName
+        int InstructorId FK
+        int DefaultTaskEstimatedHours
+        int ExamPrepHoursPerDay
+    }
+
+    Task {
+        int TaskId PK
+        int CourseId FK
+        string Email FK
+        string Title
+        date DueDate
+        bool IsCompleted
+    }
+
+    Event {
+        int EventId PK
+        string Email FK
+        datetime From
+        datetime To
+    }
+    </div>
+    <p class="export-hint"><strong>שמירה כתמונה:</strong> קליק ימני על התרשים → "Save image as" / "שמור תמונה בשם"</p>
+    <a class="drawio-link" href="SmartStudy-ERD.drawio" download>הורד קובץ drawio (ERD)</a>
+  </div>
+
+  <div class="diagram-section">
+    <h2>Use Case Diagram</h2>
+    <div class="mermaid">
+flowchart TB
+    subgraph Student["👤 Student"]
+        S[Student]
+    end
+
+    subgraph Auth["Authentication"]
+        UC1[Register]
+        UC2[Login]
+        UC3[Logout]
+        UC4[Google Login]
+        UC5[Forgot Password]
+        UC6[Complete Onboarding]
+    end
+
+    subgraph Courses["Courses"]
+        UC7[View Courses]
+        UC8[Add Course]
+        UC9[Edit Course]
+        UC10[Delete Course]
+    end
+
+    subgraph Tasks["Tasks"]
+        UC11[View Tasks]
+        UC12[Create Task]
+        UC13[Edit Task]
+        UC14[Complete Task]
+    end
+
+    subgraph Exams["Exams"]
+        UC15[View Exams]
+        UC16[Add Exam]
+    end
+
+    subgraph Calendar["Calendar & Events"]
+        UC17[View Calendar]
+        UC18[Add Class Event]
+        UC19[Add Work Event]
+        UC20[Add Personal Event]
+    end
+
+    subgraph Import["Data Import"]
+        UC21[Import from PDF]
+        UC22[Import from Moodle]
+        UC23[Import from Google Calendar]
+        UC24[Import from Ruppin]
+    end
+
+    subgraph Dashboard["Dashboard"]
+        UC25[View Dashboard]
+        UC26[View Stress Score]
+        UC27[View Analytics]
+    end
+
+    subgraph Friends["Friends & Collaboration"]
+        UC28[View Friends]
+        UC29[Send Friend Request]
+        UC30[View Safe Zones]
+        UC31[Share Task]
+    end
+
+    S --> UC1 & UC2 & UC7 & UC12 & UC17 & UC25 & UC28 & UC21 & UC22 & UC23
+    </div>
+    <p class="export-hint"><strong>שמירה כתמונה:</strong> קליק ימני על התרשים → "Save image as"</p>
+    <a class="drawio-link" href="SmartStudy-UseCases.drawio" download>הורד קובץ drawio (Use Cases)</a>
+  </div>
+
+  <div class="diagram-section">
+    <h2>איך לקבל PNG מהקבצים drawio</h2>
+    <ol style="line-height: 1.8; color: #444;">
+      <li>היכנסי ל־<a href="https://app.diagrams.net" target="_blank">app.diagrams.net</a></li>
+      <li>לחצי <strong>File → Open from → Device</strong></li>
+      <li>בחרי את <code>SmartStudy-ERD.drawio</code> או <code>SmartStudy-UseCases.drawio</code></li>
+      <li>לחצי <strong>File → Export as → PNG</strong></li>
+      <li>שמרי את הקובץ</li>
+    </ol>
+  </div>
+
+  <script>
+    mermaid.initialize({
+      startOnLoad: true,
+      theme: 'neutral',
+      er: { useMaxWidth: true },
+      flowchart: { useMaxWidth: true }
+    });
+  </script>
+</body>
+</html>
