@@ -135,9 +135,10 @@ public class DashboardController : ControllerBase
             .Where(d => d.Date >= today && d.Date < today.AddDays(7))
             .Sum(d => d.ScheduledHours);
 
-        // Needs Review: tasks with scheduled events in the past that are still not completed
+        // Needs Review: tasks with past scheduled events OR shared tasks awaiting review
         var needsReviewTasks = tasksWithEvents
-            .Where(t => !t.IsCompleted && t.TaskEvents.Any(te => te.From < now))
+            .Where(t => !t.IsCompleted &&
+                (t.TaskEvents.Any(te => te.From < now) || t.TaskEvents.Any(te => te.Status == "NeedReview")))
             .OrderBy(t => t.DueDate)
             .Take(10)
             .Select(t => new TaskDto
@@ -151,8 +152,11 @@ public class DashboardController : ControllerBase
                 DueDate = t.DueDate,
                 IsCompleted = t.IsCompleted,
                 Priority = t.Priority,
+                IsShared = t.SharedTask != null,
+                SharedStatus = t.SharedTask?.SharedStatus,
                 ScheduledDate = t.TaskEvents.OrderBy(te => te.From).FirstOrDefault()?.From,
-                SchedulingStatus = t.TaskEvents.Any() ? "Scheduled" : "Unscheduled"
+                SchedulingStatus = t.TaskEvents.Any(te => te.Status == "NeedReview") ? "NeedReview"
+                    : t.TaskEvents.Any() ? "Scheduled" : "Unscheduled"
             })
             .ToList();
 

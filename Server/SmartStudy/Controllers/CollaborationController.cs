@@ -15,11 +15,13 @@ public class CollaborationController : ControllerBase
 {
     private readonly SmartStudyDbContext _db;
     private readonly SafeZoneService _safeZoneService;
+    private readonly SchedulingService _scheduling;
 
-    public CollaborationController(SmartStudyDbContext db, SafeZoneService safeZoneService)
+    public CollaborationController(SmartStudyDbContext db, SafeZoneService safeZoneService, SchedulingService scheduling)
     {
         _db = db;
         _safeZoneService = safeZoneService;
+        _scheduling = scheduling;
     }
 
     private string GetEmail() => User.FindFirst(ClaimTypes.Email)!.Value;
@@ -74,23 +76,59 @@ public class CollaborationController : ControllerBase
             .ToListAsync();
 
         int accepted = 0;
+        var confirmedTasks = new List<(int TaskId, string CreatorEmail)>();
         foreach (var member in pendingMembers)
         {
             member.ResponseStatus = "Accepted";
             member.RespondedAt = DateTime.UtcNow;
 
-            // Update shared task status if all members accepted
             var allMembers = await _db.SharedTaskMembers
                 .Where(m => m.TaskId == member.TaskId)
                 .ToListAsync();
             if (allMembers.All(m => m.ResponseStatus == "Accepted"))
             {
                 member.SharedTask.SharedStatus = "Confirmed";
+                confirmedTasks.Add((member.TaskId, member.SharedTask.CreatedByEmail));
             }
             accepted++;
         }
 
         await _db.SaveChangesAsync();
+
+        // Create task copies and schedule with common time for each confirmed shared task
+        foreach (var (taskId, creatorEmail) in confirmedTasks)
+        {
+            var task = await _db.Tasks.Include(t => t.Course)
+                .FirstOrDefaultAsync(t => t.TaskId == taskId);
+            if (task == null) continue;
+
+            var existingCopy = await _db.Tasks
+                .FirstOrDefaultAsync(t => t.Email == email && t.Title == task.Title
+                    && t.CourseId == task.CourseId && t.DueDate == task.DueDate);
+
+            if (existingCopy == null)
+            {
+                var taskCopy = new StudentTask
+                {
+                    CourseId = task.CourseId,
+                    Title = task.Title,
+                    Type = task.Type,
+                    EstimatedHours = task.EstimatedHours,
+                    DueDate = task.DueDate,
+                    Priority = task.Priority,
+                    Email = email,
+                    IsCompleted = false,
+                    AllowSplitting = task.AllowSplitting
+                };
+                _db.Tasks.Add(taskCopy);
+                await _db.SaveChangesAsync();
+            }
+
+            // Schedule all tasks first, then override shared task with common time
+            await _scheduling.ScheduleAllTasksAsync(email);
+            await _scheduling.ScheduleAllTasksAsync(creatorEmail);
+            await _scheduling.ScheduleSharedTaskAtCommonTimeAsync(taskId, creatorEmail, email);
+        }
 
         return Ok(new { message = $"Course sharing approved. {accepted} pending tasks auto-accepted.", accepted });
     }

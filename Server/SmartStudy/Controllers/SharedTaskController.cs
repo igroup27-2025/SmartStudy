@@ -228,6 +228,10 @@ public class SharedTaskController : ControllerBase
             {
                 await _scheduling.ScheduleAllTasksAsync(memberEmail);
             }
+
+            // Override the shared task's schedule with a common time slot for both users
+            await _scheduling.ScheduleSharedTaskAtCommonTimeAsync(
+                taskId, member.SharedTask.CreatedByEmail, email);
         }
 
         return Ok(new { taskId, status = member.SharedTask.SharedStatus });

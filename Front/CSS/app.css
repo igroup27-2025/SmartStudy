@@ -6675,6 +6675,11 @@ body[data-layout="onboarding"] {
   color: #E65100;
 }
 
+.badge-review {
+  background: #E3F2FD;
+  color: #1565C0;
+}
+
 .badge-priority-high {
   background: rgba(255,96,126,0.12);
   color: #C2185B;

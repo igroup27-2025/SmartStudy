@@ -55,6 +55,14 @@ public class SchedulingService
             .ToListAsync();
         var pinnedTaskIdSet = new HashSet<int>(pinnedTaskIds);
 
+        // Load tasks with NeedReview events (shared task common scheduling) — skip from auto-scheduling
+        var needReviewTaskIds = await _db.TaskEvents
+            .Where(te => te.StudentTask.Email == email && te.Status == "NeedReview")
+            .Select(te => te.TaskId)
+            .Distinct()
+            .ToListAsync();
+        var needReviewTaskIdSet = new HashSet<int>(needReviewTaskIds);
+
         // 3. Clear existing auto-scheduled TaskEvents (SKIP pinned tasks)
         var existingTaskEvents = await _db.TaskEvents
             .Where(te => te.StudentTask.Email == email && (te.Status == "Scheduled" || te.Status == "Partial"))
@@ -250,7 +258,7 @@ public class SchedulingService
             .ToDictionary(g => g.Key, g => g.Average(t => t.Actual / t.Estimated));
 
         // 4. Compute priority score for every task (exclude pinned tasks from scheduling)
-        var schedulableTasks = tasks.Where(t => !pinnedTaskIdSet.Contains(t.TaskId)).ToList();
+        var schedulableTasks = tasks.Where(t => !pinnedTaskIdSet.Contains(t.TaskId) && !needReviewTaskIdSet.Contains(t.TaskId)).ToList();
         var scoredTasks = schedulableTasks.Select(t =>
         {
             var daysUntilDue = Math.Max(0.1, (t.DueDate!.Value - now).TotalDays);
@@ -970,5 +978,231 @@ public class SchedulingService
         }
 
         return expanded;
+    }
+
+    /// <summary>
+    /// Schedules a shared task at a common free time for both users.
+    /// Removes any independently-scheduled events for the task and creates
+    /// new events at mutual free slots with Status = "NeedReview".
+    /// </summary>
+    public async Task ScheduleSharedTaskAtCommonTimeAsync(
+        int originalTaskId, string creatorEmail, string partnerEmail)
+    {
+        var now = DateTime.Now;
+
+        var originalTask = await _db.Tasks
+            .Include(t => t.Course)
+            .FirstOrDefaultAsync(t => t.TaskId == originalTaskId);
+        if (originalTask == null) return;
+
+        var partnerTask = await _db.Tasks
+            .FirstOrDefaultAsync(t => t.Email == partnerEmail
+                && t.Title == originalTask.Title
+                && t.CourseId == originalTask.CourseId
+                && t.DueDate == originalTask.DueDate
+                && !t.IsCompleted);
+        if (partnerTask == null) return;
+
+        // Remove existing auto-scheduled TaskEvents for both copies of the shared task
+        var toRemoveIds = await _db.TaskEvents
+            .Where(te => (te.TaskId == originalTask.TaskId || te.TaskId == partnerTask.TaskId)
+                && (te.Status == "Scheduled" || te.Status == "Partial"))
+            .Select(te => te.EventId)
+            .ToListAsync();
+
+        if (toRemoveIds.Any())
+        {
+            var toRemove = await _db.Events
+                .Where(e => toRemoveIds.Contains(e.EventId))
+                .ToListAsync();
+            _db.Events.RemoveRange(toRemove);
+            await _db.SaveChangesAsync();
+        }
+
+        // Determine common scheduling constraints from both users' preferences
+        var creatorPrefs = await _db.SchedulingPreferences.FindAsync(creatorEmail);
+        var partnerPrefs = await _db.SchedulingPreferences.FindAsync(partnerEmail);
+        int dayStart = Math.Max(creatorPrefs?.DayStartHour ?? 8, partnerPrefs?.DayStartHour ?? 8);
+        int dayEnd = Math.Min(creatorPrefs?.DayEndHour ?? 22, partnerPrefs?.DayEndHour ?? 22);
+        int maxContinuousMinutes = Math.Min(
+            creatorPrefs?.MaxContinuousMinutes ?? 90,
+            partnerPrefs?.MaxContinuousMinutes ?? 90);
+        int breakMinutes = Math.Max(
+            creatorPrefs?.BreakDurationMinutes ?? 15,
+            partnerPrefs?.BreakDurationMinutes ?? 15);
+
+        var dueDate = originalTask.DueDate ?? now.AddDays(14);
+        var scheduleStart = now.Date;
+        var scheduleEnd = dueDate.Date.AddDays(1);
+
+        // Load all events for both users (calendar + other task events)
+        var creatorEvents = await GetExpandedEvents(creatorEmail, scheduleStart, scheduleEnd);
+        var partnerEvents = await GetExpandedEvents(partnerEmail, scheduleStart, scheduleEnd);
+
+        double effectiveHours = (double)(originalTask.EstimatedHours ?? 4);
+        var remainingHours = effectiveHours;
+        var newTaskEvents = new List<TaskEvent>();
+
+        for (var day = scheduleStart; day < scheduleEnd && remainingHours > 0; day = day.AddDays(1))
+        {
+            var dayStartTime = day.AddHours(dayStart);
+            var dayEndTime = day.AddHours(dayEnd);
+
+            if (day == now.Date && now > dayStartTime)
+            {
+                var rounded = new DateTime(now.Year, now.Month, now.Day, now.Hour,
+                    now.Minute >= 30 ? 30 : 0, 0).AddMinutes(30);
+                if (rounded > dayStartTime) dayStartTime = rounded;
+            }
+            if (dayStartTime >= dayEndTime) continue;
+
+            var creatorBusy = GetDayBusyIntervals(creatorEvents, dayStartTime, dayEndTime);
+            var partnerBusy = GetDayBusyIntervals(partnerEvents, dayStartTime, dayEndTime);
+
+            // Include already-created new events as busy
+            foreach (var te in newTaskEvents.Where(t => t.From.Date == day.Date))
+            {
+                creatorBusy.Add((te.From, te.To));
+                partnerBusy.Add((te.From, te.To));
+            }
+
+            var mutualFree = FindMutualFreeSlots(dayStartTime, dayEndTime, creatorBusy, partnerBusy);
+
+            if (!originalTask.AllowSplitting)
+            {
+                var totalNeeded = effectiveHours +
+                    (Math.Floor(effectiveHours / (maxContinuousMinutes / 60.0)) * (breakMinutes / 60.0));
+
+                foreach (var slot in mutualFree)
+                {
+                    var slotDuration = (slot.To - slot.From).TotalHours;
+                    if (slotDuration >= totalNeeded)
+                    {
+                        var sessions = SplitIntoSessionsWithBreaks(
+                            slot.From, effectiveHours, maxContinuousMinutes, breakMinutes);
+                        foreach (var session in sessions)
+                        {
+                            newTaskEvents.Add(new TaskEvent
+                            {
+                                Email = creatorEmail, From = session.From, To = session.To,
+                                Recurring = false, TaskId = originalTask.TaskId,
+                                Priority = originalTask.Priority ?? "Medium", Status = "NeedReview"
+                            });
+                            newTaskEvents.Add(new TaskEvent
+                            {
+                                Email = partnerEmail, From = session.From, To = session.To,
+                                Recurring = false, TaskId = partnerTask.TaskId,
+                                Priority = partnerTask.Priority ?? "Medium", Status = "NeedReview"
+                            });
+                        }
+                        remainingHours = 0;
+                        break;
+                    }
+                }
+                if (remainingHours <= 0) break;
+            }
+            else
+            {
+                var maxContinuousHours = maxContinuousMinutes / 60.0;
+                foreach (var slot in mutualFree)
+                {
+                    if (remainingHours <= 0) break;
+
+                    var slotDuration = (slot.To - slot.From).TotalHours;
+                    var canUse = Math.Min(slotDuration, Math.Min(remainingHours, maxContinuousHours));
+
+                    if (canUse < 0.5) continue;
+                    canUse = Math.Floor(canUse * 2) / 2;
+                    if (canUse <= 0) continue;
+
+                    var slotFrom = slot.From;
+                    var slotTo = slotFrom.AddHours(canUse);
+
+                    newTaskEvents.Add(new TaskEvent
+                    {
+                        Email = creatorEmail, From = slotFrom, To = slotTo,
+                        Recurring = false, TaskId = originalTask.TaskId,
+                        Priority = originalTask.Priority ?? "Medium", Status = "NeedReview"
+                    });
+                    newTaskEvents.Add(new TaskEvent
+                    {
+                        Email = partnerEmail, From = slotFrom, To = slotTo,
+                        Recurring = false, TaskId = partnerTask.TaskId,
+                        Priority = partnerTask.Priority ?? "Medium", Status = "NeedReview"
+                    });
+
+                    remainingHours -= canUse;
+                }
+            }
+        }
+
+        if (newTaskEvents.Any())
+        {
+            _db.TaskEvents.AddRange(newTaskEvents);
+            await _db.SaveChangesAsync();
+        }
+    }
+
+    private static List<(DateTime From, DateTime To)> GetDayBusyIntervals(
+        List<Event> events, DateTime dayStart, DateTime dayEnd)
+    {
+        var busy = new List<(DateTime From, DateTime To)>();
+        foreach (var e in events)
+        {
+            if (e.From < dayEnd && e.To > dayStart)
+            {
+                var from = e.From < dayStart ? dayStart : e.From;
+                var to = e.To > dayEnd ? dayEnd : e.To;
+                if (from < to) busy.Add((from, to));
+            }
+        }
+
+        busy = busy.OrderBy(b => b.From).ToList();
+        var merged = new List<(DateTime From, DateTime To)>();
+        foreach (var b in busy)
+        {
+            if (merged.Any() && b.From <= merged.Last().To)
+            {
+                var last = merged.Last();
+                merged[merged.Count - 1] = (last.From, b.To > last.To ? b.To : last.To);
+            }
+            else
+            {
+                merged.Add(b);
+            }
+        }
+        return merged;
+    }
+
+    private static List<(DateTime From, DateTime To)> FindMutualFreeSlots(
+        DateTime dayStart, DateTime dayEnd,
+        List<(DateTime From, DateTime To)> busyA,
+        List<(DateTime From, DateTime To)> busyB)
+    {
+        var allBusy = busyA.Concat(busyB).OrderBy(b => b.From).ToList();
+        var merged = new List<(DateTime From, DateTime To)>();
+        foreach (var b in allBusy)
+        {
+            if (merged.Any() && b.From <= merged.Last().To)
+            {
+                var last = merged.Last();
+                merged[merged.Count - 1] = (last.From, b.To > last.To ? b.To : last.To);
+            }
+            else
+            {
+                merged.Add(b);
+            }
+        }
+
+        var free = new List<(DateTime From, DateTime To)>();
+        var cursor = dayStart;
+        foreach (var b in merged)
+        {
+            if (cursor < b.From) free.Add((cursor, b.From));
+            cursor = b.To > cursor ? b.To : cursor;
+        }
+        if (cursor < dayEnd) free.Add((cursor, dayEnd));
+
+        return free;
     }
 }

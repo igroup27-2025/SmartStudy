@@ -369,7 +369,10 @@ function renderReview(data) {
 
         // Scheduling info
         let scheduleInfo = '';
-        if (t.schedulingStatus === 'Scheduled' && t.scheduledDate) {
+        if (t.schedulingStatus === 'NeedReview' && t.scheduledDate) {
+            const sd = new Date(t.scheduledDate);
+            scheduleInfo = `<span class="badge badge-review">Shared Task – ${sd.toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</span>`;
+        } else if (t.schedulingStatus === 'Scheduled' && t.scheduledDate) {
             const sd = new Date(t.scheduledDate);
             scheduleInfo = `<span class="badge badge-scheduled">Scheduled: ${sd.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</span>`;
         } else if (t.schedulingStatus === 'Partial') {
@@ -378,6 +381,7 @@ function renderReview(data) {
             scheduleInfo = '<span class="badge badge-unscheduled">Not Scheduled</span>';
         }
 
+        const isNeedReview = t.schedulingStatus === 'NeedReview';
         const isUnscheduled = t.schedulingStatus === 'Unscheduled' || t.schedulingStatus === 'Partial';
         const editHref = `${BASE_PATH}/Pages/Tasks.html?edit=${t.taskId}`;
 
