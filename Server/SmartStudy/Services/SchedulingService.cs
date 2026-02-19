@@ -982,8 +982,9 @@ public class SchedulingService
 
     /// <summary>
     /// Schedules a shared task at a common free time for both users.
-    /// Removes any independently-scheduled events for the task and creates
-    /// new events at mutual free slots with Status = "NeedReview".
+    /// Uses a "find first, then swap" strategy: only removes existing events
+    /// if mutual free slots are found. If no common time exists, the existing
+    /// independent scheduling is preserved as fallback.
     /// </summary>
     public async Task ScheduleSharedTaskAtCommonTimeAsync(
         int originalTaskId, string creatorEmail, string partnerEmail)
@@ -1003,23 +1004,15 @@ public class SchedulingService
                 && !t.IsCompleted);
         if (partnerTask == null) return;
 
-        // Remove existing auto-scheduled TaskEvents for both copies of the shared task
-        var toRemoveIds = await _db.TaskEvents
+        // Step 1: Collect existing event IDs for the shared task (don't delete yet)
+        var sharedTaskEventIds = await _db.TaskEvents
             .Where(te => (te.TaskId == originalTask.TaskId || te.TaskId == partnerTask.TaskId)
                 && (te.Status == "Scheduled" || te.Status == "Partial"))
             .Select(te => te.EventId)
             .ToListAsync();
+        var sharedTaskEventIdSet = new HashSet<int>(sharedTaskEventIds);
 
-        if (toRemoveIds.Any())
-        {
-            var toRemove = await _db.Events
-                .Where(e => toRemoveIds.Contains(e.EventId))
-                .ToListAsync();
-            _db.Events.RemoveRange(toRemove);
-            await _db.SaveChangesAsync();
-        }
-
-        // Determine common scheduling constraints from both users' preferences
+        // Step 2: Load events but exclude the shared task's own events from busy
         var creatorPrefs = await _db.SchedulingPreferences.FindAsync(creatorEmail);
         var partnerPrefs = await _db.SchedulingPreferences.FindAsync(partnerEmail);
         int dayStart = Math.Max(creatorPrefs?.DayStartHour ?? 8, partnerPrefs?.DayStartHour ?? 8);
@@ -1035,10 +1028,12 @@ public class SchedulingService
         var scheduleStart = now.Date;
         var scheduleEnd = dueDate.Date.AddDays(1);
 
-        // Load all events for both users (calendar + other task events)
-        var creatorEvents = await GetExpandedEvents(creatorEmail, scheduleStart, scheduleEnd);
-        var partnerEvents = await GetExpandedEvents(partnerEmail, scheduleStart, scheduleEnd);
+        var creatorEvents = (await GetExpandedEvents(creatorEmail, scheduleStart, scheduleEnd))
+            .Where(e => !sharedTaskEventIdSet.Contains(e.EventId)).ToList();
+        var partnerEvents = (await GetExpandedEvents(partnerEmail, scheduleStart, scheduleEnd))
+            .Where(e => !sharedTaskEventIdSet.Contains(e.EventId)).ToList();
 
+        // Step 3: Find mutual free slots and build new events in memory
         double effectiveHours = (double)(originalTask.EstimatedHours ?? 4);
         var remainingHours = effectiveHours;
         var newTaskEvents = new List<TaskEvent>();
@@ -1059,7 +1054,6 @@ public class SchedulingService
             var creatorBusy = GetDayBusyIntervals(creatorEvents, dayStartTime, dayEndTime);
             var partnerBusy = GetDayBusyIntervals(partnerEvents, dayStartTime, dayEndTime);
 
-            // Include already-created new events as busy
             foreach (var te in newTaskEvents.Where(t => t.From.Date == day.Date))
             {
                 creatorBusy.Add((te.From, te.To));
@@ -1136,8 +1130,16 @@ public class SchedulingService
             }
         }
 
+        // Step 4: Only swap if we found common slots; otherwise keep independent scheduling
         if (newTaskEvents.Any())
         {
+            if (sharedTaskEventIdSet.Any())
+            {
+                var toRemove = await _db.Events
+                    .Where(e => sharedTaskEventIdSet.Contains(e.EventId))
+                    .ToListAsync();
+                _db.Events.RemoveRange(toRemove);
+            }
             _db.TaskEvents.AddRange(newTaskEvents);
             await _db.SaveChangesAsync();
         }
