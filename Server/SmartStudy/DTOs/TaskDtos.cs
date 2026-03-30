@@ -31,6 +31,7 @@ public class TaskDto
     public List<TaskSlotDto>? ScheduledSlots { get; set; }
     public bool AllowSplitting { get; set; }
     public bool IsManuallyPinned { get; set; }
+    public bool IsManualPriority { get; set; }
 }
 
 public class TaskSlotDto
@@ -48,6 +49,7 @@ public class CreateTaskDto
     public DateTime? DueDate { get; set; }
     public int? ParentTaskId { get; set; }
     public bool AllowSplitting { get; set; } = false;
+    public string? Priority { get; set; }
 }
 
 public class CompleteTaskDto
@@ -77,4 +79,5 @@ public class UpdateTaskDto
     public bool? IsCompleted { get; set; }
     public bool? AllowSplitting { get; set; }
     public bool? IsManuallyPinned { get; set; }
+    public string? Priority { get; set; }
 }

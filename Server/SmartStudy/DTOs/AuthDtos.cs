@@ -22,6 +22,7 @@ public class AuthResponseDto
     public string LastName { get; set; } = null!;
     public bool OnboardingCompleted { get; set; }
     public bool IsNewUser { get; set; }
+    public bool RuppinetSynced { get; set; }
 }
 
 public class AuthConfigDto

@@ -141,15 +141,32 @@
                         </div>
                         <span class="onboarding-external-badge">Coming Soon</span>
                     </div>
-                    <div class="onboarding-external-item">
+                    <div class="onboarding-external-item" id="ruppinetOnboardingItem">
                         <div class="onboarding-external-info">
                             <span class="onboarding-external-icon">&#x1F3EB;</span>
                             <div>
                                 <strong>Ruppinet</strong>
-                                <p class="onboarding-hint" style="margin:0">Sync university class schedule</p>
+                                <p class="onboarding-hint" style="margin:0">Sync university schedule, courses &amp; exams</p>
                             </div>
                         </div>
-                        <span class="onboarding-external-badge">Coming Soon</span>
+                        <button type="button" class="btn btn-secondary btn-sm" id="connectRuppinetOnboarding">Connect</button>
+                        <span class="onboarding-external-status hidden" id="ruppinetOnboardingStatus">Connected</span>
+                    </div>
+                    <div id="ruppinetOnboardingForm" style="display:none; margin-top:8px; padding:12px; background:var(--bg-secondary); border-radius:14px;">
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="ruppinetOnbId">ID Number (ת.ז.)</label>
+                                <input type="text" id="ruppinetOnbId" class="form-input" placeholder="123456789" inputmode="numeric">
+                            </div>
+                            <div class="form-group">
+                                <label for="ruppinetOnbPass">Password</label>
+                                <input type="password" id="ruppinetOnbPass" class="form-input">
+                            </div>
+                        </div>
+                        <div style="display:flex;gap:8px;margin-top:8px">
+                            <button type="button" class="btn btn-primary btn-sm" id="ruppinetOnbSubmit">Connect & Sync</button>
+                            <button type="button" class="btn btn-ghost btn-sm" id="ruppinetOnbCancel">Cancel</button>
+                        </div>
                     </div>
                 </div>
             </form>

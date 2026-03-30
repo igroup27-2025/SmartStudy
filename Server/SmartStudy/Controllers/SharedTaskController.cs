@@ -230,8 +230,18 @@ public class SharedTaskController : ControllerBase
             }
 
             // Override the shared task's schedule with a common time slot for both users
-            await _scheduling.ScheduleSharedTaskAtCommonTimeAsync(
+            var foundCommonTime = await _scheduling.ScheduleSharedTaskAtCommonTimeAsync(
                 taskId, member.SharedTask.CreatedByEmail, email);
+
+            if (!foundCommonTime)
+            {
+                // Notify both users that no common time was found
+                var taskTitleForNotif = task.Title;
+                await _notifications.CreateNoCommonTimeNotificationAsync(
+                    member.SharedTask.CreatedByEmail, taskId, taskTitleForNotif);
+                await _notifications.CreateNoCommonTimeNotificationAsync(
+                    email, taskId, taskTitleForNotif);
+            }
         }
 
         return Ok(new { taskId, status = member.SharedTask.SharedStatus });

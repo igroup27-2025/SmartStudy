@@ -265,12 +265,35 @@
                                 </div>
                             </div>
                         </div>
-                        <div class="settings-row">
+                        <div class="settings-row" id="ruppinetRow">
                             <div class="settings-info">
-                                <div class="settings-label">University System</div>
-                                <div class="settings-description">Import schedule from your university portal</div>
+                                <div class="settings-label">Ruppinet (University Portal)</div>
+                                <div class="settings-description" id="ruppinetStatus">Checking connection...</div>
                             </div>
-                            <span class="badge badge-medium">Coming soon</span>
+                            <div id="ruppinetActions">
+                                <button class="btn btn-primary btn-sm" id="ruppinetConnectBtn" style="display:none">Connect Ruppinet</button>
+                                <div id="ruppinetConnectedActions" style="display:none">
+                                    <button class="btn btn-primary btn-sm" id="ruppinetSyncBtn">Sync Now</button>
+                                    <button class="btn btn-secondary btn-sm" id="ruppinetDisconnectBtn">Disconnect</button>
+                                </div>
+                            </div>
+                        </div>
+                        <div id="ruppinetConnectForm" style="display:none; margin-top:12px; padding:16px; background:var(--bg-secondary); border-radius:14px;">
+                            <p style="font-size:13px; color:var(--text-muted); margin-bottom:12px">Enter your Ruppinet credentials to sync courses, schedule, and exams automatically.</p>
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label for="ruppinetIdInput">ID Number (ת.ז.)</label>
+                                    <input type="text" id="ruppinetIdInput" class="form-input" placeholder="e.g. 123456789" inputmode="numeric">
+                                </div>
+                                <div class="form-group">
+                                    <label for="ruppinetPassInput">Password</label>
+                                    <input type="password" id="ruppinetPassInput" class="form-input">
+                                </div>
+                            </div>
+                            <div style="display:flex;gap:8px;margin-top:8px">
+                                <button type="button" class="btn btn-primary btn-sm" id="ruppinetSubmitBtn">Connect & Sync</button>
+                                <button type="button" class="btn btn-ghost btn-sm" id="ruppinetCancelBtn">Cancel</button>
+                            </div>
                         </div>
                     </div>
                 </div>

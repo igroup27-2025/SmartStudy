@@ -15,8 +15,13 @@ namespace SmartStudy.Controllers;
 public class SettingsController : ControllerBase
 {
     private readonly SmartStudyDbContext _db;
+    private readonly RuppinetSyncService _ruppinetSync;
 
-    public SettingsController(SmartStudyDbContext db) => _db = db;
+    public SettingsController(SmartStudyDbContext db, RuppinetSyncService ruppinetSync)
+    {
+        _db = db;
+        _ruppinetSync = ruppinetSync;
+    }
 
     private string GetEmail() => User.FindFirst(ClaimTypes.Email)!.Value;
 
@@ -258,6 +263,70 @@ public class SettingsController : ControllerBase
         await scheduler.ScheduleAllTasksAsync(email);
 
         return Ok(new { message = "Onboarding completed" });
+    }
+
+    [HttpGet("ruppinet")]
+    public async Task<IActionResult> GetRuppinetStatus()
+    {
+        var email = GetEmail();
+        var user = await _db.Users.FindAsync(email);
+        if (user == null) return NotFound();
+
+        return Ok(new DTOs.RuppinetStatusDto
+        {
+            IsConnected = !string.IsNullOrEmpty(user.RuppinetId),
+            RuppinetId = user.RuppinetId,
+            LastSync = user.LastRuppinetSync
+        });
+    }
+
+    [HttpPost("ruppinet/connect")]
+    public async Task<IActionResult> ConnectRuppinet([FromBody] DTOs.RuppinetConnectDto dto)
+    {
+        var email = GetEmail();
+        var user = await _db.Users.FindAsync(email);
+        if (user == null) return NotFound();
+
+        var valid = await _ruppinetSync.TestConnectionAsync(dto.RuppinetId, dto.RuppinetPassword);
+        if (!valid)
+            return BadRequest(new { message = "Failed to authenticate with Ruppinet. Check your credentials." });
+
+        user.RuppinetId = dto.RuppinetId;
+        user.RuppinetPassword = _ruppinetSync.EncryptPassword(dto.RuppinetPassword);
+        await _db.SaveChangesAsync();
+
+        var syncResult = await _ruppinetSync.SyncAllAsync(email);
+
+        return Ok(new
+        {
+            message = "Ruppinet connected successfully",
+            syncResult
+        });
+    }
+
+    [HttpPost("ruppinet/sync")]
+    public async Task<IActionResult> SyncRuppinet()
+    {
+        var email = GetEmail();
+        var result = await _ruppinetSync.SyncAllAsync(email);
+        if (!result.Success)
+            return BadRequest(result);
+        return Ok(result);
+    }
+
+    [HttpDelete("ruppinet")]
+    public async Task<IActionResult> DisconnectRuppinet()
+    {
+        var email = GetEmail();
+        var user = await _db.Users.FindAsync(email);
+        if (user == null) return NotFound();
+
+        user.RuppinetId = null;
+        user.RuppinetPassword = null;
+        user.LastRuppinetSync = null;
+        await _db.SaveChangesAsync();
+
+        return Ok(new { message = "Ruppinet disconnected" });
     }
 
     [HttpGet("instructors")]

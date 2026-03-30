@@ -44,6 +44,10 @@ builder.Services.AddHttpClient();
 builder.Services.AddScoped<ComposioService>();
 builder.Services.AddScoped<GoogleCalendarService>();
 builder.Services.AddScoped<EmailService>();
+builder.Services.AddScoped<RuppinetApiClient>();
+builder.Services.AddScoped<RuppinetSyncService>();
+builder.Services.AddHostedService<NotificationBackgroundService>();
+builder.Services.AddHostedService<RuppinetBackgroundSyncService>();
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
@@ -296,13 +300,11 @@ using (var scope = app.Services.CreateScope())
                     CONSTRAINT FK_SchedulingPreferences_User FOREIGN KEY (Email) REFERENCES SmartStudy_Users(Email) ON DELETE CASCADE
                 );
 
-                -- Migrate existing data from Users columns if they exist
+                -- Migrate existing data from Users columns if they exist (dynamic SQL to avoid compile-time column validation)
                 IF COL_LENGTH('SmartStudy_Users', 'MaxDailyStudyHours') IS NOT NULL
-                BEGIN
-                    INSERT INTO SmartStudy_SchedulingPreferences (Email, MaxDailyStudyHours, MaxContinuousMinutes, DayStartHour, DayEndHour, SleepHoursPerDay, LunchBreakStart, LunchBreakEnd)
+                    EXEC sp_executesql N'INSERT INTO SmartStudy_SchedulingPreferences (Email, MaxDailyStudyHours, MaxContinuousMinutes, DayStartHour, DayEndHour, SleepHoursPerDay, LunchBreakStart, LunchBreakEnd)
                     SELECT Email, MaxDailyStudyHours, MaxContinuousMinutes, DayStartHour, DayEndHour, SleepHoursPerDay, LunchBreakStart, LunchBreakEnd
-                    FROM SmartStudy_Users;
-                END
+                    FROM SmartStudy_Users;'
             END
 
             -- Drop old scheduling columns from Users (must drop default constraints first)
@@ -397,8 +399,26 @@ using (var scope = app.Services.CreateScope())
             -- Add RecurrenceEndDate to Events
             IF COL_LENGTH('SmartStudy_Events', 'RecurrenceEndDate') IS NULL
                 ALTER TABLE SmartStudy_Events ADD RecurrenceEndDate DATETIME2 NULL;
+
+            -- Add IsManualPriority to Tasks
+            IF COL_LENGTH('SmartStudy_Tasks', 'IsManualPriority') IS NULL
+                ALTER TABLE SmartStudy_Tasks ADD IsManualPriority BIT NOT NULL DEFAULT 0;
         ";
         schedRedesignCmd.ExecuteNonQuery();
+    }
+
+    // Ruppinet integration fields
+    using (var ruppinetCmd = conn.CreateCommand())
+    {
+        ruppinetCmd.CommandText = @"
+            IF COL_LENGTH('SmartStudy_Users', 'RuppinetId') IS NULL
+                ALTER TABLE SmartStudy_Users ADD RuppinetId NVARCHAR(20) NULL;
+            IF COL_LENGTH('SmartStudy_Users', 'RuppinetPassword') IS NULL
+                ALTER TABLE SmartStudy_Users ADD RuppinetPassword NVARCHAR(500) NULL;
+            IF COL_LENGTH('SmartStudy_Users', 'LastRuppinetSync') IS NULL
+                ALTER TABLE SmartStudy_Users ADD LastRuppinetSync DATETIME2 NULL;
+        ";
+        ruppinetCmd.ExecuteNonQuery();
     }
 
     conn.Close();

@@ -20,6 +20,11 @@ public class User
     // Composio integration
     public string? ComposioConnectedAccountId { get; set; }
 
+    // Ruppinet integration
+    public string? RuppinetId { get; set; }
+    public string? RuppinetPassword { get; set; }
+    public DateTime? LastRuppinetSync { get; set; }
+
     // Navigation properties
     public NotificationSettings? NotificationSettings { get; set; }
     public SchedulingPreferences? SchedulingPreferences { get; set; }

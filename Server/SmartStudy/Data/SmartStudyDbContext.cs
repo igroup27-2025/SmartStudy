@@ -45,6 +45,10 @@ public class SmartStudyDbContext : DbContext
             entity.Property(e => e.AuthProvider).HasMaxLength(20);
 
             entity.Property(e => e.OnboardingCompleted).HasDefaultValue(false);
+
+            entity.Property(e => e.RuppinetId).HasMaxLength(20);
+            entity.Property(e => e.RuppinetPassword).HasMaxLength(500);
+            entity.Property(e => e.LastRuppinetSync);
         });
 
         // ===== NotificationSettings =====
@@ -171,6 +175,7 @@ public class SmartStudyDbContext : DbContext
             entity.Property(e => e.ParentTaskId);
             entity.Property(e => e.Email).HasMaxLength(255).IsRequired();
             entity.Property(e => e.AllowSplitting).HasDefaultValue(false);
+            entity.Property(e => e.IsManualPriority).HasDefaultValue(false);
 
             entity.HasOne(e => e.ParentTask)
                 .WithMany(e => e.SubTasks)

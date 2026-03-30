@@ -98,6 +98,13 @@ public class TasksController : ControllerBase
             AllowSplitting = dto.AllowSplitting
         };
 
+        // Manual priority
+        if (!string.IsNullOrEmpty(dto.Priority) && dto.Priority != "Auto")
+        {
+            task.Priority = dto.Priority;
+            task.IsManualPriority = true;
+        }
+
         // If sub-task, inherit course/due date from parent
         if (dto.ParentTaskId.HasValue)
         {
@@ -171,6 +178,19 @@ public class TasksController : ControllerBase
         if (dto.IsCompleted.HasValue) task.IsCompleted = dto.IsCompleted.Value;
         if (dto.AllowSplitting.HasValue) task.AllowSplitting = dto.AllowSplitting.Value;
         if (dto.IsManuallyPinned.HasValue) task.IsManuallyPinned = dto.IsManuallyPinned.Value;
+        if (dto.Priority != null)
+        {
+            if (dto.Priority == "Auto")
+            {
+                task.IsManualPriority = false;
+                // Priority will be recalculated by scheduling engine
+            }
+            else
+            {
+                task.Priority = dto.Priority;
+                task.IsManualPriority = true;
+            }
+        }
 
         await _db.SaveChangesAsync();
 
@@ -432,7 +452,8 @@ public class TasksController : ControllerBase
                 To = te.To
             }).OrderBy(s => s.From).ToList(),
             AllowSplitting = t.AllowSplitting,
-            IsManuallyPinned = t.IsManuallyPinned
+            IsManuallyPinned = t.IsManuallyPinned,
+            IsManualPriority = t.IsManualPriority
         };
     }
 }

@@ -15,6 +15,7 @@ public class StudentTask
     public string Email { get; set; } = null!;
     public bool AllowSplitting { get; set; } = false;
     public bool IsManuallyPinned { get; set; } = false;
+    public bool IsManualPriority { get; set; } = false;
 
     // Navigation properties
     public Course Course { get; set; } = null!;

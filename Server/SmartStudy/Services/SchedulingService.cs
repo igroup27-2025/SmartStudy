@@ -278,8 +278,11 @@ public class SchedulingService
                 _ => "Low"
             };
 
-            // Store computed priority on the task entity
-            t.Priority = priority;
+            // Store computed priority on the task entity (skip if manually set)
+            if (!t.IsManualPriority)
+                t.Priority = priority;
+            else
+                priority = t.Priority ?? priority;
 
             return new { Task = t, Score = score, Priority = priority, EffectiveHours = hours };
         })
@@ -986,7 +989,7 @@ public class SchedulingService
     /// if mutual free slots are found. If no common time exists, the existing
     /// independent scheduling is preserved as fallback.
     /// </summary>
-    public async Task ScheduleSharedTaskAtCommonTimeAsync(
+    public async Task<bool> ScheduleSharedTaskAtCommonTimeAsync(
         int originalTaskId, string creatorEmail, string partnerEmail)
     {
         var now = DateTime.Now;
@@ -994,7 +997,7 @@ public class SchedulingService
         var originalTask = await _db.Tasks
             .Include(t => t.Course)
             .FirstOrDefaultAsync(t => t.TaskId == originalTaskId);
-        if (originalTask == null) return;
+        if (originalTask == null) return false;
 
         var partnerTask = await _db.Tasks
             .FirstOrDefaultAsync(t => t.Email == partnerEmail
@@ -1002,7 +1005,7 @@ public class SchedulingService
                 && t.CourseId == originalTask.CourseId
                 && t.DueDate == originalTask.DueDate
                 && !t.IsCompleted);
-        if (partnerTask == null) return;
+        if (partnerTask == null) return false;
 
         // Step 1: Collect existing event IDs for the shared task (don't delete yet)
         var sharedTaskEventIds = await _db.TaskEvents
@@ -1142,7 +1145,10 @@ public class SchedulingService
             }
             _db.TaskEvents.AddRange(newTaskEvents);
             await _db.SaveChangesAsync();
+            return true;
         }
+
+        return false;
     }
 
     private static List<(DateTime From, DateTime To)> GetDayBusyIntervals(

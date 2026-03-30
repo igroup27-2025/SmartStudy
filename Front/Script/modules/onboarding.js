@@ -207,6 +207,42 @@ function initStep3() {
         }
     });
 
+    // Ruppinet connect (onboarding)
+    document.getElementById('connectRuppinetOnboarding')?.addEventListener('click', () => {
+        const form = document.getElementById('ruppinetOnboardingForm');
+        const btn = document.getElementById('connectRuppinetOnboarding');
+        if (form) form.style.display = '';
+        if (btn) btn.classList.add('hidden');
+    });
+    document.getElementById('ruppinetOnbCancel')?.addEventListener('click', () => {
+        const form = document.getElementById('ruppinetOnboardingForm');
+        const btn = document.getElementById('connectRuppinetOnboarding');
+        if (form) form.style.display = 'none';
+        if (btn) btn.classList.remove('hidden');
+    });
+    document.getElementById('ruppinetOnbSubmit')?.addEventListener('click', async () => {
+        const idVal = document.getElementById('ruppinetOnbId')?.value?.trim();
+        const passVal = document.getElementById('ruppinetOnbPass')?.value;
+        if (!idVal || !passVal) { alert('Please fill in both fields'); return; }
+        const submitBtn = document.getElementById('ruppinetOnbSubmit');
+        submitBtn.disabled = true;
+        submitBtn.textContent = 'Connecting...';
+        try {
+            await api.connectRuppinet(idVal, passVal);
+            const form = document.getElementById('ruppinetOnboardingForm');
+            const connectBtn = document.getElementById('connectRuppinetOnboarding');
+            const status = document.getElementById('ruppinetOnboardingStatus');
+            if (form) form.style.display = 'none';
+            if (connectBtn) connectBtn.classList.add('hidden');
+            if (status) status.classList.remove('hidden');
+        } catch (err) {
+            alert(err.message || 'Connection failed');
+        } finally {
+            submitBtn.disabled = false;
+            submitBtn.textContent = 'Connect & Sync';
+        }
+    });
+
     // Add constraint button
     document.getElementById('addConstraintBtn')?.addEventListener('click', () => {
         document.getElementById('constraintForm').style.display = 'block';

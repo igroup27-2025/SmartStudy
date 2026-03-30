@@ -1,16 +1,66 @@
-// Notifications module - bell icon dropdown + polling
+// Notifications module - bell icon dropdown + polling + browser push
 import { api } from './api.js';
 
 let polling = null;
 let notifications = [];
 let unreadCount = 0;
+let lastKnownCount = 0;
+let userSettings = null;
 
 export function initNotifications() {
     setupBellClick();
     setupMarkAllRead();
     fetchAndRender();
+    initBrowserNotifications();
     // Poll every 60 seconds
     polling = setInterval(fetchUnreadCount, 60000);
+}
+
+async function initBrowserNotifications() {
+    if (!('Notification' in window)) return;
+    try {
+        userSettings = await api.getNotificationSettings();
+        if (userSettings?.enablePushNotification && Notification.permission === 'default') {
+            Notification.requestPermission();
+        }
+    } catch { /* silent */ }
+}
+
+function isInQuietHours() {
+    if (!userSettings?.quietHoursStart || !userSettings?.quietHoursEnd) return false;
+    const now = new Date();
+    const nowMinutes = now.getHours() * 60 + now.getMinutes();
+
+    const parseTOD = (t) => {
+        if (!t) return 0;
+        const parts = t.split(':');
+        return parseInt(parts[0]) * 60 + parseInt(parts[1] || 0);
+    };
+
+    const start = parseTOD(userSettings.quietHoursStart);
+    const end = parseTOD(userSettings.quietHoursEnd);
+
+    // Overnight quiet hours (e.g. 22:00 - 07:00)
+    if (start > end) return nowMinutes >= start || nowMinutes <= end;
+    return nowMinutes >= start && nowMinutes <= end;
+}
+
+const PUSH_TYPES = new Set(['deadline', 'overload', 'shared_task_invite', 'shared_task_no_time']);
+
+function showBrowserNotification(notification) {
+    if (!('Notification' in window)) return;
+    if (Notification.permission !== 'granted') return;
+    if (!userSettings?.enablePushNotification) return;
+    if (isInQuietHours()) return;
+    if (!PUSH_TYPES.has(notification.type)) return;
+
+    try {
+        new Notification(notification.title, {
+            body: notification.message,
+            icon: '/Images/logo.png',
+            tag: `smartstudy-${notification.notificationId}`,
+        });
+    } catch { /* silent - e.g. service worker required in some browsers */ }
 }
 
 async function fetchAndRender() {
@@ -20,6 +70,7 @@ async function fetchAndRender() {
         const data = await api.getNotifications();
         notifications = data.notifications || [];
         unreadCount = data.unreadCount || 0;
+        lastKnownCount = unreadCount;
         updateBadge();
         renderDropdown();
     } catch { /* silent */ }
@@ -28,7 +79,21 @@ async function fetchAndRender() {
 async function fetchUnreadCount() {
     try {
         const data = await api.getUnreadCount();
-        unreadCount = data.count || 0;
+        const newCount = data.count || 0;
+
+        // If count increased, fetch latest notification and show browser push
+        if (newCount > lastKnownCount && lastKnownCount > 0) {
+            try {
+                const fullData = await api.getNotifications();
+                const latest = (fullData.notifications || [])[0];
+                if (latest && !latest.isRead) {
+                    showBrowserNotification(latest);
+                }
+            } catch { /* silent */ }
+        }
+
+        lastKnownCount = newCount;
+        unreadCount = newCount;
         updateBadge();
     } catch { /* silent */ }
 }
@@ -60,6 +125,11 @@ function renderDropdown() {
             overload: '&#9888;',
             shared_invite: '&#129309;',
             shared_response: '&#9989;',
+            shared_task_invite: '&#129309;',
+            shared_task_response: '&#9989;',
+            shared_task_no_time: '&#128337;',
+            daily_summary: '&#128197;',
+            weekly_reminder: '&#128203;',
         };
         const icon = iconMap[n.type] || '&#128276;';
         return `

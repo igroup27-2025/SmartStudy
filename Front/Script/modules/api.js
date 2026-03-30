@@ -176,6 +176,10 @@ export const api = {
     getProfile: () => request('GET', '/settings/profile'),
     updateProfile: (data) => request('PUT', '/settings/profile', data),
     updateNotifications: (data) => request('PUT', '/settings/notifications', data),
+    getNotificationSettings: async () => {
+        const profile = await request('GET', '/settings/profile');
+        return profile?.notificationSettings || {};
+    },
     getInstructors: () => request('GET', '/settings/instructors'),
 
     // Calendar Sync (Composio)
@@ -204,4 +208,20 @@ export const api = {
     getSchedulingPrefs: () => request('GET', '/settings/scheduling'),
     updateSchedulingPrefs: (data) => request('PUT', '/settings/scheduling', data),
     saveOnboarding: (data) => request('PUT', '/settings/onboarding', data),
+
+    // Ruppinet Integration
+    getRuppinetStatus: () => request('GET', '/settings/ruppinet'),
+    connectRuppinet: (ruppinetId, ruppinetPassword) => request('POST', '/settings/ruppinet/connect', { ruppinetId, ruppinetPassword }),
+    syncRuppinet: () => request('POST', '/settings/ruppinet/sync'),
+    disconnectRuppinet: () => {
+        return new Promise((resolve, reject) => {
+            $.ajax({
+                url: `${API_BASE}/settings/ruppinet`,
+                method: 'DELETE',
+                headers: getHeaders(),
+                success: (data) => resolve(typeof data === 'string' ? JSON.parse(data || '{}') : data),
+                error: (xhr) => reject(new Error(xhr.responseJSON?.message || 'Disconnect failed'))
+            });
+        });
+    },
 };

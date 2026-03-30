@@ -457,6 +457,8 @@ function setupAddTask() {
         document.getElementById('sharedSection').style.display = 'block';
         document.getElementById('friendSelector').style.display = 'none';
         document.getElementById('hoursSuggestion').style.display = 'none';
+        const prioritySelect = document.getElementById('taskPriority');
+        if (prioritySelect) prioritySelect.value = 'Auto';
         const dueDateInput = document.getElementById('taskDueDate');
         if (dueDateInput) dueDateInput.min = new Date().toISOString().split('T')[0];
         openModal('taskModal');
@@ -465,6 +467,7 @@ function setupAddTask() {
     document.getElementById('taskForm')?.addEventListener('submit', async (e) => {
         e.preventDefault();
         const taskId = document.getElementById('taskId').value;
+        const priorityVal = document.getElementById('taskPriority')?.value || 'Auto';
         const data = {
             courseId: parseInt(document.getElementById('taskCourseId').value),
             title: document.getElementById('taskTitle').value,
@@ -472,6 +475,7 @@ function setupAddTask() {
             estimatedHours: parseFloat(document.getElementById('taskHours').value) || null,
             dueDate: document.getElementById('taskDueDate').value || null,
             allowSplitting: document.getElementById('taskAllowSplitting')?.checked || false,
+            priority: priorityVal,
         };
 
         try {
@@ -551,6 +555,8 @@ function editTask(id) {
     document.getElementById('taskDueDate').value = task.dueDate ? task.dueDate.split('T')[0] : '';
     const splitToggle = document.getElementById('taskAllowSplitting');
     if (splitToggle) splitToggle.checked = task.allowSplitting || false;
+    const prioritySelect = document.getElementById('taskPriority');
+    if (prioritySelect) prioritySelect.value = task.isManualPriority ? task.priority : 'Auto';
     document.getElementById('sharedSection').style.display = 'block';
     // Pre-populate shared toggle if task is already shared
     const sharedToggle = document.getElementById('taskShared');

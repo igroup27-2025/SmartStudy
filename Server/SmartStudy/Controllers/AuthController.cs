@@ -18,12 +18,17 @@ public class AuthController : ControllerBase
     private readonly SmartStudyDbContext _db;
     private readonly IConfiguration _config;
     private readonly EmailService _emailService;
+    private readonly RuppinetSyncService _ruppinetSync;
+    private readonly ILogger<AuthController> _logger;
 
-    public AuthController(SmartStudyDbContext db, IConfiguration config, EmailService emailService)
+    public AuthController(SmartStudyDbContext db, IConfiguration config, EmailService emailService,
+        RuppinetSyncService ruppinetSync, ILogger<AuthController> logger)
     {
         _db = db;
         _config = config;
         _emailService = emailService;
+        _ruppinetSync = ruppinetSync;
+        _logger = logger;
     }
 
     [HttpPost("login")]
@@ -34,6 +39,17 @@ public class AuthController : ControllerBase
             return Unauthorized(new { message = "Invalid email or password" });
 
         var token = GenerateToken(user);
+
+        // Trigger Ruppinet sync in background (non-blocking)
+        DTOs.RuppinetSyncResultDto? syncResult = null;
+        var syncIntervalHours = int.TryParse(_config["Ruppinet:SyncIntervalHours"], out var h) ? h : 12;
+        if (!string.IsNullOrEmpty(user.RuppinetId) &&
+            (user.LastRuppinetSync == null || user.LastRuppinetSync < DateTime.UtcNow.AddHours(-syncIntervalHours)))
+        {
+            try { syncResult = await _ruppinetSync.SyncAllAsync(user.Email); }
+            catch (Exception ex) { _logger.LogWarning(ex, "Ruppinet sync failed during login for {Email}", user.Email); }
+        }
+
         return Ok(new AuthResponseDto
         {
             Token = token,
@@ -41,7 +57,8 @@ public class AuthController : ControllerBase
             FirstName = user.FirstName,
             LastName = user.LastName,
             OnboardingCompleted = user.OnboardingCompleted,
-            IsNewUser = false
+            IsNewUser = false,
+            RuppinetSynced = syncResult?.Success ?? false
         });
     }
 

@@ -304,6 +304,10 @@ async function loadIntegrations() {
             showToast(err.message || 'Failed to disconnect', 'error');
         }
     });
+
+    // Ruppinet integration
+    loadRuppinetStatus();
+    setupRuppinetListeners();
 }
 
 // Legacy: connect via Google Identity Services (when Composio is disabled)
@@ -340,6 +344,155 @@ async function connectViaGoogleIdentity() {
         },
     });
     client.requestAccessToken();
+}
+
+// ── Ruppinet Integration ──────────────────────────────────
+
+async function loadRuppinetStatus() {
+    const statusEl = document.getElementById('ruppinetStatus');
+    const connectBtn = document.getElementById('ruppinetConnectBtn');
+    const connectedActions = document.getElementById('ruppinetConnectedActions');
+    const connectForm = document.getElementById('ruppinetConnectForm');
+    if (!statusEl) return;
+
+    try {
+        const status = await api.getRuppinetStatus();
+        if (status && status.isConnected) {
+            const lastSyncText = status.lastSync
+                ? new Date(status.lastSync).toLocaleString()
+                : 'Never';
+            statusEl.textContent = `Connected (${status.ruppinetId}) — Last sync: ${lastSyncText}`;
+            if (connectBtn) connectBtn.style.display = 'none';
+            if (connectedActions) connectedActions.style.display = 'flex';
+            if (connectForm) connectForm.style.display = 'none';
+        } else {
+            statusEl.textContent = 'Not connected';
+            if (connectBtn) connectBtn.style.display = '';
+            if (connectedActions) connectedActions.style.display = 'none';
+        }
+    } catch {
+        statusEl.textContent = 'Not connected';
+        if (connectBtn) connectBtn.style.display = '';
+        if (connectedActions) connectedActions.style.display = 'none';
+    }
+}
+
+function setupRuppinetListeners() {
+    const connectBtn = document.getElementById('ruppinetConnectBtn');
+    const connectForm = document.getElementById('ruppinetConnectForm');
+    const cancelBtn = document.getElementById('ruppinetCancelBtn');
+    const submitBtn = document.getElementById('ruppinetSubmitBtn');
+    const syncBtn = document.getElementById('ruppinetSyncBtn');
+    const disconnectBtn = document.getElementById('ruppinetDisconnectBtn');
+
+    if (connectBtn && connectForm) {
+        connectBtn.addEventListener('click', () => {
+            connectForm.style.display = '';
+            connectBtn.style.display = 'none';
+        });
+    }
+
+    if (cancelBtn && connectForm && connectBtn) {
+        cancelBtn.addEventListener('click', () => {
+            connectForm.style.display = 'none';
+            connectBtn.style.display = '';
+        });
+    }
+
+    if (submitBtn) {
+        submitBtn.addEventListener('click', async () => {
+            const idVal = document.getElementById('ruppinetIdInput')?.value?.trim();
+            const passVal = document.getElementById('ruppinetPassInput')?.value;
+            if (!idVal || !passVal) {
+                showToast('Please fill in both fields', 'error');
+                return;
+            }
+            submitBtn.disabled = true;
+            submitBtn.textContent = 'Connecting...';
+            try {
+                const result = await api.connectRuppinet(idVal, passVal);
+                showToast(result.message || 'Ruppinet connected!');
+                if (result.syncResult) {
+                    const sr = result.syncResult;
+                    if (sr.errorCode) {
+                        showRuppinetError(sr.errorCode, sr.message);
+                    } else {
+                        const parts = [];
+                        if (sr.coursesCreated) parts.push(`${sr.coursesCreated} courses`);
+                        if (sr.classEventsCreated) parts.push(`${sr.classEventsCreated} events`);
+                        if (sr.examsCreated) parts.push(`${sr.examsCreated} exams`);
+                        if (parts.length) showToast(`Synced: ${parts.join(', ')}`);
+                    }
+                }
+                loadRuppinetStatus();
+            } catch (err) {
+                showRuppinetError(null, err.message || 'Connection failed');
+            } finally {
+                submitBtn.disabled = false;
+                submitBtn.textContent = 'Connect & Sync';
+            }
+        });
+    }
+
+    if (syncBtn) {
+        syncBtn.addEventListener('click', async () => {
+            syncBtn.disabled = true;
+            syncBtn.textContent = 'Syncing courses...';
+            try {
+                // Animate progress stages
+                const stages = ['Syncing courses...', 'Syncing schedule...', 'Syncing exams...'];
+                let stageIdx = 0;
+                const stageTimer = setInterval(() => {
+                    stageIdx++;
+                    if (stageIdx < stages.length) syncBtn.textContent = stages[stageIdx];
+                }, 2000);
+
+                const result = await api.syncRuppinet();
+                clearInterval(stageTimer);
+
+                if (result.errorCode) {
+                    showRuppinetError(result.errorCode, result.message);
+                } else {
+                    const parts = [];
+                    if (result.coursesCreated) parts.push(`${result.coursesCreated} new courses`);
+                    if (result.coursesUpdated) parts.push(`${result.coursesUpdated} updated courses`);
+                    if (result.classEventsCreated) parts.push(`${result.classEventsCreated} class events`);
+                    if (result.examsCreated) parts.push(`${result.examsCreated} new exams`);
+                    if (result.examsUpdated) parts.push(`${result.examsUpdated} updated exams`);
+                    showToast(parts.length ? `Synced: ${parts.join(', ')}` : 'Everything up to date');
+                }
+                loadRuppinetStatus();
+            } catch (err) {
+                showRuppinetError(null, err.message || 'Sync failed');
+            } finally {
+                syncBtn.disabled = false;
+                syncBtn.textContent = 'Sync Now';
+            }
+        });
+    }
+
+    if (disconnectBtn) {
+        disconnectBtn.addEventListener('click', async () => {
+            if (!confirm('Disconnect Ruppinet? Your imported data will remain.')) return;
+            try {
+                await api.disconnectRuppinet();
+                showToast('Ruppinet disconnected');
+                loadRuppinetStatus();
+            } catch (err) {
+                showToast(err.message || 'Failed to disconnect', 'error');
+            }
+        });
+    }
+}
+
+function showRuppinetError(errorCode, fallbackMessage) {
+    const messages = {
+        AUTH_FAILED: 'Ruppinet authentication failed. Please check your credentials.',
+        CAPTCHA_REQUIRED: 'Ruppinet requires CAPTCHA. Please log in manually at ruppinet.ruppin.ac.il first, then retry.',
+        DECRYPT_FAILED: 'Failed to decrypt credentials. Please disconnect and reconnect your Ruppinet account.',
+        API_ERROR: 'Ruppinet server error. Please try again later.',
+    };
+    showToast(messages[errorCode] || fallbackMessage || 'Sync failed', 'error');
 }
 
 // Legacy: sync via Google Identity Services
