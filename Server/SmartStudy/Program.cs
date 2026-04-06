@@ -440,6 +440,84 @@ using (var scope = app.Services.CreateScope())
                 ALTER TABLE SmartStudy_Users ADD LastMoodleSync DATETIME2 NULL;
             IF COL_LENGTH('SmartStudy_Tasks', 'MoodleId') IS NULL
                 ALTER TABLE SmartStudy_Tasks ADD MoodleId NVARCHAR(100) NULL;
+
+            -- Update SS_Users_GetByEmail to include Moodle columns
+            EXEC('
+            CREATE OR ALTER PROCEDURE SS_Users_GetByEmail
+                @Email NVARCHAR(255)
+            AS
+            BEGIN
+                SET NOCOUNT ON;
+                SELECT Email, FirstName, LastName, [Password], ResetToken, ResetTokenExpiry,
+                       AuthProvider, OnboardingCompleted,
+                       GoogleCalendarAccessToken, GoogleCalendarRefreshToken, LastCalendarSync,
+                       ComposioConnectedAccountId, RuppinetId, RuppinetPassword, LastRuppinetSync,
+                       MoodleToken, LastMoodleSync
+                FROM SmartStudy_Users
+                WHERE Email = @Email;
+            END
+            ');
+
+            -- Create Moodle stored procedures
+            IF OBJECT_ID(''SS_Users_UpdateMoodleFields'',''P'') IS NULL
+            EXEC(''
+            CREATE PROCEDURE SS_Users_UpdateMoodleFields
+                @Email NVARCHAR(255), @MoodleToken NVARCHAR(500) = NULL, @LastMoodleSync DATETIME2 = NULL
+            AS BEGIN SET NOCOUNT ON;
+                UPDATE SmartStudy_Users SET MoodleToken = @MoodleToken, LastMoodleSync = @LastMoodleSync WHERE Email = @Email;
+            END
+            '');
+
+            IF OBJECT_ID(''SS_Users_ClearMoodle'',''P'') IS NULL
+            EXEC(''
+            CREATE PROCEDURE SS_Users_ClearMoodle @Email NVARCHAR(255)
+            AS BEGIN SET NOCOUNT ON;
+                UPDATE SmartStudy_Users SET MoodleToken = NULL, LastMoodleSync = NULL WHERE Email = @Email;
+            END
+            '');
+
+            IF OBJECT_ID(''SS_Users_GetForMoodleSync'',''P'') IS NULL
+            EXEC(''
+            CREATE PROCEDURE SS_Users_GetForMoodleSync @Cutoff DATETIME2
+            AS BEGIN SET NOCOUNT ON;
+                SELECT Email FROM SmartStudy_Users
+                WHERE RuppinetId IS NOT NULL AND RuppinetPassword IS NOT NULL
+                  AND (LastMoodleSync IS NULL OR LastMoodleSync < @Cutoff);
+            END
+            '');
+
+            IF OBJECT_ID(''SS_Users_UpdateLastMoodleSync'',''P'') IS NULL
+            EXEC(''
+            CREATE PROCEDURE SS_Users_UpdateLastMoodleSync @Email NVARCHAR(255), @LastMoodleSync DATETIME2
+            AS BEGIN SET NOCOUNT ON;
+                UPDATE SmartStudy_Users SET LastMoodleSync = @LastMoodleSync WHERE Email = @Email;
+            END
+            '');
+
+            IF OBJECT_ID(''SS_Tasks_FindByMoodleId'',''P'') IS NULL
+            EXEC(''
+            CREATE PROCEDURE SS_Tasks_FindByMoodleId @Email NVARCHAR(255), @MoodleId NVARCHAR(100)
+            AS BEGIN SET NOCOUNT ON;
+                SELECT TOP 1 TaskId, CourseId, Title, [Type], EstimatedHours, DueDate, IsCompleted, [Priority], Email, MoodleId
+                FROM SmartStudy_Tasks WHERE Email = @Email AND MoodleId = @MoodleId;
+            END
+            '');
+
+            IF OBJECT_ID(''SS_Tasks_CreateWithMoodleId'',''P'') IS NULL
+            EXEC(''
+            CREATE PROCEDURE SS_Tasks_CreateWithMoodleId
+                @CourseId INT, @Email NVARCHAR(255), @Title NVARCHAR(200), @Type NVARCHAR(50),
+                @EstimatedHours DECIMAL(5,2) = NULL, @DueDate DATETIME2 = NULL, @ParentTaskId INT = NULL,
+                @AllowSplitting BIT = 0, @Priority NVARCHAR(20) = NULL, @IsManualPriority BIT = 0,
+                @IsManuallyPinned BIT = 0, @MoodleId NVARCHAR(100) = NULL
+            AS BEGIN SET NOCOUNT ON;
+                INSERT INTO SmartStudy_Tasks (CourseId, Email, Title, [Type], EstimatedHours, DueDate, IsCompleted,
+                    ParentTaskId, AllowSplitting, [Priority], IsManualPriority, IsManuallyPinned, MoodleId)
+                VALUES (@CourseId, @Email, @Title, @Type, @EstimatedHours, @DueDate, 0,
+                    @ParentTaskId, @AllowSplitting, @Priority, @IsManualPriority, @IsManuallyPinned, @MoodleId);
+                SELECT SCOPE_IDENTITY();
+            END
+            '');
         ";
         moodleCmd.ExecuteNonQuery();
     }

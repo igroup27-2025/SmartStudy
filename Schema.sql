@@ -416,7 +416,8 @@ BEGIN
     SELECT Email, FirstName, LastName, [Password], ResetToken, ResetTokenExpiry,
            AuthProvider, OnboardingCompleted,
            GoogleCalendarAccessToken, GoogleCalendarRefreshToken, LastCalendarSync,
-           ComposioConnectedAccountId, RuppinetId, RuppinetPassword, LastRuppinetSync
+           ComposioConnectedAccountId, RuppinetId, RuppinetPassword, LastRuppinetSync,
+           MoodleToken, LastMoodleSync
     FROM SmartStudy_Users
     WHERE Email = @Email;
 END
