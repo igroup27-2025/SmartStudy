@@ -1,10 +1,8 @@
 using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
-using SmartStudy.Data;
+using SmartStudy.DAL;
 using SmartStudy.DTOs;
-using SmartStudy.Models;
 using SmartStudy.Services;
 
 namespace SmartStudy.Controllers;
@@ -14,11 +12,11 @@ namespace SmartStudy.Controllers;
 [Authorize]
 public class CoursesController : ControllerBase
 {
-    private readonly SmartStudyDbContext _db;
+    private readonly DBservices _db;
     private readonly SchedulingService _scheduling;
     private readonly NotificationService _notifications;
 
-    public CoursesController(SmartStudyDbContext db, SchedulingService scheduling, NotificationService notifications)
+    public CoursesController(DBservices db, SchedulingService scheduling, NotificationService notifications)
     {
         _db = db;
         _scheduling = scheduling;
@@ -31,44 +29,34 @@ public class CoursesController : ControllerBase
     public async Task<IActionResult> GetAll()
     {
         var email = GetEmail();
-        var userCourses = await _db.UserCourses
-            .Where(uc => uc.Email == email)
-            .ToListAsync();
-        var courseIds = userCourses.Select(uc => uc.CourseId).ToList();
-
-        var courses = await _db.Courses
-            .Include(c => c.Instructor)
-            .Include(c => c.Tasks)
-            .Include(c => c.Exams)
-            .Where(c => courseIds.Contains(c.CourseId))
-            .ToListAsync();
+        var courses = await _db.GetCoursesByUserAsync(email);
 
         // Resolve partner names
-        var partnerEmails = userCourses.Where(uc => uc.StudyPartnerEmail != null).Select(uc => uc.StudyPartnerEmail!).Distinct().ToList();
-        var partners = await _db.Users.Where(u => partnerEmails.Contains(u.Email))
-            .ToDictionaryAsync(u => u.Email, u => $"{u.FirstName} {u.LastName}");
-
-        var result = courses.Select(c =>
+        var partnerEmails = courses.Where(c => c.StudyPartnerEmail != null).Select(c => c.StudyPartnerEmail!).Distinct().ToList();
+        var partners = new Dictionary<string, string>();
+        foreach (var pe in partnerEmails)
         {
-            var uc = userCourses.FirstOrDefault(x => x.CourseId == c.CourseId);
-            return new CourseDto
-            {
-                CourseId = c.CourseId,
-                CourseName = c.CourseName,
-                WeeklyHours = c.WeeklyHours,
-                Credits = c.Credits,
-                Semester = c.Semester,
-                InstructorId = c.InstructorId,
-                InstructorName = c.Instructor?.InstructorName,
-                TaskCount = c.Tasks.Count(t => t.Email == email),
-                ExamCount = c.Exams.Count,
-                StudyPartnerEmail = uc?.StudyPartnerEmail,
-                StudyPartnerName = uc?.StudyPartnerEmail != null && partners.ContainsKey(uc.StudyPartnerEmail) ? partners[uc.StudyPartnerEmail] : null,
-                SharedByDefault = uc?.SharedByDefault ?? false,
-                DefaultTaskEstimatedHours = c.DefaultTaskEstimatedHours,
-                ExamPrepHoursPerDay = c.ExamPrepHoursPerDay,
-                ExamPrepDays = c.ExamPrepDays
-            };
+            var u = await _db.GetUserByEmailAsync(pe);
+            if (u != null) partners[pe] = $"{u.FirstName} {u.LastName}";
+        }
+
+        var result = courses.Select(c => new CourseDto
+        {
+            CourseId = c.CourseId,
+            CourseName = c.CourseName,
+            WeeklyHours = c.WeeklyHours,
+            Credits = c.Credits,
+            Semester = c.Semester,
+            InstructorId = c.InstructorId,
+            InstructorName = c.InstructorName,
+            TaskCount = c.TaskCount,
+            ExamCount = c.ExamCount,
+            StudyPartnerEmail = c.StudyPartnerEmail,
+            StudyPartnerName = c.StudyPartnerEmail != null && partners.ContainsKey(c.StudyPartnerEmail) ? partners[c.StudyPartnerEmail] : null,
+            SharedByDefault = c.SharedByDefault,
+            DefaultTaskEstimatedHours = c.DefaultTaskEstimatedHours,
+            ExamPrepHoursPerDay = c.ExamPrepHoursPerDay,
+            ExamPrepDays = c.ExamPrepDays
         }).ToList();
 
         return Ok(result);
@@ -78,16 +66,14 @@ public class CoursesController : ControllerBase
     public async Task<IActionResult> Get(int id)
     {
         var email = GetEmail();
-        var enrolled = await _db.UserCourses.AnyAsync(uc => uc.Email == email && uc.CourseId == id);
-        if (!enrolled) return NotFound();
+        if (!await _db.UserCourseExistsAsync(email, id)) return NotFound();
 
-        var course = await _db.Courses
-            .Include(c => c.Instructor)
-            .Include(c => c.Tasks)
-            .Include(c => c.Exams)
-            .FirstOrDefaultAsync(c => c.CourseId == id);
-
+        var course = await _db.GetCourseByIdAsync(id);
         if (course == null) return NotFound();
+
+        // Get counts from the user-specific query
+        var userCourses = await _db.GetCoursesByUserAsync(email);
+        var uc = userCourses.FirstOrDefault(c => c.CourseId == id);
 
         return Ok(new CourseDto
         {
@@ -97,9 +83,9 @@ public class CoursesController : ControllerBase
             Credits = course.Credits,
             Semester = course.Semester,
             InstructorId = course.InstructorId,
-            InstructorName = course.Instructor?.InstructorName,
-            TaskCount = course.Tasks.Count(t => t.Email == email),
-            ExamCount = course.Exams.Count
+            InstructorName = uc?.InstructorName,
+            TaskCount = uc?.TaskCount ?? 0,
+            ExamCount = uc?.ExamCount ?? 0
         });
     }
 
@@ -107,29 +93,20 @@ public class CoursesController : ControllerBase
     public async Task<IActionResult> Create([FromBody] CreateCourseDto dto)
     {
         var email = GetEmail();
-        var maxId = await _db.Courses.AnyAsync() ? await _db.Courses.MaxAsync(c => c.CourseId) : 0;
+        var maxId = await _db.GetMaxCourseIdAsync();
+        var courseId = maxId + 1;
 
-        var course = new Course
+        await _db.CreateCourseAsync(courseId, dto.CourseName, dto.WeeklyHours, dto.Credits, dto.Semester, dto.InstructorId);
+        await _db.CreateUserCourseAsync(email, courseId);
+
+        return CreatedAtAction(nameof(Get), new { id = courseId }, new CourseDto
         {
-            CourseId = maxId + 1,
+            CourseId = courseId,
             CourseName = dto.CourseName,
             WeeklyHours = dto.WeeklyHours,
             Credits = dto.Credits,
             Semester = dto.Semester,
-            InstructorId = dto.InstructorId
-        };
-        _db.Courses.Add(course);
-        _db.UserCourses.Add(new UserCourse { Email = email, CourseId = course.CourseId });
-        await _db.SaveChangesAsync();
-
-        return CreatedAtAction(nameof(Get), new { id = course.CourseId }, new CourseDto
-        {
-            CourseId = course.CourseId,
-            CourseName = course.CourseName,
-            WeeklyHours = course.WeeklyHours,
-            Credits = course.Credits,
-            Semester = course.Semester,
-            InstructorId = course.InstructorId,
+            InstructorId = dto.InstructorId,
             TaskCount = 0,
             ExamCount = 0
         });
@@ -139,29 +116,13 @@ public class CoursesController : ControllerBase
     public async Task<IActionResult> Update(int id, [FromBody] UpdateCourseDto dto)
     {
         var email = GetEmail();
-        var enrolled = await _db.UserCourses.AnyAsync(uc => uc.Email == email && uc.CourseId == id);
-        if (!enrolled) return NotFound();
+        if (!await _db.UserCourseExistsAsync(email, id)) return NotFound();
 
-        var course = await _db.Courses.FindAsync(id);
-        if (course == null) return NotFound();
+        await _db.UpdateCourseAsync(id, dto.CourseName, dto.WeeklyHours, dto.Credits, dto.Semester,
+            dto.InstructorId, dto.DefaultTaskEstimatedHours, dto.ExamPrepHoursPerDay, dto.ExamPrepDays);
 
-        if (dto.CourseName != null) course.CourseName = dto.CourseName;
-        if (dto.WeeklyHours.HasValue) course.WeeklyHours = dto.WeeklyHours;
-        if (dto.Credits.HasValue) course.Credits = dto.Credits;
-        if (dto.Semester != null) course.Semester = dto.Semester;
-        if (dto.InstructorId.HasValue) course.InstructorId = dto.InstructorId;
-        if (dto.DefaultTaskEstimatedHours.HasValue) course.DefaultTaskEstimatedHours = dto.DefaultTaskEstimatedHours;
-        if (dto.ExamPrepHoursPerDay.HasValue) course.ExamPrepHoursPerDay = dto.ExamPrepHoursPerDay;
-        if (dto.ExamPrepDays.HasValue) course.ExamPrepDays = dto.ExamPrepDays;
-
-        // Handle SharedByDefault on the UserCourse junction
         if (dto.SharedByDefault.HasValue)
-        {
-            var uc = await _db.UserCourses.FirstOrDefaultAsync(x => x.Email == email && x.CourseId == id);
-            if (uc != null) uc.SharedByDefault = dto.SharedByDefault.Value;
-        }
-
-        await _db.SaveChangesAsync();
+            await _db.UpdateSharedByDefaultAsync(email, id, dto.SharedByDefault.Value);
 
         // Reschedule if scheduling-relevant fields changed
         if (dto.DefaultTaskEstimatedHours.HasValue || dto.ExamPrepHoursPerDay.HasValue
@@ -170,18 +131,19 @@ public class CoursesController : ControllerBase
             await _scheduling.ScheduleAllTasksAsync(email);
         }
 
+        var course = await _db.GetCourseByIdAsync(id);
         return Ok(new CourseDto
         {
-            CourseId = course.CourseId,
-            CourseName = course.CourseName,
-            WeeklyHours = course.WeeklyHours,
-            Credits = course.Credits,
-            Semester = course.Semester,
-            InstructorId = course.InstructorId,
+            CourseId = id,
+            CourseName = course?.CourseName ?? dto.CourseName ?? "",
+            WeeklyHours = course?.WeeklyHours ?? dto.WeeklyHours,
+            Credits = course?.Credits ?? dto.Credits,
+            Semester = course?.Semester ?? dto.Semester,
+            InstructorId = course?.InstructorId ?? dto.InstructorId,
             SharedByDefault = dto.SharedByDefault ?? false,
-            DefaultTaskEstimatedHours = course.DefaultTaskEstimatedHours,
-            ExamPrepHoursPerDay = course.ExamPrepHoursPerDay,
-            ExamPrepDays = course.ExamPrepDays
+            DefaultTaskEstimatedHours = course?.DefaultTaskEstimatedHours,
+            ExamPrepHoursPerDay = course?.ExamPrepHoursPerDay,
+            ExamPrepDays = course?.ExamPrepDays
         });
     }
 
@@ -189,57 +151,40 @@ public class CoursesController : ControllerBase
     public async Task<IActionResult> SetStudyPartner(int id, [FromBody] SetStudyPartnerDto dto)
     {
         var email = GetEmail();
-        var uc = await _db.UserCourses.FirstOrDefaultAsync(x => x.Email == email && x.CourseId == id);
-        if (uc == null) return NotFound();
+        if (!await _db.UserCourseExistsAsync(email, id)) return NotFound();
 
         if (!string.IsNullOrEmpty(dto.Email))
         {
-            // Validate friendship
-            var (e1, e2) = NormalizePair(email, dto.Email);
-            var isFriend = await _db.Friendships.AnyAsync(f => f.Email1 == e1 && f.Email2 == e2 && f.IsActive);
-            if (!isFriend)
+            if (!await _db.FriendshipExistsAsync(email, dto.Email))
                 return BadRequest(new { message = "You must be friends to set as study partner" });
         }
 
-        uc.StudyPartnerEmail = string.IsNullOrEmpty(dto.Email) ? null : dto.Email;
-        await _db.SaveChangesAsync();
+        var partnerEmail = string.IsNullOrEmpty(dto.Email) ? null : dto.Email;
+        await _db.UpdateStudyPartnerAsync(email, id, partnerEmail);
 
         // Notify the study partner
         if (!string.IsNullOrEmpty(dto.Email))
         {
-            var sender = await _db.Users.FindAsync(email);
+            var sender = await _db.GetUserByEmailAsync(email);
             var senderName = sender != null ? $"{sender.FirstName} {sender.LastName}" : email;
-            var course = await _db.Courses.FindAsync(id);
+            var course = await _db.GetCourseByIdAsync(id);
             var courseName = course?.CourseName ?? "a course";
 
-            _db.Notifications.Add(new Notification
-            {
-                Email = dto.Email,
-                Type = "study_partner",
-                Title = "Study Partner Invitation",
-                Message = $"{senderName} set you as a study partner for \"{courseName}\". Tasks may be shared automatically.",
-                CreatedAt = DateTime.Now,
-                RelatedEntityId = id,
-                RelatedEntityType = "Course"
-            });
-            await _db.SaveChangesAsync();
+            await _db.CreateNotificationAsync(dto.Email, "study_partner", "Study Partner Invitation",
+                $"{senderName} set you as a study partner for \"{courseName}\". Tasks may be shared automatically.",
+                id, "Course");
         }
 
-        return Ok(new { courseId = id, studyPartnerEmail = uc.StudyPartnerEmail });
+        return Ok(new { courseId = id, studyPartnerEmail = partnerEmail });
     }
-
-    private static (string, string) NormalizePair(string a, string b) =>
-        string.Compare(a, b, StringComparison.OrdinalIgnoreCase) < 0 ? (a, b) : (b, a);
 
     [HttpDelete("{id}")]
     public async Task<IActionResult> Delete(int id)
     {
         var email = GetEmail();
-        var enrollment = await _db.UserCourses.FirstOrDefaultAsync(uc => uc.Email == email && uc.CourseId == id);
-        if (enrollment == null) return NotFound();
+        if (!await _db.UserCourseExistsAsync(email, id)) return NotFound();
 
-        _db.UserCourses.Remove(enrollment);
-        await _db.SaveChangesAsync();
+        await _db.DeleteUserCourseAsync(email, id);
         return NoContent();
     }
 }

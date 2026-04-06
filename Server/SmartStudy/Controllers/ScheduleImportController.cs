@@ -3,10 +3,8 @@ using System.Security.Claims;
 using System.Text.Json;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
-using SmartStudy.Data;
+using SmartStudy.DAL;
 using SmartStudy.DTOs;
-using SmartStudy.Models;
 using SmartStudy.Services;
 
 namespace SmartStudy.Controllers;
@@ -17,12 +15,12 @@ namespace SmartStudy.Controllers;
 public class ScheduleImportController : ControllerBase
 {
     private readonly ScheduleImportService _importService;
-    private readonly SmartStudyDbContext _db;
+    private readonly DBservices _dal;
 
-    public ScheduleImportController(ScheduleImportService importService, SmartStudyDbContext db)
+    public ScheduleImportController(ScheduleImportService importService, DBservices dal)
     {
         _importService = importService;
-        _db = db;
+        _dal = dal;
     }
 
     private string GetEmail() => User.FindFirst(ClaimTypes.Email)!.Value;
@@ -189,38 +187,32 @@ public class ScheduleImportController : ControllerBase
         }
 
         // Find or create course
-        var course = await _db.Courses.FindAsync(courseId);
+        var course = await _dal.GetCourseByIdAsync(courseId);
         if (course == null)
         {
-            course = new Course
-            {
-                CourseId = courseId,
-                CourseName = courseName,
-                Semester = GetCurrentSemester()
-            };
-            _db.Courses.Add(course);
+            await _dal.CreateCourseAsync(courseId, courseName, null, null, GetCurrentSemester(), null);
             result.CoursesCreated++;
         }
 
         // Instructor
         if (!string.IsNullOrEmpty(entry.InstructorName))
         {
-            var instructor = await _db.Instructors.FirstOrDefaultAsync(i => i.InstructorName == entry.InstructorName);
+            var instructor = await _dal.FindInstructorByNameAsync(entry.InstructorName);
             if (instructor == null)
             {
-                instructor = new Instructor { InstructorName = entry.InstructorName };
-                _db.Instructors.Add(instructor);
-                await _db.SaveChangesAsync();
+                var instructorId = await _dal.CreateInstructorAsync(entry.InstructorName);
+                await _dal.UpdateCourseInstructorAsync(courseId, instructorId);
             }
-            course.InstructorId = instructor.InstructorId;
+            else
+            {
+                await _dal.UpdateCourseInstructorAsync(courseId, instructor.InstructorId);
+            }
         }
-        await _db.SaveChangesAsync();
 
         // Enroll
-        if (!await _db.UserCourses.AnyAsync(uc => uc.Email == email && uc.CourseId == courseId))
+        if (!await _dal.UserCourseExistsAsync(email, courseId))
         {
-            _db.UserCourses.Add(new UserCourse { Email = email, CourseId = courseId });
-            await _db.SaveChangesAsync();
+            await _dal.CreateUserCourseAsync(email, courseId);
         }
 
         // Parse date and times
@@ -232,23 +224,14 @@ public class ScheduleImportController : ControllerBase
         var to = date.Date + endTime;
 
         // Check for duplicate
-        if (await _db.ClassEvents.AnyAsync(ce => ce.Email == email && ce.CourseId == courseId && ce.From == from && ce.To == to))
+        if (await _dal.ClassEventExistsAsync(email, courseId, from, to))
         {
             result.EntriesSkipped++;
             return;
         }
 
-        _db.ClassEvents.Add(new ClassEvent
-        {
-            Email = email,
-            From = from,
-            To = to,
-            Recurring = true,
-            CourseId = courseId,
-            Location = entry.Location,
-            Duration = (decimal)(to - from).TotalHours
-        });
-        await _db.SaveChangesAsync();
+        await _dal.CreateClassEventAsync(email, from, to, true, null, courseId, entry.Location,
+            (decimal)(to - from).TotalHours);
         result.EventsCreated++;
 
         result.Courses ??= new List<ImportedCourseDto>();

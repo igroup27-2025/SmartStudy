@@ -1,8 +1,7 @@
 using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
-using SmartStudy.Data;
+using SmartStudy.DAL;
 using SmartStudy.Services;
 
 namespace SmartStudy.Controllers;
@@ -13,12 +12,12 @@ namespace SmartStudy.Controllers;
 public class SchedulingController : ControllerBase
 {
     private readonly SchedulingService _schedulingService;
-    private readonly SmartStudyDbContext _db;
+    private readonly DBservices _dal;
 
-    public SchedulingController(SchedulingService schedulingService, SmartStudyDbContext db)
+    public SchedulingController(SchedulingService schedulingService, DBservices dal)
     {
         _schedulingService = schedulingService;
-        _db = db;
+        _dal = dal;
     }
 
     private string GetEmail() => User.FindFirst(ClaimTypes.Email)!.Value;
@@ -45,27 +44,13 @@ public class SchedulingController : ControllerBase
         var email = GetEmail();
         var now = DateTime.Now;
 
-        var task = await _db.Tasks
-            .FirstOrDefaultAsync(t => t.TaskId == taskId && t.Email == email);
-        if (task == null) return NotFound();
+        // Verify task exists and belongs to user
+        var task = await _dal.GetTaskByIdAsync(taskId);
+        if (task == null || task.Email != email) return NotFound();
 
-        // Change NeedReview events to Scheduled
-        var reviewEvents = await _db.TaskEvents
-            .Where(te => te.TaskId == taskId && te.Status == "NeedReview")
-            .ToListAsync();
+        var (approvedCount, removedPast) = await _dal.ApproveTaskEventsAsync(taskId, email, now);
 
-        foreach (var ev in reviewEvents)
-            ev.Status = "Scheduled";
-
-        // Remove past events (missed study sessions) so task leaves the review list
-        var pastEvents = await _db.TaskEvents
-            .Where(te => te.TaskId == taskId && te.From < now && te.Status != "NeedReview")
-            .ToListAsync();
-
-        _db.TaskEvents.RemoveRange(pastEvents);
-
-        await _db.SaveChangesAsync();
-        return Ok(new { message = "Task schedule approved.", approvedCount = reviewEvents.Count, removedPast = pastEvents.Count });
+        return Ok(new { message = "Task schedule approved.", approvedCount, removedPast });
     }
 
 }

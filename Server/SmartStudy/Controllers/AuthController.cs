@@ -2,9 +2,8 @@ using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Text;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
-using SmartStudy.Data;
+using SmartStudy.DAL;
 using SmartStudy.DTOs;
 using SmartStudy.Models;
 using SmartStudy.Services;
@@ -15,13 +14,13 @@ namespace SmartStudy.Controllers;
 [Route("api/auth")]
 public class AuthController : ControllerBase
 {
-    private readonly SmartStudyDbContext _db;
+    private readonly DBservices _db;
     private readonly IConfiguration _config;
     private readonly EmailService _emailService;
     private readonly RuppinetSyncService _ruppinetSync;
     private readonly ILogger<AuthController> _logger;
 
-    public AuthController(SmartStudyDbContext db, IConfiguration config, EmailService emailService,
+    public AuthController(DBservices db, IConfiguration config, EmailService emailService,
         RuppinetSyncService ruppinetSync, ILogger<AuthController> logger)
     {
         _db = db;
@@ -34,7 +33,7 @@ public class AuthController : ControllerBase
     [HttpPost("login")]
     public async Task<IActionResult> Login([FromBody] LoginDto dto)
     {
-        var user = await _db.Users.FirstOrDefaultAsync(u => u.Email == dto.Email);
+        var user = await _db.GetUserByEmailAsync(dto.Email);
         if (user == null || user.Password != HashPassword(dto.Password))
             return Unauthorized(new { message = "Invalid email or password" });
 
@@ -65,22 +64,19 @@ public class AuthController : ControllerBase
     [HttpPost("register")]
     public async Task<IActionResult> Register([FromBody] RegisterDto dto)
     {
-        if (await _db.Users.AnyAsync(u => u.Email == dto.Email))
+        if (await _db.UserExistsAsync(dto.Email))
             return BadRequest(new { message = "Email already registered" });
+
+        var hashedPassword = HashPassword(dto.Password);
+        await _db.CreateUserAsync(dto.Email, dto.FirstName, dto.LastName, hashedPassword);
+        await _db.CreateDefaultNotifSettingsAsync(dto.Email);
 
         var user = new User
         {
             Email = dto.Email,
             FirstName = dto.FirstName,
-            LastName = dto.LastName,
-            Password = HashPassword(dto.Password)
+            LastName = dto.LastName
         };
-        _db.Users.Add(user);
-
-        _db.NotificationSettings.Add(new NotificationSettings { Email = dto.Email });
-
-        await _db.SaveChangesAsync();
-
         var token = GenerateToken(user);
         return Ok(new AuthResponseDto
         {
@@ -102,15 +98,13 @@ public class AuthController : ControllerBase
     [HttpPost("forgot-password")]
     public async Task<IActionResult> ForgotPassword([FromBody] ForgotPasswordDto dto)
     {
-        var user = await _db.Users.FindAsync(dto.Email);
+        var user = await _db.GetUserByEmailAsync(dto.Email);
         if (user == null)
             return Ok(new { message = "If the email exists, a reset link has been sent." });
 
         // Generate 8-char reset token
         var token = Guid.NewGuid().ToString("N")[..8].ToUpper();
-        user.ResetToken = token;
-        user.ResetTokenExpiry = DateTime.UtcNow.AddHours(1);
-        await _db.SaveChangesAsync();
+        await _db.UpdateResetTokenAsync(dto.Email, token, DateTime.UtcNow.AddHours(1));
 
         // Send reset email (falls back to console log if SMTP not configured)
         await _emailService.SendAsync(
@@ -129,17 +123,14 @@ public class AuthController : ControllerBase
     [HttpPost("reset-password")]
     public async Task<IActionResult> ResetPassword([FromBody] ResetPasswordDto dto)
     {
-        var user = await _db.Users.FindAsync(dto.Email);
+        var user = await _db.GetUserByEmailAsync(dto.Email);
         if (user == null)
             return BadRequest(new { message = "Invalid email or token" });
 
         if (user.ResetToken != dto.Token || user.ResetTokenExpiry < DateTime.UtcNow)
             return BadRequest(new { message = "Invalid or expired token" });
 
-        user.Password = HashPassword(dto.NewPassword);
-        user.ResetToken = null;
-        user.ResetTokenExpiry = null;
-        await _db.SaveChangesAsync();
+        await _db.ResetPasswordAsync(dto.Email, HashPassword(dto.NewPassword));
 
         return Ok(new { message = "Password reset successfully" });
     }
@@ -155,25 +146,24 @@ public class AuthController : ControllerBase
             });
 
             var email = payload.Email;
-            var user = await _db.Users.FirstOrDefaultAsync(u => u.Email == email);
+            var user = await _db.GetUserByEmailAsync(email);
             var isNewUser = false;
 
             if (user == null)
             {
                 isNewUser = true;
-                // Create new user from Google profile
+                var firstName = payload.GivenName ?? "User";
+                var lastName = payload.FamilyName ?? "";
+                await _db.CreateUserAsync(email, firstName, lastName, HashPassword(Guid.NewGuid().ToString()), "Google");
+                await _db.CreateDefaultNotifSettingsAsync(email);
+
                 user = new User
                 {
                     Email = email,
-                    FirstName = payload.GivenName ?? "User",
-                    LastName = payload.FamilyName ?? "",
-                    Password = HashPassword(Guid.NewGuid().ToString()),
-                    AuthProvider = "Google",
+                    FirstName = firstName,
+                    LastName = lastName,
                     OnboardingCompleted = false
                 };
-                _db.Users.Add(user);
-                _db.NotificationSettings.Add(new NotificationSettings { Email = email });
-                await _db.SaveChangesAsync();
             }
 
             var token = GenerateToken(user);

@@ -1,17 +1,17 @@
-using Microsoft.EntityFrameworkCore;
-using SmartStudy.Data;
+using SmartStudy.DAL;
 using SmartStudy.DTOs;
+using SmartStudy.Models;
 
 namespace SmartStudy.Services;
 
 public class SafeZoneService
 {
-    private readonly SmartStudyDbContext _db;
+    private readonly DBservices _dal;
     private readonly StressService _stress;
 
-    public SafeZoneService(SmartStudyDbContext db, StressService stress)
+    public SafeZoneService(DBservices dal, StressService stress)
     {
-        _db = db;
+        _dal = dal;
         _stress = stress;
     }
 
@@ -81,7 +81,7 @@ public class SafeZoneService
     }
 
     private static List<(DateTime from, DateTime to)> GetBusyIntervals(
-        List<Models.Event> events, DateTime dayStart, DateTime dayEnd)
+        List<Event> events, DateTime dayStart, DateTime dayEnd)
     {
         var busy = new List<(DateTime from, DateTime to)>();
         foreach (var e in events)
@@ -162,17 +162,12 @@ public class SafeZoneService
         return result;
     }
 
-    private async Task<List<Models.Event>> GetExpandedEvents(
+    private async Task<List<Event>> GetExpandedEvents(
         string email, DateTime rangeStart, DateTime rangeEnd)
     {
-        // Fetch events in range + all recurring events (may have started before range)
-        var events = await _db.Events
-            .Where(e => e.Email == email &&
-                ((e.From < rangeEnd && e.To > rangeStart) || e.Recurring))
-            .OrderBy(e => e.From)
-            .ToListAsync();
+        var events = await _dal.GetBaseEventsInRangeOrRecurringAsync(email, rangeStart, rangeEnd);
 
-        var expanded = new List<Models.Event>();
+        var expanded = new List<Event>();
         foreach (var evt in events)
         {
             // Add original if in range
@@ -191,7 +186,7 @@ public class SafeZoneService
                     var nextTo = nextFrom.Add(duration);
                     if (nextTo > rangeStart)
                     {
-                        expanded.Add(new Models.Event
+                        expanded.Add(new Event
                         {
                             Email = email,
                             From = nextFrom,

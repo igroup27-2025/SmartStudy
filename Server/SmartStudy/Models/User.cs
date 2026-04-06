@@ -25,6 +25,10 @@ public class User
     public string? RuppinetPassword { get; set; }
     public DateTime? LastRuppinetSync { get; set; }
 
+    // Moodle integration
+    public string? MoodleToken { get; set; }
+    public DateTime? LastMoodleSync { get; set; }
+
     // Navigation properties
     public NotificationSettings? NotificationSettings { get; set; }
     public SchedulingPreferences? SchedulingPreferences { get; set; }

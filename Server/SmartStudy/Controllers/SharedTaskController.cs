@@ -1,10 +1,8 @@
 using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
-using SmartStudy.Data;
+using SmartStudy.DAL;
 using SmartStudy.DTOs;
-using SmartStudy.Models;
 using SmartStudy.Services;
 
 namespace SmartStudy.Controllers;
@@ -14,11 +12,11 @@ namespace SmartStudy.Controllers;
 [Authorize]
 public class SharedTaskController : ControllerBase
 {
-    private readonly SmartStudyDbContext _db;
+    private readonly DBservices _db;
     private readonly NotificationService _notifications;
     private readonly SchedulingService _scheduling;
 
-    public SharedTaskController(SmartStudyDbContext db, NotificationService notifications, SchedulingService scheduling)
+    public SharedTaskController(DBservices db, NotificationService notifications, SchedulingService scheduling)
     {
         _db = db;
         _notifications = notifications;
@@ -27,9 +25,6 @@ public class SharedTaskController : ControllerBase
 
     private string GetEmail() => User.FindFirst(ClaimTypes.Email)!.Value;
 
-    private static (string, string) NormalizePair(string a, string b) =>
-        string.Compare(a, b, StringComparison.OrdinalIgnoreCase) < 0 ? (a, b) : (b, a);
-
     /// <summary>
     /// List all shared tasks the current user is a member of.
     /// </summary>
@@ -37,23 +32,9 @@ public class SharedTaskController : ControllerBase
     public async Task<IActionResult> GetAll()
     {
         var email = GetEmail();
-
-        var sharedTasks = await _db.SharedTaskMembers
-            .Where(m => m.Email == email)
-            .Include(m => m.SharedTask)
-                .ThenInclude(st => st.Task)
-                    .ThenInclude(t => t.Course)
-            .Include(m => m.SharedTask)
-                .ThenInclude(st => st.CreatedBy)
-            .Include(m => m.SharedTask)
-                .ThenInclude(st => st.Members)
-                    .ThenInclude(mem => mem.User)
-            .Select(m => m.SharedTask)
-            .Distinct()
-            .ToListAsync();
-
-        var result = sharedTasks.Select(MapToDto).ToList();
-        return Ok(result);
+        var rows = await _db.GetSharedTasksByUserAsync(email);
+        var dtos = GroupRowsIntoDtos(rows);
+        return Ok(dtos);
     }
 
     /// <summary>
@@ -63,20 +44,17 @@ public class SharedTaskController : ControllerBase
     public async Task<IActionResult> GetById(int taskId)
     {
         var email = GetEmail();
+        var rows = await _db.GetSharedTaskByTaskIdAsync(taskId);
 
-        var sharedTask = await _db.SharedTasks
-            .Include(st => st.Task).ThenInclude(t => t.Course)
-            .Include(st => st.CreatedBy)
-            .Include(st => st.Members).ThenInclude(m => m.User)
-            .FirstOrDefaultAsync(st => st.TaskId == taskId);
-
-        if (sharedTask == null)
+        if (!rows.Any())
             return NotFound(new { message = "Shared task not found" });
 
-        if (!sharedTask.Members.Any(m => m.Email == email))
+        // Check membership
+        if (!rows.Any(r => r.MemberEmail == email))
             return NotFound(new { message = "Shared task not found" });
 
-        return Ok(MapToDto(sharedTask));
+        var dtos = GroupRowsIntoDtos(rows);
+        return Ok(dtos.First());
     }
 
     /// <summary>
@@ -88,53 +66,31 @@ public class SharedTaskController : ControllerBase
         var email = GetEmail();
 
         // Verify the task belongs to current user
-        var task = await _db.Tasks.FirstOrDefaultAsync(t => t.TaskId == dto.TaskId && t.Email == email);
-        if (task == null)
+        var task = await _db.GetTaskByIdAsync(dto.TaskId);
+        if (task == null || task.Email != email)
             return NotFound(new { message = "Task not found" });
 
         // Check not already shared
-        var existing = await _db.SharedTasks.FirstOrDefaultAsync(st => st.TaskId == dto.TaskId);
-        if (existing != null)
+        var alreadyShared = await _db.SharedTaskExistsAsync(dto.TaskId);
+        if (alreadyShared)
             return BadRequest(new { message = "Task is already shared" });
 
         // Verify friendship exists
-        var (e1, e2) = NormalizePair(email, dto.PartnerEmail);
-        var friendship = await _db.Friendships.FirstOrDefaultAsync(f =>
-            f.Email1 == e1 && f.Email2 == e2 && f.IsActive);
-        if (friendship == null)
+        var friendshipExists = await _db.FriendshipExistsAsync(email, dto.PartnerEmail);
+        if (!friendshipExists)
             return BadRequest(new { message = "You must be friends to share a task" });
 
-        var sharedTask = new SharedTask
-        {
-            TaskId = dto.TaskId,
-            CreatedByEmail = email,
-            CreatedAt = DateTime.Now,
-            SharedStatus = "Pending"
-        };
-
-        _db.SharedTasks.Add(sharedTask);
+        // Create shared task
+        await _db.CreateSharedTaskAsync(dto.TaskId, email, "Pending");
 
         // Creator auto-accepts
-        _db.SharedTaskMembers.AddRange(
-            new SharedTaskMember
-            {
-                TaskId = dto.TaskId,
-                Email = email,
-                ResponseStatus = "Accepted",
-                RespondedAt = DateTime.Now
-            },
-            new SharedTaskMember
-            {
-                TaskId = dto.TaskId,
-                Email = dto.PartnerEmail,
-                ResponseStatus = "Pending"
-            }
-        );
+        await _db.CreateSharedTaskMemberAsync(dto.TaskId, email, "Accepted", DateTime.UtcNow);
 
-        await _db.SaveChangesAsync();
+        // Partner gets pending invitation
+        await _db.CreateSharedTaskMemberAsync(dto.TaskId, dto.PartnerEmail, "Pending");
 
         // Notify the partner
-        var sender = await _db.Users.FindAsync(email);
+        var sender = await _db.GetUserByEmailAsync(email);
         var senderName = sender != null ? $"{sender.FirstName} {sender.LastName}" : email;
         await _notifications.CreateSharedTaskInviteNotificationAsync(dto.PartnerEmail, senderName, dto.TaskId, task.Title);
 
@@ -149,102 +105,84 @@ public class SharedTaskController : ControllerBase
     {
         var email = GetEmail();
 
-        var member = await _db.SharedTaskMembers
-            .Include(m => m.SharedTask)
-            .FirstOrDefaultAsync(m => m.TaskId == taskId && m.Email == email && m.ResponseStatus == "Pending");
-
-        if (member == null)
+        // Update member status
+        var updated = await _db.UpdateSharedTaskMemberStatusAsync(taskId, email, dto.Accept ? "Accepted" : "Declined");
+        if (!updated)
             return NotFound(new { message = "No pending invitation found" });
 
-        member.ResponseStatus = dto.Accept ? "Accepted" : "Declined";
-        member.RespondedAt = DateTime.Now;
+        // Get shared task info to find creator
+        var sharedInfo = await _db.GetSharedInfoAsync(taskId);
+        if (sharedInfo == null)
+            return NotFound(new { message = "Shared task not found" });
 
-        // Update shared task status
+        string sharedStatus;
         if (dto.Accept)
         {
-            // Check if all members accepted
-            var allMembers = await _db.SharedTaskMembers
-                .Where(m => m.TaskId == taskId)
-                .ToListAsync();
-
-            var allAccepted = allMembers.All(m => m.ResponseStatus == "Accepted" || m.Email == email);
+            var allAccepted = await _db.AllSharedTaskMembersAcceptedAsync(taskId);
+            sharedStatus = allAccepted ? "Confirmed" : sharedInfo.SharedStatus;
             if (allAccepted)
-                member.SharedTask.SharedStatus = "Confirmed";
+                await _db.UpdateSharedTaskStatusAsync(taskId, "Confirmed");
         }
         else
         {
-            member.SharedTask.SharedStatus = "Cancelled";
+            sharedStatus = "Cancelled";
+            await _db.UpdateSharedTaskStatusAsync(taskId, "Cancelled");
         }
 
-        await _db.SaveChangesAsync();
-
         // Notify the creator about the response
-        var responder = await _db.Users.FindAsync(email);
+        var responder = await _db.GetUserByEmailAsync(email);
         var responderName = responder != null ? $"{responder.FirstName} {responder.LastName}" : email;
-        var task = await _db.Tasks.Include(t => t.Course).FirstOrDefaultAsync(t => t.TaskId == taskId);
+        var task = await _db.GetTaskByIdAsync(taskId);
         var taskTitle = task?.Title ?? "Task";
         await _notifications.CreateSharedTaskResponseNotificationAsync(
-            member.SharedTask.CreatedByEmail, responderName, taskId, taskTitle, dto.Accept);
+            sharedInfo.CreatedByEmail, responderName, taskId, taskTitle, dto.Accept);
 
         // When confirmed, create a task copy for the accepting user and reschedule both
-        if (member.SharedTask.SharedStatus == "Confirmed" && task != null)
+        if (sharedStatus == "Confirmed" && task != null)
         {
-            // Check if accepting user already has a copy
-            var existingCopy = await _db.Tasks
-                .FirstOrDefaultAsync(t => t.Email == email && t.Title == task.Title
-                    && t.CourseId == task.CourseId && t.DueDate == task.DueDate);
+            // Check if accepting user already has a copy (by title + course + due date)
+            var userTasks = await _db.GetTasksByUserAsync(email, task.CourseId);
+            var existingCopy = userTasks.FirstOrDefault(t =>
+                t.Title == task.Title && t.CourseId == task.CourseId && t.DueDate == task.DueDate);
 
             if (existingCopy == null)
             {
                 // Ensure the accepting user is enrolled in the same course
-                var enrolled = await _db.UserCourses.AnyAsync(uc => uc.Email == email && uc.CourseId == task.CourseId);
+                var enrolled = await _db.UserCourseExistsAsync(email, task.CourseId);
                 if (!enrolled)
                 {
-                    _db.UserCourses.Add(new UserCourse { Email = email, CourseId = task.CourseId });
-                    await _db.SaveChangesAsync();
+                    await _db.CreateUserCourseAsync(email, task.CourseId);
                 }
 
-                var taskCopy = new StudentTask
-                {
-                    CourseId = task.CourseId,
-                    Title = task.Title,
-                    Type = task.Type,
-                    EstimatedHours = task.EstimatedHours,
-                    DueDate = task.DueDate,
-                    Priority = task.Priority,
-                    Email = email,
-                    IsCompleted = false,
-                    AllowSplitting = task.AllowSplitting
-                };
-                _db.Tasks.Add(taskCopy);
-                await _db.SaveChangesAsync();
+                var copyTaskId = await _db.CreateTaskAsync(
+                    task.CourseId, email, task.Title, task.Type,
+                    task.EstimatedHours, task.DueDate, null,
+                    task.AllowSplitting, task.Priority, task.IsManualPriority);
+
+                // Link the copy back to the shared task so partner's task shows as shared
+                await _db.UpdateSharedTaskMemberCopyTaskIdAsync(taskId, email, copyTaskId);
             }
 
-            var allMembers = await _db.SharedTaskMembers
-                .Where(m => m.TaskId == taskId)
-                .Select(m => m.Email)
-                .ToListAsync();
-            foreach (var memberEmail in allMembers)
+            var memberEmails = await _db.GetSharedTaskMemberEmailsAsync(taskId);
+            foreach (var memberEmail in memberEmails)
             {
                 await _scheduling.ScheduleAllTasksAsync(memberEmail);
             }
 
             // Override the shared task's schedule with a common time slot for both users
             var foundCommonTime = await _scheduling.ScheduleSharedTaskAtCommonTimeAsync(
-                taskId, member.SharedTask.CreatedByEmail, email);
+                taskId, sharedInfo.CreatedByEmail, email);
 
             if (!foundCommonTime)
             {
-                // Notify both users that no common time was found
-                var taskTitleForNotif = task.Title;
                 await _notifications.CreateNoCommonTimeNotificationAsync(
-                    member.SharedTask.CreatedByEmail, taskId, taskTitleForNotif);
+                    sharedInfo.CreatedByEmail, taskId, taskTitle);
                 await _notifications.CreateNoCommonTimeNotificationAsync(
-                    email, taskId, taskTitleForNotif);
+                    email, taskId, taskTitle);
             }
         }
 
-        return Ok(new { taskId, status = member.SharedTask.SharedStatus });
+        return Ok(new { taskId, status = sharedStatus });
     }
 
     /// <summary>
@@ -255,34 +193,55 @@ public class SharedTaskController : ControllerBase
     {
         var email = GetEmail();
 
-        var sharedTask = await _db.SharedTasks
-            .FirstOrDefaultAsync(st => st.TaskId == taskId && st.CreatedByEmail == email);
-
-        if (sharedTask == null)
+        var sharedInfo = await _db.GetSharedInfoAsync(taskId);
+        if (sharedInfo == null || sharedInfo.CreatedByEmail != email)
             return NotFound(new { message = "Shared task not found" });
 
-        sharedTask.SharedStatus = "Cancelled";
-        await _db.SaveChangesAsync();
+        await _db.UpdateSharedTaskStatusAsync(taskId, "Cancelled");
+
+        // Notify other members about the cancellation
+        var task = await _db.GetTaskByIdAsync(taskId);
+        var taskTitle = task?.Title ?? "Task";
+        var creator = await _db.GetUserByEmailAsync(email);
+        var creatorName = creator != null ? $"{creator.FirstName} {creator.LastName}" : email;
+        foreach (var member in sharedInfo.Members.Where(m => m.Email != email))
+        {
+            await _notifications.CreateSharedTaskResponseNotificationAsync(
+                member.Email, creatorName, taskId, taskTitle, false);
+        }
 
         return Ok(new { taskId, status = "Cancelled" });
     }
 
-    private static SharedTaskDto MapToDto(SharedTask st) => new()
+    /// <summary>
+    /// Group flat SP rows into SharedTaskDto list.
+    /// </summary>
+    private static List<SharedTaskDto> GroupRowsIntoDtos(List<SharedTaskFullRow> rows)
     {
-        TaskId = st.TaskId,
-        TaskTitle = st.Task.Title,
-        CourseId = st.Task.CourseId,
-        CourseName = st.Task.Course?.CourseName,
-        CreatedByEmail = st.CreatedByEmail,
-        CreatedByName = $"{st.CreatedBy.FirstName} {st.CreatedBy.LastName}",
-        CreatedAt = st.CreatedAt,
-        SharedStatus = st.SharedStatus,
-        Members = st.Members.Select(m => new SharedTaskMemberDto
-        {
-            Email = m.Email,
-            Name = $"{m.User.FirstName} {m.User.LastName}",
-            ResponseStatus = m.ResponseStatus,
-            RespondedAt = m.RespondedAt
-        }).ToList()
-    };
+        return rows
+            .GroupBy(r => r.TaskId)
+            .Select(g =>
+            {
+                var first = g.First();
+                return new SharedTaskDto
+                {
+                    TaskId = first.TaskId,
+                    TaskTitle = first.TaskTitle,
+                    CourseId = first.CourseId,
+                    CourseName = first.CourseName,
+                    CreatedByEmail = first.CreatedByEmail,
+                    CreatedByName = $"{first.CreatorFirstName} {first.CreatorLastName}",
+                    CreatedAt = first.CreatedAt,
+                    SharedStatus = first.SharedStatus,
+                    Members = g.Select(r => new SharedTaskMemberDto
+                    {
+                        Email = r.MemberEmail,
+                        Name = $"{r.MemberFirstName} {r.MemberLastName}",
+                        ResponseStatus = r.ResponseStatus,
+                        RespondedAt = r.RespondedAt
+                    }).DistinctBy(m => m.Email).ToList()
+                };
+            })
+            .ToList();
+    }
 }

@@ -295,6 +295,21 @@
                                 <button type="button" class="btn btn-ghost btn-sm" id="ruppinetCancelBtn">Cancel</button>
                             </div>
                         </div>
+                        <div class="settings-row" id="moodleRow">
+                            <div class="settings-info">
+                                <div class="settings-label">Moodle (Assignments & Quizzes)</div>
+                                <div class="settings-description" id="moodleStatus">Checking...</div>
+                            </div>
+                            <div id="moodleActions">
+                                <div id="moodleNotAvailable" style="display:none">
+                                    <span style="font-size:12px; color:var(--text-muted)">Connect Ruppinet first</span>
+                                </div>
+                                <div id="moodleConnectedActions" style="display:none">
+                                    <button class="btn btn-primary btn-sm" id="moodleSyncBtn">Sync Assignments</button>
+                                    <button class="btn btn-secondary btn-sm" id="moodleDisconnectBtn">Disconnect</button>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </div>
 

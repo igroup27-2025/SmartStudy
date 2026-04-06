@@ -1,8 +1,7 @@
 using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
-using SmartStudy.Data;
+using SmartStudy.DAL;
 using SmartStudy.Services;
 
 namespace SmartStudy.Controllers;
@@ -12,18 +11,18 @@ namespace SmartStudy.Controllers;
 [Authorize]
 public class CalendarSyncController : ControllerBase
 {
-    private readonly SmartStudyDbContext _db;
+    private readonly DBservices _dal;
     private readonly GoogleCalendarService _googleCalendar;
     private readonly ComposioService _composio;
     private readonly SchedulingService _scheduling;
 
     public CalendarSyncController(
-        SmartStudyDbContext db,
+        DBservices dal,
         GoogleCalendarService googleCalendar,
         ComposioService composio,
         SchedulingService scheduling)
     {
-        _db = db;
+        _dal = dal;
         _googleCalendar = googleCalendar;
         _composio = composio;
         _scheduling = scheduling;
@@ -53,12 +52,7 @@ public class CalendarSyncController : ControllerBase
 
         if (!string.IsNullOrEmpty(result.ConnectedAccountId))
         {
-            var user = await _db.Users.FindAsync(email);
-            if (user != null)
-            {
-                user.ComposioConnectedAccountId = result.ConnectedAccountId;
-                await _db.SaveChangesAsync();
-            }
+            await _dal.UpdateComposioIdAsync(email, result.ConnectedAccountId);
         }
 
         return Ok(new { redirectUrl = result.RedirectUrl, connectionId = result.ConnectedAccountId });
@@ -83,14 +77,10 @@ public class CalendarSyncController : ControllerBase
             var account = await _composio.GetConnectedAccountAsync(accountId);
             if (account != null)
             {
-                var users = await _db.Users
-                    .Where(u => u.ComposioConnectedAccountId == accountId)
-                    .ToListAsync();
-
-                foreach (var user in users)
+                var userEmails = await _dal.GetUsersByComposioIdAsync(accountId);
+                foreach (var userEmail in userEmails)
                 {
-                    user.LastCalendarSync = null;
-                    await _db.SaveChangesAsync();
+                    await _dal.ClearLastCalendarSyncAsync(userEmail);
                 }
             }
         }
@@ -112,7 +102,7 @@ public class CalendarSyncController : ControllerBase
 
         if (_composio.IsEnabled)
         {
-            var user = await _db.Users.FindAsync(email);
+            var user = await _dal.GetUserByEmailAsync(email);
             var connAccountId = user?.ComposioConnectedAccountId;
 
             if (string.IsNullOrEmpty(connAccountId))
@@ -158,10 +148,9 @@ public class CalendarSyncController : ControllerBase
     public async Task<IActionResult> GetStatus()
     {
         var email = GetEmail();
-        var user = await _db.Users.FindAsync(email);
+        var user = await _dal.GetUserByEmailAsync(email);
 
-        var syncedCount = await _db.PersonalEvents
-            .CountAsync(pe => pe.Email == email && pe.Description != null && pe.Description.Contains("[gcal:"));
+        var syncedCount = await _dal.CountGcalEventsAsync(email);
 
         bool isConnected = false;
         string connectionStatus = "none";
@@ -199,7 +188,7 @@ public class CalendarSyncController : ControllerBase
     public async Task<IActionResult> Disconnect()
     {
         var email = GetEmail();
-        var user = await _db.Users.FindAsync(email);
+        var user = await _dal.GetUserByEmailAsync(email);
 
         if (user == null)
             return NotFound();
@@ -207,22 +196,16 @@ public class CalendarSyncController : ControllerBase
         if (_composio.IsEnabled && !string.IsNullOrEmpty(user.ComposioConnectedAccountId))
         {
             await _composio.DeleteConnectedAccountAsync(user.ComposioConnectedAccountId);
-            user.ComposioConnectedAccountId = null;
         }
 
-        user.GoogleCalendarAccessToken = null;
-        user.GoogleCalendarRefreshToken = null;
-        user.LastCalendarSync = null;
-
         // Remove synced events
-        var syncedEvents = await _db.PersonalEvents
-            .Where(pe => pe.Email == email && pe.Description != null && pe.Description.Contains("[gcal:"))
-            .ToListAsync();
-        _db.PersonalEvents.RemoveRange(syncedEvents);
+        var gcalEventIds = await _dal.GetGcalPersonalEventIdsAsync(email);
+        foreach (var eventId in gcalEventIds)
+            await _dal.DeleteEventByIdAsync(eventId);
 
-        await _db.SaveChangesAsync();
+        await _dal.DisconnectGoogleCalendarAsync(email);
 
-        return Ok(new { message = "Google Calendar disconnected", removedEvents = syncedEvents.Count });
+        return Ok(new { message = "Google Calendar disconnected", removedEvents = gcalEventIds.Count });
     }
 }
 

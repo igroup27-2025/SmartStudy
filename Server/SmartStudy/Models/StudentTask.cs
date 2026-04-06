@@ -16,6 +16,7 @@ public class StudentTask
     public bool AllowSplitting { get; set; } = false;
     public bool IsManuallyPinned { get; set; } = false;
     public bool IsManualPriority { get; set; } = false;
+    public string? MoodleId { get; set; }
 
     // Navigation properties
     public Course Course { get; set; } = null!;

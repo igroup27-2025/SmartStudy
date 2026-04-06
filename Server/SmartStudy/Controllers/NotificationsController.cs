@@ -1,8 +1,7 @@
 using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
-using SmartStudy.Data;
+using SmartStudy.DAL;
 using SmartStudy.DTOs;
 using SmartStudy.Services;
 
@@ -13,11 +12,11 @@ namespace SmartStudy.Controllers;
 [Authorize]
 public class NotificationsController : ControllerBase
 {
-    private readonly SmartStudyDbContext _db;
+    private readonly DBservices _db;
     private readonly NotificationService _notificationService;
     private readonly StressService _stressService;
 
-    public NotificationsController(SmartStudyDbContext db, NotificationService notificationService, StressService stressService)
+    public NotificationsController(DBservices db, NotificationService notificationService, StressService stressService)
     {
         _db = db;
         _notificationService = notificationService;
@@ -30,14 +29,7 @@ public class NotificationsController : ControllerBase
     public async Task<IActionResult> GetAll()
     {
         var email = GetEmail();
-        var notifications = await _db.Notifications
-            .Where(n => n.Email == email)
-            .OrderByDescending(n => n.CreatedAt)
-            .Take(50)
-            .ToListAsync();
-
-        var unreadCount = await _db.Notifications
-            .CountAsync(n => n.Email == email && !n.IsRead);
+        var (notifications, unreadCount) = await _db.GetNotificationsByUserAsync(email);
 
         return Ok(new NotificationListDto
         {
@@ -60,7 +52,7 @@ public class NotificationsController : ControllerBase
     public async Task<IActionResult> GetUnreadCount()
     {
         var email = GetEmail();
-        var count = await _db.Notifications.CountAsync(n => n.Email == email && !n.IsRead);
+        var count = await _db.GetUnreadNotificationCountAsync(email);
         return Ok(new { count });
     }
 
@@ -68,14 +60,7 @@ public class NotificationsController : ControllerBase
     public async Task<IActionResult> MarkRead([FromBody] MarkReadDto dto)
     {
         var email = GetEmail();
-        var notifications = await _db.Notifications
-            .Where(n => n.Email == email && dto.NotificationIds.Contains(n.NotificationId))
-            .ToListAsync();
-
-        foreach (var n in notifications)
-            n.IsRead = true;
-
-        await _db.SaveChangesAsync();
+        await _db.MarkNotificationsReadAsync(email, dto.NotificationIds);
         return Ok();
     }
 
@@ -83,14 +68,7 @@ public class NotificationsController : ControllerBase
     public async Task<IActionResult> MarkAllRead()
     {
         var email = GetEmail();
-        var unread = await _db.Notifications
-            .Where(n => n.Email == email && !n.IsRead)
-            .ToListAsync();
-
-        foreach (var n in unread)
-            n.IsRead = true;
-
-        await _db.SaveChangesAsync();
+        await _db.MarkAllNotificationsReadAsync(email);
         return Ok();
     }
 

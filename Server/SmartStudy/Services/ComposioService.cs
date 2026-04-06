@@ -157,7 +157,7 @@ public class ComposioService
         var body = new Dictionary<string, object>
         {
             ["arguments"] = arguments,
-            ["user_id"] = userId
+            ["entity_id"] = userId
         };
 
         if (!string.IsNullOrEmpty(connectedAccountId))

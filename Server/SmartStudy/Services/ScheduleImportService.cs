@@ -1,19 +1,17 @@
 using System.Globalization;
 using System.Text.RegularExpressions;
-using Microsoft.EntityFrameworkCore;
-using SmartStudy.Data;
+using SmartStudy.DAL;
 using SmartStudy.DTOs;
-using SmartStudy.Models;
 using UglyToad.PdfPig;
 
 namespace SmartStudy.Services;
 
 public class ScheduleImportService
 {
-    private readonly SmartStudyDbContext _db;
+    private readonly DBservices _dal;
     private ColumnLayout? _columns;
 
-    public ScheduleImportService(SmartStudyDbContext db) => _db = db;
+    public ScheduleImportService(DBservices dal) => _dal = dal;
 
     // ── Public API ──────────────────────────────────────────────
 
@@ -111,14 +109,11 @@ public class ScheduleImportService
 
             if (roomW == null || instrW == null || courseWs.Count == 0) continue;
 
-            // The course name "שעור" is the one just to the right of מרצה (higher X)
             var courseW = courseWs.Where(w => w.X > instrW.X).OrderBy(w => w.X).FirstOrDefault()
                           ?? courseWs.First();
 
-            // Find boundary helpers: headers adjacent to our targets
             var rightOfRoom = row.Where(w => w.X > roomW.X + roomW.Width)
                                  .OrderBy(w => w.X).FirstOrDefault();
-            // Find the "#" header to mark the row-number column boundary
             var hashW = row.FirstOrDefault(w => w.Text == "#");
 
             return new ColumnLayout
@@ -131,8 +126,6 @@ public class ScheduleImportService
                     : instrW.X - 30,
                 InstructorMaxX = (instrW.X + instrW.Width + courseW.X) / 2,
                 CourseMinX = (instrW.X + instrW.Width + courseW.X) / 2,
-                // Extend through course code area (codes are pattern-filtered)
-                // but stop before the row-number "#" column
                 CourseMaxX = hashW != null
                     ? hashW.X - 2
                     : 1000
@@ -143,8 +136,6 @@ public class ScheduleImportService
 
     private List<RawEntry> ParseRows(List<List<PdfWord>> rows)
     {
-        // Phase 1: Group rows into entries by date boundaries
-        // Keep rows separate to preserve per-row RTL ordering
         var entryRowGroups = new List<List<List<PdfWord>>>();
         List<List<PdfWord>>? currentGroup = null;
 
@@ -167,13 +158,11 @@ public class ScheduleImportService
         if (currentGroup != null && currentGroup.Count > 0)
             entryRowGroups.Add(currentGroup);
 
-        // Phase 2: Parse each row group into an entry
         var entries = new List<RawEntry>();
         foreach (var rowGroup in entryRowGroups)
         {
             var entry = new RawEntry();
             entry.Rows = rowGroup;
-            // Flatten for pattern matching (order doesn't matter for regex)
             foreach (var row in rowGroup)
                 entry.AllWords.AddRange(row);
             ExtractFromWords(entry);
@@ -189,12 +178,10 @@ public class ScheduleImportService
     {
         var allText = string.Join(" ", entry.AllWords.Select(w => w.Text));
 
-        // Course code: NNNNNN-NN
         var codeMatch = Regex.Match(allText, @"(\d{6})-(\d{1,2})");
         if (codeMatch.Success)
             entry.CourseCode = codeMatch.Value;
 
-        // Date: DD/MM/YYYY
         var dateMatch = Regex.Match(allText, @"(\d{2})/(\d{2})/(\d{4})");
         if (dateMatch.Success)
         {
@@ -203,7 +190,6 @@ public class ScheduleImportService
                 entry.Date = date;
         }
 
-        // Times: HH:MM (collect all, expect 2)
         var timeMatches = Regex.Matches(allText, @"(\d{1,2}):(\d{2})");
         var times = new List<TimeSpan>();
         foreach (Match tm in timeMatches)
@@ -213,7 +199,6 @@ public class ScheduleImportService
             if (h >= 0 && h <= 23 && m >= 0 && m <= 59)
                 times.Add(new TimeSpan(h, m, 0));
         }
-        // Assign from/to (from = earlier, to = later)
         if (times.Count >= 2)
         {
             var sorted = times.Distinct().OrderBy(t => t).ToList();
@@ -226,7 +211,6 @@ public class ScheduleImportService
             entry.EndTime = times[0].Add(TimeSpan.FromMinutes(1));
         }
 
-        // Hours: N.NN (decimal)
         var hoursMatches = Regex.Matches(allText, @"(\d+)\.(\d{2})");
         foreach (Match hm in hoursMatches)
         {
@@ -237,7 +221,6 @@ public class ScheduleImportService
             }
         }
 
-        // Extract course name, instructor, and room from remaining text
         ExtractTextFields(entry);
     }
 
@@ -245,12 +228,10 @@ public class ScheduleImportService
     {
         if (_columns == null)
         {
-            // Fallback if column detection failed
             entry.CourseName = entry.CourseCode;
             return;
         }
 
-        // Classify words by column based on X-position
         var roomRows = new List<List<PdfWord>>();
         var instrRows = new List<List<PdfWord>>();
         var courseRows = new List<List<PdfWord>>();
@@ -273,7 +254,6 @@ public class ScheduleImportService
                     rowInstr.Add(word);
                 else if (cx >= _columns.CourseMinX && cx <= _columns.CourseMaxX)
                     rowCourse.Add(word);
-                // else: other column (times, dates, hours, row#) — already extracted
             }
 
             if (rowRoom.Count > 0) roomRows.Add(rowRoom);
@@ -281,12 +261,10 @@ public class ScheduleImportService
             if (rowCourse.Count > 0) courseRows.Add(rowCourse);
         }
 
-        // Build RTL text per column (reversing word order within each row)
         var courseName = BuildColumnText(courseRows);
         var instructor = BuildColumnText(instrRows);
         var location = BuildColumnText(roomRows);
 
-        // Clean course name
         if (!string.IsNullOrWhiteSpace(courseName))
         {
             courseName = Regex.Replace(courseName, @"\bשיעור\b", " ");
@@ -306,13 +284,12 @@ public class ScheduleImportService
     {
         var t = text.Trim();
         if (string.IsNullOrEmpty(t)) return true;
-        if (Regex.IsMatch(t, @"^\d{6}-\d{1,2}$")) return true;   // course code
-        if (Regex.IsMatch(t, @"^\d{2}/\d{2}/\d{4}$")) return true; // date
-        if (Regex.IsMatch(t, @"^\d{1,2}:\d{2}$")) return true;    // time
-        if (Regex.IsMatch(t, @"^\d+\.\d{2}$")) return true;       // hours decimal
-        // Row numbers are excluded by column X-position, not pattern filtering
+        if (Regex.IsMatch(t, @"^\d{6}-\d{1,2}$")) return true;
+        if (Regex.IsMatch(t, @"^\d{2}/\d{2}/\d{4}$")) return true;
+        if (Regex.IsMatch(t, @"^\d{1,2}:\d{2}$")) return true;
+        if (Regex.IsMatch(t, @"^\d+\.\d{2}$")) return true;
         if (IsHebrewDatePart(t)) return true;
-        if (t.Length == 1 && "אבגדהוש".Contains(t[0])) return true; // day-of-week letters
+        if (t.Length == 1 && "אבגדהוש".Contains(t[0])) return true;
         if (t.Contains("סה\"כ") || t == "שעות" || t == ":") return true;
         return false;
     }
@@ -331,7 +308,6 @@ public class ScheduleImportService
 
     private static bool IsHebrewDatePart(string text)
     {
-        // Hebrew date components: month names, day ordinals, year prefix
         var hebrewDateWords = new HashSet<string>
         {
             "תשפ\"ו", "תשפ\"ז", "תשפ\"ח", "תשפ\"ד", "תשפ\"ה",
@@ -364,92 +340,57 @@ public class ScheduleImportService
         {
             try
             {
-                // 1. Compute CourseId from course code
                 var courseId = ParseCourseId(entry.CourseCode!);
                 var courseName = entry.CourseName ?? entry.CourseCode ?? "Unknown Course";
 
-                // 2. Find or create course (update name on re-import)
-                var course = await _db.Courses.FindAsync(courseId);
+                var course = await _dal.GetCourseByIdAsync(courseId);
                 if (course == null)
                 {
-                    course = new Course
-                    {
-                        CourseId = courseId,
-                        CourseName = courseName,
-                        WeeklyHours = entry.Hours,
-                        Semester = GetCurrentSemester()
-                    };
-                    _db.Courses.Add(course);
+                    await _dal.CreateCourseAsync(courseId, courseName, entry.Hours, null, GetCurrentSemester(), null);
                     result.CoursesCreated++;
                 }
                 else
                 {
-                    // Update course name on re-import (fixes RTL issues etc.)
                     if (!string.IsNullOrWhiteSpace(courseName) && courseName != entry.CourseCode)
-                        course.CourseName = courseName;
+                        await _dal.UpdateCourseAsync(courseId, courseName: courseName);
                 }
 
-                // Create or update instructor if name is available
                 if (!string.IsNullOrEmpty(entry.InstructorName))
                 {
-                    var instructor = await _db.Instructors
-                        .FirstOrDefaultAsync(i => i.InstructorName == entry.InstructorName);
+                    var instructor = await _dal.FindInstructorByNameAsync(entry.InstructorName);
                     if (instructor == null)
                     {
-                        instructor = new Instructor { InstructorName = entry.InstructorName };
-                        _db.Instructors.Add(instructor);
-                        await _db.SaveChangesAsync();
+                        var instructorId = await _dal.CreateInstructorAsync(entry.InstructorName);
+                        await _dal.UpdateCourseInstructorAsync(courseId, instructorId);
                     }
-                    course.InstructorId = instructor.InstructorId;
+                    else
+                    {
+                        await _dal.UpdateCourseInstructorAsync(courseId, instructor.InstructorId);
+                    }
                 }
-                await _db.SaveChangesAsync();
 
-                // 3. Ensure user enrollment
-                var enrolled = await _db.UserCourses
-                    .AnyAsync(uc => uc.Email == email && uc.CourseId == courseId);
-                if (!enrolled)
+                if (!await _dal.UserCourseExistsAsync(email, courseId))
                 {
-                    _db.UserCourses.Add(new UserCourse { Email = email, CourseId = courseId });
-                    await _db.SaveChangesAsync();
+                    await _dal.CreateUserCourseAsync(email, courseId);
                 }
 
-                // 4. Check for existing event (avoid duplicates on re-import)
                 var from = entry.Date.Date + entry.StartTime;
                 var to = entry.Date.Date + entry.EndTime;
 
-                var exists = await _db.ClassEvents
-                    .AnyAsync(ce => ce.Email == email
-                        && ce.CourseId == courseId
-                        && ce.From == from
-                        && ce.To == to);
-
-                if (exists)
+                if (await _dal.ClassEventExistsAsync(email, courseId, from, to))
                 {
                     result.EntriesSkipped++;
                     continue;
                 }
 
-                // 5. Create ClassEvent
-                var classEvent = new ClassEvent
-                {
-                    Email = email,
-                    From = from,
-                    To = to,
-                    Recurring = true,
-                    CourseId = courseId,
-                    Location = entry.Location,
-                    Duration = entry.Hours
-                };
-                _db.ClassEvents.Add(classEvent);
-                await _db.SaveChangesAsync();
+                await _dal.CreateClassEventAsync(email, from, to, true, null, courseId, entry.Location, entry.Hours);
                 result.EventsCreated++;
 
-                // Track for result
                 var key = entry.CourseCode!;
                 if (courseMap.ContainsKey(key))
-                    courseMap[key] = (courseId, course.CourseName, courseMap[key].eventCount + 1);
+                    courseMap[key] = (courseId, courseName, courseMap[key].eventCount + 1);
                 else
-                    courseMap[key] = (courseId, course.CourseName, 1);
+                    courseMap[key] = (courseId, courseName, 1);
             }
             catch (Exception ex)
             {
@@ -470,7 +411,6 @@ public class ScheduleImportService
 
     private static int ParseCourseId(string courseCode)
     {
-        // "200233-10" → 20023310
         var parts = courseCode.Split('-');
         var main = int.Parse(parts[0]);
         var section = parts.Length > 1 ? int.Parse(parts[1]) : 0;
@@ -480,7 +420,6 @@ public class ScheduleImportService
     private static string GetCurrentSemester()
     {
         var now = DateTime.Now;
-        // Israeli academic year: A = Oct-Feb, B = Mar-Jul
         var suffix = now.Month >= 10 || now.Month <= 2 ? "A" : "B";
         var year = now.Month >= 10 ? now.Year : now.Year - 1;
         return $"{year}{suffix}";
@@ -496,20 +435,13 @@ public class ScheduleImportService
         if (string.IsNullOrEmpty(text) || !ContainsHebrew(text)) return text;
         var chars = text.ToCharArray();
         Array.Reverse(chars);
-        // Re-reverse digit sequences that got backwards from the full reversal
         return Regex.Replace(new string(chars), @"\d+", m =>
             new string(m.Value.Reverse().ToArray()));
     }
 
-    /// <summary>
-    /// For a list of words sorted by X (left-to-right on page),
-    /// Hebrew text reads right-to-left, so we reverse the order
-    /// to get proper reading order.
-    /// </summary>
     private static string BuildHebrewText(IEnumerable<PdfWord> words)
     {
         var list = words.ToList();
-        // Reverse word order for RTL reading
         list.Reverse();
         return string.Join(" ", list.Select(w => w.Text));
     }

@@ -6,6 +6,7 @@ public class SharedTaskMember
     public string Email { get; set; } = null!; // PK part 2, FK → User
     public string ResponseStatus { get; set; } = "Pending"; // Pending, Accepted, Declined
     public DateTime? RespondedAt { get; set; }
+    public int? CopyTaskId { get; set; }   // partner's copy of the shared task
 
     // Navigation properties
     public SharedTask SharedTask { get; set; } = null!;

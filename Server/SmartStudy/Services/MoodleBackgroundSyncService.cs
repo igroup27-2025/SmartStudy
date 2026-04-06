@@ -2,18 +2,18 @@ using SmartStudy.DAL;
 
 namespace SmartStudy.Services;
 
-public class RuppinetBackgroundSyncService : BackgroundService
+public class MoodleBackgroundSyncService : BackgroundService
 {
     private readonly IServiceScopeFactory _scopeFactory;
-    private readonly ILogger<RuppinetBackgroundSyncService> _logger;
+    private readonly ILogger<MoodleBackgroundSyncService> _logger;
     private readonly TimeSpan _interval;
 
-    public RuppinetBackgroundSyncService(IServiceScopeFactory scopeFactory,
-        ILogger<RuppinetBackgroundSyncService> logger, IConfiguration config)
+    public MoodleBackgroundSyncService(IServiceScopeFactory scopeFactory,
+        ILogger<MoodleBackgroundSyncService> logger, IConfiguration config)
     {
         _scopeFactory = scopeFactory;
         _logger = logger;
-        var hours = int.TryParse(config["Ruppinet:BackgroundSyncIntervalHours"], out var h) ? h : 6;
+        var hours = int.TryParse(config["Moodle:BackgroundSyncIntervalHours"], out var h) ? h : 12;
         _interval = TimeSpan.FromHours(hours);
     }
 
@@ -22,11 +22,11 @@ public class RuppinetBackgroundSyncService : BackgroundService
         try
         {
             // Wait before first run to let the app fully start
-            await Task.Delay(TimeSpan.FromMinutes(2), stoppingToken);
+            await Task.Delay(TimeSpan.FromMinutes(3), stoppingToken);
         }
         catch (TaskCanceledException)
         {
-            return; // App is shutting down, exit gracefully
+            return;
         }
 
         while (!stoppingToken.IsCancellationRequested)
@@ -37,7 +37,7 @@ public class RuppinetBackgroundSyncService : BackgroundService
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error in RuppinetBackgroundSyncService");
+                _logger.LogError(ex, "Error in MoodleBackgroundSyncService");
             }
 
             try
@@ -46,7 +46,7 @@ public class RuppinetBackgroundSyncService : BackgroundService
             }
             catch (TaskCanceledException)
             {
-                return; // App is shutting down, exit gracefully
+                return;
             }
         }
     }
@@ -56,31 +56,30 @@ public class RuppinetBackgroundSyncService : BackgroundService
         using var scope = _scopeFactory.CreateScope();
         var dal = scope.ServiceProvider.GetRequiredService<DBservices>();
         var config = scope.ServiceProvider.GetRequiredService<IConfiguration>();
-        var syncIntervalHours = int.TryParse(config["Ruppinet:SyncIntervalHours"], out var h) ? h : 12;
+        var syncIntervalHours = int.TryParse(config["Moodle:SyncIntervalHours"], out var h) ? h : 24;
         var cutoff = DateTime.UtcNow.AddHours(-syncIntervalHours);
 
-        var usersToSync = await dal.GetUsersForRuppinetSyncAsync(cutoff);
+        var usersToSync = await dal.GetUsersForMoodleSyncAsync(cutoff);
 
         if (usersToSync.Count == 0) return;
 
-        _logger.LogInformation("Ruppinet background sync starting for {Count} users", usersToSync.Count);
+        _logger.LogInformation("Moodle background sync starting for {Count} users", usersToSync.Count);
 
         foreach (var email in usersToSync)
         {
             try
             {
-                // Create a fresh scope per user so one failure doesn't affect others
                 using var userScope = _scopeFactory.CreateScope();
-                var syncService = userScope.ServiceProvider.GetRequiredService<RuppinetSyncService>();
+                var syncService = userScope.ServiceProvider.GetRequiredService<MoodleSyncService>();
                 var result = await syncService.SyncAllAsync(email);
                 if (result.Success)
-                    _logger.LogInformation("Background sync completed for {Email}: {Message}", email, result.Message);
+                    _logger.LogInformation("Moodle background sync completed for {Email}: {Message}", email, result.Message);
                 else
-                    _logger.LogWarning("Background sync failed for {Email}: {Message}", email, result.Message);
+                    _logger.LogWarning("Moodle background sync failed for {Email}: {Message}", email, result.Message);
             }
             catch (Exception ex)
             {
-                _logger.LogWarning(ex, "Background sync error for {Email}", email);
+                _logger.LogWarning(ex, "Moodle background sync error for {Email}", email);
             }
         }
     }

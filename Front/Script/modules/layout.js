@@ -117,4 +117,20 @@ export function initLayout() {
         overlay.classList.remove('show');
     });
 
+    // Close sidebar when a nav link is clicked (mobile)
+    sidebar.querySelectorAll('.sidebar-nav-item').forEach(link => {
+        link.addEventListener('click', () => {
+            sidebar.classList.remove('open');
+            overlay.classList.remove('show');
+        });
+    });
+
+    // Close sidebar on window resize to desktop
+    window.addEventListener('resize', () => {
+        if (window.innerWidth > 768) {
+            sidebar.classList.remove('open');
+            overlay.classList.remove('show');
+        }
+    });
+
 }

@@ -23,7 +23,7 @@ function request(method, path, body = null) {
             url: `${API_BASE}${path}`,
             method: method,
             headers: getHeaders(),
-            data: body ? JSON.stringify(body) : undefined,
+            data: body ? JSON.stringify(body) : (method === 'POST' || method === 'PUT' ? '{}' : undefined),
             contentType: 'application/json',
             dataType: method === 'DELETE' ? 'text' : 'json',
             success: (data) => resolve(data),
@@ -217,6 +217,21 @@ export const api = {
         return new Promise((resolve, reject) => {
             $.ajax({
                 url: `${API_BASE}/settings/ruppinet`,
+                method: 'DELETE',
+                headers: getHeaders(),
+                success: (data) => resolve(typeof data === 'string' ? JSON.parse(data || '{}') : data),
+                error: (xhr) => reject(new Error(xhr.responseJSON?.message || 'Disconnect failed'))
+            });
+        });
+    },
+
+    // Moodle Integration
+    getMoodleStatus: () => request('GET', '/settings/moodle'),
+    syncMoodle: () => request('POST', '/settings/moodle/sync'),
+    disconnectMoodle: () => {
+        return new Promise((resolve, reject) => {
+            $.ajax({
+                url: `${API_BASE}/settings/moodle`,
                 method: 'DELETE',
                 headers: getHeaders(),
                 success: (data) => resolve(typeof data === 'string' ? JSON.parse(data || '{}') : data),

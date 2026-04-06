@@ -6,6 +6,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.FileProviders;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using SmartStudy.DAL;
 using SmartStudy.Data;
 using SmartStudy.Services;
 
@@ -15,6 +16,10 @@ var builder = WebApplication.CreateBuilder(args);
 var connectionString = builder.Configuration.GetConnectionString("SmartStudyDb");
 builder.Services.AddDbContext<SmartStudyDbContext>(options =>
     options.UseSqlServer(connectionString));
+
+// ADO.NET DAL (stored procedures)
+builder.Services.AddSingleton<SqlHelper>();
+builder.Services.AddScoped<DBservices>();
 
 // JWT Authentication
 var jwtKey = builder.Configuration["Jwt:Key"] ?? "SmartStudySuperSecretKey2026ForJwtTokenGeneration!";
@@ -46,8 +51,11 @@ builder.Services.AddScoped<GoogleCalendarService>();
 builder.Services.AddScoped<EmailService>();
 builder.Services.AddScoped<RuppinetApiClient>();
 builder.Services.AddScoped<RuppinetSyncService>();
+builder.Services.AddScoped<MoodleApiClient>();
+builder.Services.AddScoped<MoodleSyncService>();
 builder.Services.AddHostedService<NotificationBackgroundService>();
 builder.Services.AddHostedService<RuppinetBackgroundSyncService>();
+builder.Services.AddHostedService<MoodleBackgroundSyncService>();
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
@@ -92,6 +100,7 @@ using (var scope = app.Services.CreateScope())
         // Drop all SmartStudy tables and recreate with correct schema
         using var dropCmd = conn.CreateCommand();
         dropCmd.CommandText = @"
+            IF OBJECT_ID('SmartStudy_Notifications','U') IS NOT NULL DROP TABLE SmartStudy_Notifications;
             IF OBJECT_ID('SmartStudy_SharedTaskMembers','U') IS NOT NULL DROP TABLE SmartStudy_SharedTaskMembers;
             IF OBJECT_ID('SmartStudy_SharedTasks','U') IS NOT NULL DROP TABLE SmartStudy_SharedTasks;
             IF OBJECT_ID('SmartStudy_Friendships','U') IS NOT NULL DROP TABLE SmartStudy_Friendships;
@@ -421,6 +430,20 @@ using (var scope = app.Services.CreateScope())
         ruppinetCmd.ExecuteNonQuery();
     }
 
+    // Moodle integration fields
+    using (var moodleCmd = conn.CreateCommand())
+    {
+        moodleCmd.CommandText = @"
+            IF COL_LENGTH('SmartStudy_Users', 'MoodleToken') IS NULL
+                ALTER TABLE SmartStudy_Users ADD MoodleToken NVARCHAR(500) NULL;
+            IF COL_LENGTH('SmartStudy_Users', 'LastMoodleSync') IS NULL
+                ALTER TABLE SmartStudy_Users ADD LastMoodleSync DATETIME2 NULL;
+            IF COL_LENGTH('SmartStudy_Tasks', 'MoodleId') IS NULL
+                ALTER TABLE SmartStudy_Tasks ADD MoodleId NVARCHAR(100) NULL;
+        ";
+        moodleCmd.ExecuteNonQuery();
+    }
+
     conn.Close();
 }
 
@@ -432,7 +455,7 @@ if (app.Environment.IsDevelopment())
 
 app.UseCors();
 
-// Serve frontend static files from Front/ directory (dev: ../../Front, prod: ./Front)
+// Serve frontend static files from Front/ directory (dev only, prod uses separate IIS app)
 var frontPath = Path.GetFullPath(Path.Combine(builder.Environment.ContentRootPath, "..", "..", "Front"));
 if (!Directory.Exists(frontPath))
     frontPath = Path.Combine(builder.Environment.ContentRootPath, "Front");
@@ -445,7 +468,6 @@ if (Directory.Exists(frontPath))
         RequestPath = ""
     });
 
-    // Redirect root to login page
     app.MapGet("/", () => Results.Redirect("Pages/Login.html"));
 }
 

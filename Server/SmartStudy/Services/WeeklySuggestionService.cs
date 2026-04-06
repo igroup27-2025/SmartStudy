@@ -1,17 +1,16 @@
-using Microsoft.EntityFrameworkCore;
-using SmartStudy.Data;
+using SmartStudy.DAL;
 using SmartStudy.DTOs;
 
 namespace SmartStudy.Services;
 
 public class WeeklySuggestionService
 {
-    private readonly SmartStudyDbContext _db;
+    private readonly DBservices _dal;
     private readonly StressService _stressService;
 
-    public WeeklySuggestionService(SmartStudyDbContext db, StressService stressService)
+    public WeeklySuggestionService(DBservices dal, StressService stressService)
     {
-        _db = db;
+        _dal = dal;
         _stressService = stressService;
     }
 
@@ -21,24 +20,18 @@ public class WeeklySuggestionService
         var weekEnd = now.Date.AddDays(7);
         var result = new WeeklySuggestionsDto();
 
-        // Get upcoming tasks
-        var tasks = await _db.Tasks
-            .Include(t => t.Course)
-            .Include(t => t.SubTasks)
-            .Where(t => t.Email == email && !t.IsCompleted && t.DueDate.HasValue && t.DueDate <= weekEnd.AddDays(7))
+        // Get upcoming incomplete leaf tasks (with course info)
+        var allTasks = await _dal.GetIncompleteLeafTasksAsync(email);
+        var tasks = allTasks
+            .Where(t => t.DueDate.HasValue && t.DueDate <= weekEnd.AddDays(7))
             .OrderBy(t => t.DueDate)
-            .ToListAsync();
+            .ToList();
 
-        // Only count leaf tasks
-        var leafTasks = tasks.Where(t => !t.SubTasks.Any()).ToList();
-
-        var totalHoursNeeded = leafTasks.Sum(t => (double)(t.EstimatedHours ?? 1));
+        var totalHoursNeeded = tasks.Sum(t => (double)(t.EstimatedHours ?? 1));
         result.TotalStudyHoursNeeded = Math.Round(totalHoursNeeded, 1);
 
-        // Calculate available study hours (8 hours/day * 7 days, minus events)
-        var events = await _db.Events
-            .Where(e => e.Email == email && e.From >= now.Date && e.From < weekEnd)
-            .ToListAsync();
+        // Calculate available study hours (14 usable hours/day minus events)
+        var events = await _dal.GetEventsInDateRangeAsync(email, now.Date, weekEnd);
         var busyHours = events.Sum(e => (e.To - e.From).TotalHours);
         var totalDayHours = 7 * 14.0; // 14 usable hours per day (8AM-10PM)
         result.AvailableStudyHours = Math.Round(Math.Max(0, totalDayHours - busyHours), 1);
@@ -59,7 +52,7 @@ public class WeeklySuggestionService
         }
 
         // Check for overloaded days
-        var tasksByDay = leafTasks
+        var tasksByDay = tasks
             .Where(t => t.DueDate.HasValue && t.DueDate.Value.Date >= now.Date && t.DueDate.Value.Date < weekEnd)
             .GroupBy(t => t.DueDate!.Value.Date)
             .Where(g => g.Sum(t => (double)(t.EstimatedHours ?? 1)) > 6)
@@ -100,7 +93,7 @@ public class WeeklySuggestionService
         }
 
         // Upcoming deadline warning
-        var urgentTasks = leafTasks.Where(t => t.DueDate.HasValue && (t.DueDate.Value - now).TotalHours <= 48).ToList();
+        var urgentTasks = tasks.Where(t => t.DueDate.HasValue && (t.DueDate.Value - now).TotalHours <= 48).ToList();
         if (urgentTasks.Any())
         {
             result.Suggestions.Add(new SuggestionDto
@@ -113,7 +106,7 @@ public class WeeklySuggestionService
         }
 
         // Top 3 focus tasks (highest priority, soonest deadline)
-        result.FocusTasks = leafTasks
+        result.FocusTasks = tasks
             .Where(t => t.DueDate.HasValue && t.DueDate > now)
             .OrderBy(t => t.DueDate)
             .ThenByDescending(t => t.Priority == "High" ? 3 : t.Priority == "Medium" ? 2 : 1)
@@ -122,7 +115,7 @@ public class WeeklySuggestionService
             {
                 TaskId = t.TaskId,
                 Title = t.Title,
-                CourseName = t.Course?.CourseName ?? "",
+                CourseName = t.CourseName,
                 HoursNeeded = (double)(t.EstimatedHours ?? 1),
                 DaysUntilDue = Math.Max(0, (int)(t.DueDate!.Value.Date - now.Date).TotalDays),
                 Priority = t.Priority

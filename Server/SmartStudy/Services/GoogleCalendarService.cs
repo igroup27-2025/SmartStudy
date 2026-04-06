@@ -1,19 +1,17 @@
 using System.Text.Json;
-using Microsoft.EntityFrameworkCore;
-using SmartStudy.Data;
-using SmartStudy.Models;
+using SmartStudy.DAL;
 
 namespace SmartStudy.Services;
 
 public class GoogleCalendarService
 {
-    private readonly SmartStudyDbContext _db;
+    private readonly DBservices _dal;
     private readonly IConfiguration _config;
     private readonly ComposioService _composio;
 
-    public GoogleCalendarService(SmartStudyDbContext db, IConfiguration config, ComposioService composio)
+    public GoogleCalendarService(DBservices dal, IConfiguration config, ComposioService composio)
     {
-        _db = db;
+        _dal = dal;
         _config = config;
         _composio = composio;
     }
@@ -55,40 +53,22 @@ public class GoogleCalendarService
 
             foreach (var evt in events)
             {
-                var existing = await _db.PersonalEvents
-                    .FirstOrDefaultAsync(pe => pe.Email == email && pe.Description != null &&
-                                               pe.Description.Contains($"[gcal:{evt.GoogleId}]"));
+                var existing = await _dal.FindPersonalEventByGcalIdAsync(email, $"[gcal:{evt.GoogleId}]");
 
                 if (existing != null)
                 {
-                    existing.From = evt.From;
-                    existing.To = evt.To;
+                    await _dal.UpdateEventTimesAsync(existing.EventId, evt.From, evt.To);
                     result.UpdatedCount++;
                 }
                 else
                 {
-                    var personalEvent = new PersonalEvent
-                    {
-                        Email = email,
-                        From = evt.From,
-                        To = evt.To,
-                        Recurring = false,
-                        Type = "Google Calendar",
-                        Description = $"{evt.Summary} [gcal:{evt.GoogleId}]"
-                    };
-                    _db.PersonalEvents.Add(personalEvent);
+                    await _dal.CreatePersonalEventAsync(email, evt.From, evt.To, false, null,
+                        "Google Calendar", $"{evt.Summary} [gcal:{evt.GoogleId}]");
                     result.CreatedCount++;
                 }
             }
 
-            await _db.SaveChangesAsync();
-
-            var user = await _db.Users.FindAsync(email);
-            if (user != null)
-            {
-                user.LastCalendarSync = DateTime.UtcNow;
-                await _db.SaveChangesAsync();
-            }
+            await _dal.UpdateLastCalendarSyncAsync(email, DateTime.UtcNow);
 
             result.Success = true;
             result.Message = $"Synced {result.CreatedCount} new, {result.UpdatedCount} updated events";
@@ -160,41 +140,22 @@ public class GoogleCalendarService
 
                 var googleId = item.GetProperty("id").GetString();
 
-                var existing = await _db.PersonalEvents
-                    .FirstOrDefaultAsync(pe => pe.Email == email && pe.Description != null &&
-                                               pe.Description.Contains($"[gcal:{googleId}]"));
+                var existing = await _dal.FindPersonalEventByGcalIdAsync(email, $"[gcal:{googleId}]");
 
                 if (existing != null)
                 {
-                    existing.From = eventFrom;
-                    existing.To = eventTo;
+                    await _dal.UpdateEventTimesAsync(existing.EventId, eventFrom, eventTo);
                     result.UpdatedCount++;
                 }
                 else
                 {
-                    var evt = new PersonalEvent
-                    {
-                        Email = email,
-                        From = eventFrom,
-                        To = eventTo,
-                        Recurring = false,
-                        Type = "Google Calendar",
-                        Description = $"{summary} [gcal:{googleId}]"
-                    };
-                    _db.PersonalEvents.Add(evt);
+                    await _dal.CreatePersonalEventAsync(email, eventFrom, eventTo, false, null,
+                        "Google Calendar", $"{summary} [gcal:{googleId}]");
                     result.CreatedCount++;
                 }
             }
 
-            await _db.SaveChangesAsync();
-
-            var user = await _db.Users.FindAsync(email);
-            if (user != null)
-            {
-                user.GoogleCalendarAccessToken = accessToken;
-                user.LastCalendarSync = DateTime.UtcNow;
-                await _db.SaveChangesAsync();
-            }
+            await _dal.UpdateGoogleTokenAsync(email, accessToken, DateTime.UtcNow);
 
             result.Success = true;
             result.Message = $"Synced {result.CreatedCount} new, {result.UpdatedCount} updated events";

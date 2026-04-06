@@ -308,6 +308,10 @@ async function loadIntegrations() {
     // Ruppinet integration
     loadRuppinetStatus();
     setupRuppinetListeners();
+
+    // Moodle integration
+    loadMoodleStatus();
+    setupMoodleListeners();
 }
 
 // Legacy: connect via Google Identity Services (when Composio is disabled)
@@ -493,6 +497,99 @@ function showRuppinetError(errorCode, fallbackMessage) {
         API_ERROR: 'Ruppinet server error. Please try again later.',
     };
     showToast(messages[errorCode] || fallbackMessage || 'Sync failed', 'error');
+}
+
+// ── Moodle Integration ──────────────────────────────────
+
+async function loadMoodleStatus() {
+    const statusEl = document.getElementById('moodleStatus');
+    const notAvailable = document.getElementById('moodleNotAvailable');
+    const connectedActions = document.getElementById('moodleConnectedActions');
+    if (!statusEl) return;
+
+    try {
+        const status = await api.getMoodleStatus();
+        if (status && status.isAvailable) {
+            const lastSyncText = status.lastSync
+                ? `Last sync: ${new Date(status.lastSync).toLocaleString()}`
+                : 'Never synced';
+            statusEl.textContent = `Available — ${lastSyncText}`;
+            if (notAvailable) notAvailable.style.display = 'none';
+            if (connectedActions) connectedActions.style.display = 'flex';
+        } else {
+            statusEl.textContent = 'Connect Ruppinet to enable Moodle sync';
+            if (notAvailable) notAvailable.style.display = '';
+            if (connectedActions) connectedActions.style.display = 'none';
+        }
+    } catch {
+        statusEl.textContent = 'Unable to check Moodle status';
+        if (notAvailable) notAvailable.style.display = '';
+        if (connectedActions) connectedActions.style.display = 'none';
+    }
+}
+
+function setupMoodleListeners() {
+    const syncBtn = document.getElementById('moodleSyncBtn');
+    const disconnectBtn = document.getElementById('moodleDisconnectBtn');
+
+    if (syncBtn) {
+        syncBtn.addEventListener('click', async () => {
+            syncBtn.disabled = true;
+            syncBtn.textContent = 'Syncing assignments...';
+            try {
+                const stages = ['Syncing assignments...', 'Syncing quizzes...', 'Matching courses...'];
+                let stageIdx = 0;
+                const stageTimer = setInterval(() => {
+                    stageIdx++;
+                    if (stageIdx < stages.length) syncBtn.textContent = stages[stageIdx];
+                }, 2500);
+
+                const result = await api.syncMoodle();
+                clearInterval(stageTimer);
+
+                if (result.errorCode) {
+                    showMoodleError(result.errorCode, result.message);
+                } else {
+                    const parts = [];
+                    if (result.tasksCreated) parts.push(`${result.tasksCreated} new tasks`);
+                    if (result.tasksUpdated) parts.push(`${result.tasksUpdated} updated`);
+                    if (result.coursesCreated) parts.push(`${result.coursesCreated} new courses`);
+                    showToast(parts.length ? `Moodle synced: ${parts.join(', ')}` : 'Everything up to date');
+                }
+                loadMoodleStatus();
+            } catch (err) {
+                showMoodleError(null, err.message || 'Moodle sync failed');
+            } finally {
+                syncBtn.disabled = false;
+                syncBtn.textContent = 'Sync Assignments';
+            }
+        });
+    }
+
+    if (disconnectBtn) {
+        disconnectBtn.addEventListener('click', async () => {
+            if (!confirm('Disconnect Moodle? Your synced tasks will remain.')) return;
+            try {
+                await api.disconnectMoodle();
+                showToast('Moodle disconnected');
+                loadMoodleStatus();
+            } catch (err) {
+                showToast(err.message || 'Failed to disconnect', 'error');
+            }
+        });
+    }
+}
+
+function showMoodleError(errorCode, fallbackMessage) {
+    const messages = {
+        AUTH_FAILED: 'Moodle authentication failed. Your Ruppinet credentials may not work with Moodle.',
+        DECRYPT_FAILED: 'Failed to decrypt credentials. Please disconnect and reconnect your Ruppinet account.',
+        TOKEN_EXPIRED: 'Moodle session expired. Please try again.',
+        SERVICE_UNAVAILABLE: 'Moodle server is temporarily unavailable. Please try again later.',
+        NOT_CONNECTED: 'Connect Ruppinet first to enable Moodle sync.',
+        API_ERROR: 'Moodle sync error. Please try again later.',
+    };
+    showToast(messages[errorCode] || fallbackMessage || 'Moodle sync failed', 'error');
 }
 
 // Legacy: sync via Google Identity Services

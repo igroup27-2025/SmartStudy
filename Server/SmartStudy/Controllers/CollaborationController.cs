@@ -1,9 +1,7 @@
 using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
-using SmartStudy.Data;
-using SmartStudy.Models;
+using SmartStudy.DAL;
 using SmartStudy.Services;
 
 namespace SmartStudy.Controllers;
@@ -13,11 +11,11 @@ namespace SmartStudy.Controllers;
 [Authorize]
 public class CollaborationController : ControllerBase
 {
-    private readonly SmartStudyDbContext _db;
+    private readonly DBservices _db;
     private readonly SafeZoneService _safeZoneService;
     private readonly SchedulingService _scheduling;
 
-    public CollaborationController(SmartStudyDbContext db, SafeZoneService safeZoneService, SchedulingService scheduling)
+    public CollaborationController(DBservices db, SafeZoneService safeZoneService, SchedulingService scheduling)
     {
         _db = db;
         _safeZoneService = safeZoneService;
@@ -34,11 +32,7 @@ public class CollaborationController : ControllerBase
     {
         var email = GetEmail();
 
-        var friendship = await _db.Friendships
-            .FirstOrDefaultAsync(f => f.FriendshipId == connectionId &&
-                (f.Email1 == email || f.Email2 == email) &&
-                f.IsActive);
-
+        var friendship = await _db.GetFriendshipForUserAsync(connectionId, email);
         if (friendship == null)
             return NotFound(new { message = "Friendship not found or not active" });
 
@@ -59,69 +53,50 @@ public class CollaborationController : ControllerBase
     {
         var email = GetEmail();
 
-        var userCourse = await _db.UserCourses.FirstOrDefaultAsync(
-            uc => uc.Email == email && uc.CourseId == courseId);
+        var userCourse = await _db.GetUserCourseAsync(email, courseId);
         if (userCourse == null)
             return NotFound(new { message = "Course enrollment not found" });
 
-        userCourse.CourseShareApproved = true;
-        await _db.SaveChangesAsync();
+        await _db.SetCourseShareApprovedAsync(email, courseId);
 
-        // Auto-accept all pending shared tasks for this course
-        var pendingMembers = await _db.SharedTaskMembers
-            .Include(m => m.SharedTask)
-            .ThenInclude(st => st.Task)
-            .Where(m => m.Email == email && m.ResponseStatus == "Pending"
-                && m.SharedTask.Task.CourseId == courseId)
-            .ToListAsync();
+        // Get pending shared task members for this course
+        var pendingMembers = await _db.GetPendingMembersForCourseAsync(email, courseId);
 
         int accepted = 0;
         var confirmedTasks = new List<(int TaskId, string CreatorEmail)>();
+
         foreach (var member in pendingMembers)
         {
-            member.ResponseStatus = "Accepted";
-            member.RespondedAt = DateTime.UtcNow;
+            // Accept the member
+            await _db.UpdateSharedTaskMemberStatusAsync(member.TaskId, email, "Accepted");
 
-            var allMembers = await _db.SharedTaskMembers
-                .Where(m => m.TaskId == member.TaskId)
-                .ToListAsync();
-            if (allMembers.All(m => m.ResponseStatus == "Accepted"))
+            // Check if all members now accepted
+            var allAccepted = await _db.AllSharedTaskMembersAcceptedAsync(member.TaskId);
+            if (allAccepted)
             {
-                member.SharedTask.SharedStatus = "Confirmed";
-                confirmedTasks.Add((member.TaskId, member.SharedTask.CreatedByEmail));
+                await _db.UpdateSharedTaskStatusAsync(member.TaskId, "Confirmed");
+                confirmedTasks.Add((member.TaskId, member.CreatedByEmail));
             }
             accepted++;
         }
 
-        await _db.SaveChangesAsync();
-
         // Create task copies and schedule with common time for each confirmed shared task
         foreach (var (taskId, creatorEmail) in confirmedTasks)
         {
-            var task = await _db.Tasks.Include(t => t.Course)
-                .FirstOrDefaultAsync(t => t.TaskId == taskId);
+            var task = await _db.GetTaskByIdAsync(taskId);
             if (task == null) continue;
 
-            var existingCopy = await _db.Tasks
-                .FirstOrDefaultAsync(t => t.Email == email && t.Title == task.Title
-                    && t.CourseId == task.CourseId && t.DueDate == task.DueDate);
+            // Check if accepting user already has a copy
+            var userTasks = await _db.GetTasksByUserAsync(email, task.CourseId);
+            var existingCopy = userTasks.FirstOrDefault(t =>
+                t.Title == task.Title && t.CourseId == task.CourseId && t.DueDate == task.DueDate);
 
             if (existingCopy == null)
             {
-                var taskCopy = new StudentTask
-                {
-                    CourseId = task.CourseId,
-                    Title = task.Title,
-                    Type = task.Type,
-                    EstimatedHours = task.EstimatedHours,
-                    DueDate = task.DueDate,
-                    Priority = task.Priority,
-                    Email = email,
-                    IsCompleted = false,
-                    AllowSplitting = task.AllowSplitting
-                };
-                _db.Tasks.Add(taskCopy);
-                await _db.SaveChangesAsync();
+                await _db.CreateTaskAsync(
+                    task.CourseId, email, task.Title, task.Type,
+                    task.EstimatedHours, task.DueDate, null,
+                    task.AllowSplitting, task.Priority, task.IsManualPriority);
             }
 
             // Schedule all tasks first, then override shared task with common time

@@ -5502,6 +5502,53 @@ body[data-layout="onboarding"] {
   .onboarding-container { padding: var(--space-3); }
   .onboarding-external-item { flex-wrap: wrap; }
 
+  /* ---- Calendar event popup — full width on mobile ---- */
+  .cal-event-popup {
+    position: fixed;
+    top: auto;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    max-width: 100%;
+    min-width: 0;
+    border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+    z-index: 200;
+  }
+
+  /* ---- Calendar event detail modal — full width ---- */
+  .cal-event-detail-modal {
+    max-width: 100%;
+  }
+
+  .cal-event-detail-body {
+    padding: var(--space-3);
+  }
+
+  .cal-event-detail-footer {
+    padding: var(--space-2) var(--space-3);
+  }
+
+  .cal-event-detail-row {
+    flex-direction: column;
+    gap: var(--space-1);
+  }
+
+  .cal-event-detail-value {
+    text-align: left;
+  }
+
+  /* ---- Dashboard workload summary wraps ---- */
+  .dash-workload__summary {
+    flex-wrap: wrap;
+    gap: var(--space-2);
+  }
+
+  /* ---- Filter toggle full-width on mobile ---- */
+  .filter-toggle {
+    width: 100%;
+    justify-content: center;
+  }
+
 }
 
 /* Small mobile */
@@ -5643,6 +5690,154 @@ body[data-layout="onboarding"] {
   /* ---- Tasks filter bar ---- */
   .filter-bar { gap: var(--space-1); }
   .filter-bar .form-input-sm { font-size: var(--fs-xs); }
+
+  /* ---- Friend cards 480px ---- */
+  .friend-card {
+    padding: 6px;
+  }
+
+  .friend-card-avatar {
+    width: 32px;
+    height: 32px;
+    font-size: 10px;
+  }
+
+  .friend-card-name {
+    font-size: var(--fs-xs);
+  }
+
+  .friend-card-email,
+  .friend-card-date {
+    font-size: 10px;
+  }
+
+  .friend-card-header {
+    padding: 6px 6px 2px;
+  }
+
+  .friend-card-body {
+    padding: 0 6px 2px;
+  }
+
+  .friend-card-footer {
+    padding: 0 6px 6px;
+  }
+
+  .friend-card-footer-buttons {
+    flex-direction: column;
+    gap: var(--space-1);
+  }
+
+  .friend-card-footer-buttons .btn {
+    font-size: var(--fs-xs);
+    padding: var(--space-1) var(--space-2);
+    width: 100%;
+  }
+
+  /* ---- Friend request cards 480px ---- */
+  .friend-request-card {
+    padding: var(--space-2);
+    gap: var(--space-2);
+  }
+
+  .friend-request-avatar {
+    width: 32px;
+    height: 32px;
+    font-size: 10px;
+  }
+
+  .friend-request-actions .btn {
+    font-size: var(--fs-xs);
+    padding: var(--space-1) var(--space-2);
+  }
+
+  /* ---- Shared task cards 480px ---- */
+  .shared-task-card {
+    padding: var(--space-2);
+    gap: var(--space-2);
+  }
+
+  .shared-task-card__actions .btn {
+    font-size: var(--fs-xs);
+    padding: var(--space-1) var(--space-2);
+  }
+
+  /* ---- Calendar — increase min font for readability ---- */
+  .cal-day-name {
+    font-size: 9px;
+  }
+
+  .cal-time-label {
+    font-size: 10px;
+  }
+
+  .cal-month-header span {
+    font-size: 9px;
+  }
+
+  /* ---- Settings section tighter on small screens ---- */
+  .settings-section {
+    padding: var(--space-3);
+  }
+
+  .settings-section-title {
+    font-size: var(--fs-base);
+  }
+
+  /* ---- Relocation cards stack actions ---- */
+  .relocation-card {
+    flex-direction: column;
+  }
+
+  .relocation-card__actions {
+    width: 100%;
+    gap: var(--space-2);
+  }
+
+  /* ---- Filter panel stack on small phones ---- */
+  .filter-panel {
+    flex-direction: column;
+    gap: var(--space-2);
+    padding: var(--space-2);
+  }
+
+  /* ---- Login card tighter ---- */
+  .login-card {
+    padding: var(--space-3);
+  }
+
+  /* ---- Onboarding tighter ---- */
+  .onboarding-card {
+    padding: var(--space-3);
+  }
+
+  /* ---- Modal footer buttons full width on small phones ---- */
+  .modal-footer .btn {
+    width: 100%;
+    text-align: center;
+  }
+
+  /* ---- Notification dropdown full width ---- */
+  .notif-dropdown {
+    width: calc(100vw - 16px);
+    max-width: none;
+    right: -4px;
+  }
+
+  /* ---- Stress meter smaller ---- */
+  .stress-meter-circle {
+    width: 120px;
+    height: 120px;
+  }
+
+  .stress-meter {
+    padding: var(--space-4);
+  }
+
+  /* ---- Dashboard suggestion card ---- */
+  .dash-suggestion__card {
+    flex-direction: column;
+  }
 }
 
 

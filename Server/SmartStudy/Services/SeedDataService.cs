@@ -15,7 +15,8 @@ public static class SeedDataService
             Email = "demo@smartstudy.com",
             FirstName = "Or",
             LastName = "Cohen",
-            Password = BCryptSimple("Demo123")
+            Password = BCryptSimple("Demo123"),
+            RuppinetId = "315715797"
         };
         var user2 = new User
         {
@@ -56,118 +57,18 @@ public static class SeedDataService
             new NotificationSettings { Email = user5.Email }
         );
 
-        // === Instructors ===
-        var inst1 = new Instructor { InstructorName = "Dr. Sarah Miller" };
-        var inst2 = new Instructor { InstructorName = "Prof. David Chen" };
-        var inst3 = new Instructor { InstructorName = "Dr. Rachel Green" };
-        db.Instructors.AddRange(inst1, inst2, inst3);
-        db.SaveChanges(); // Save to get auto-generated InstructorIds
-
-        // === Courses ===
-        var courses = new[]
-        {
-            new Course { CourseId = 1, CourseName = "Introduction to Computer Science", WeeklyHours = 4, Credits = 3, Semester = "2025B", InstructorId = inst1.InstructorId },
-            new Course { CourseId = 2, CourseName = "Data Structures & Algorithms", WeeklyHours = 5, Credits = 4, Semester = "2025B", InstructorId = inst2.InstructorId },
-            new Course { CourseId = 3, CourseName = "Linear Algebra", WeeklyHours = 3, Credits = 3, Semester = "2025B", InstructorId = inst3.InstructorId },
-            new Course { CourseId = 4, CourseName = "Probability & Statistics", WeeklyHours = 3, Credits = 3, Semester = "2025B", InstructorId = inst1.InstructorId },
-            new Course { CourseId = 5, CourseName = "Web Development", WeeklyHours = 4, Credits = 3, Semester = "2025B", InstructorId = inst2.InstructorId }
-        };
-        db.Courses.AddRange(courses);
-
-        // === UserCourses ===
-        foreach (var c in courses)
-        {
-            db.UserCourses.Add(new UserCourse { Email = user1.Email, CourseId = c.CourseId });
-        }
-        db.UserCourses.AddRange(
-            new UserCourse { Email = user2.Email, CourseId = courses[0].CourseId },
-            new UserCourse { Email = user2.Email, CourseId = courses[1].CourseId },
-            new UserCourse { Email = user2.Email, CourseId = courses[2].CourseId }
-        );
-
-        // === Exams ===
-        db.Exams.AddRange(
-            new Exam { CourseId = 1, Date = new DateTime(2026, 2, 20), Time = new TimeSpan(9, 0, 0), Session = "A", Duration = 120 },
-            new Exam { CourseId = 1, Date = new DateTime(2026, 3, 15), Time = new TimeSpan(9, 0, 0), Session = "A", Duration = 180 },
-            new Exam { CourseId = 2, Date = new DateTime(2026, 2, 25), Time = new TimeSpan(14, 0, 0), Session = "B", Duration = 150 },
-            new Exam { CourseId = 3, Date = new DateTime(2026, 3, 10), Time = new TimeSpan(10, 0, 0), Session = "A", Duration = 120 },
-            new Exam { CourseId = 4, Date = new DateTime(2026, 2, 28), Time = new TimeSpan(11, 0, 0), Session = "A", Duration = 90 },
-            new Exam { CourseId = 5, Date = new DateTime(2026, 3, 20), Time = new TimeSpan(14, 0, 0), Session = "B", Duration = 120 }
-        );
-
-        // === Tasks ===
-        var tasks = new[]
-        {
-            // CS Intro tasks
-            new StudentTask { CourseId = 1, Title = "Homework 1 - Variables & Loops", Type = "Homework", EstimatedHours = 3, DueDate = new DateTime(2026, 2, 5), IsCompleted = true, Priority = "Medium", Email = user1.Email },
-            new StudentTask { CourseId = 1, Title = "Homework 2 - Functions & Arrays", Type = "Homework", EstimatedHours = 4, DueDate = new DateTime(2026, 2, 15), IsCompleted = false, Priority = "High", Email = user1.Email },
-            new StudentTask { CourseId = 1, Title = "Project Proposal", Type = "Project", EstimatedHours = 6, DueDate = new DateTime(2026, 2, 18), IsCompleted = false, Priority = "High", Email = user1.Email },
-
-            // Data Structures tasks
-            new StudentTask { CourseId = 2, Title = "Lab 1 - Linked Lists", Type = "Lab", EstimatedHours = 2, DueDate = new DateTime(2026, 2, 3), IsCompleted = true, Priority = "Medium", Email = user1.Email },
-            new StudentTask { CourseId = 2, Title = "Lab 2 - Binary Trees", Type = "Lab", EstimatedHours = 3, DueDate = new DateTime(2026, 2, 14), IsCompleted = false, Priority = "High", Email = user1.Email },
-            new StudentTask { CourseId = 2, Title = "Assignment 1 - Sorting Algorithms", Type = "Assignment", EstimatedHours = 8, DueDate = new DateTime(2026, 2, 22), IsCompleted = false, Priority = "High", Email = user1.Email },
-
-            // Linear Algebra tasks
-            new StudentTask { CourseId = 3, Title = "Problem Set 1 - Matrices", Type = "Homework", EstimatedHours = 2, DueDate = new DateTime(2026, 2, 1), IsCompleted = true, Priority = "Low", Email = user1.Email },
-            new StudentTask { CourseId = 3, Title = "Problem Set 2 - Eigenvalues", Type = "Homework", EstimatedHours = 4, DueDate = new DateTime(2026, 2, 16), IsCompleted = false, Priority = "Medium", Email = user1.Email },
-
-            // Web Dev tasks
-            new StudentTask { CourseId = 5, Title = "HTML/CSS Assignment", Type = "Assignment", EstimatedHours = 3, DueDate = new DateTime(2026, 2, 2), IsCompleted = true, Priority = "Low", Email = user1.Email },
-            new StudentTask { CourseId = 5, Title = "JavaScript Project", Type = "Project", EstimatedHours = 10, DueDate = new DateTime(2026, 2, 20), IsCompleted = false, Priority = "High", Email = user1.Email },
-            new StudentTask { CourseId = 5, Title = "Final Project - Full Stack App", Type = "Project", EstimatedHours = 20, DueDate = new DateTime(2026, 3, 15), IsCompleted = false, Priority = "High", Email = user1.Email },
-
-            // Probability tasks
-            new StudentTask { CourseId = 4, Title = "Exercise 1 - Basic Probability", Type = "Homework", EstimatedHours = 2, DueDate = new DateTime(2026, 2, 12), IsCompleted = false, Priority = "Medium", Email = user1.Email },
-            new StudentTask { CourseId = 4, Title = "Exercise 2 - Distributions", Type = "Homework", EstimatedHours = 3, DueDate = new DateTime(2026, 2, 19), IsCompleted = false, Priority = "Medium", Email = user1.Email },
-
-            // User2 tasks
-            new StudentTask { CourseId = 1, Title = "Homework 1 - Variables", Type = "Homework", EstimatedHours = 3, DueDate = new DateTime(2026, 2, 10), IsCompleted = false, Priority = "High", Email = user2.Email },
-            new StudentTask { CourseId = 2, Title = "Lab 1 - Stacks", Type = "Lab", EstimatedHours = 2, DueDate = new DateTime(2026, 2, 12), IsCompleted = false, Priority = "Medium", Email = user2.Email }
-        };
-        db.Tasks.AddRange(tasks);
-
         db.SaveChanges();
 
-        // === Events (need IDs from SaveChanges) ===
+        // === Events ===
+        // Class events, exams, and courses come from Ruppinet sync — no seed data needed for those.
+        // Tasks are also created after sync via SeedTasksForSyncedCourses.
         var now = DateTime.Now;
         var monday = now.Date.AddDays(-(int)now.DayOfWeek + 1);
-
-        // Class events for demo user
-        var classEvents = new[]
-        {
-            // CS Intro: Mon/Wed 9:00-10:30
-            new ClassEvent { Email = user1.Email, From = monday.AddHours(9), To = monday.AddHours(10.5), Recurring = true, CourseId = 1, Location = "Room 101", Duration = 1.5m },
-            new ClassEvent { Email = user1.Email, From = monday.AddDays(2).AddHours(9), To = monday.AddDays(2).AddHours(10.5), Recurring = true, CourseId = 1, Location = "Room 101", Duration = 1.5m },
-
-            // Data Structures: Tue/Thu 11:00-12:30
-            new ClassEvent { Email = user1.Email, From = monday.AddDays(1).AddHours(11), To = monday.AddDays(1).AddHours(12.5), Recurring = true, CourseId = 2, Location = "Room 205", Duration = 1.5m },
-            new ClassEvent { Email = user1.Email, From = monday.AddDays(3).AddHours(11), To = monday.AddDays(3).AddHours(12.5), Recurring = true, CourseId = 2, Location = "Room 205", Duration = 1.5m },
-
-            // Linear Algebra: Mon/Wed 14:00-15:30
-            new ClassEvent { Email = user1.Email, From = monday.AddHours(14), To = monday.AddHours(15.5), Recurring = true, CourseId = 3, Location = "Room 303", Duration = 1.5m },
-            new ClassEvent { Email = user1.Email, From = monday.AddDays(2).AddHours(14), To = monday.AddDays(2).AddHours(15.5), Recurring = true, CourseId = 3, Location = "Room 303", Duration = 1.5m },
-
-            // Web Dev: Fri 10:00-13:00
-            new ClassEvent { Email = user1.Email, From = monday.AddDays(4).AddHours(10), To = monday.AddDays(4).AddHours(13), Recurring = true, CourseId = 5, Location = "Lab 401", Duration = 3.0m },
-
-            // Probability: Tue/Thu 14:00-15:30
-            new ClassEvent { Email = user1.Email, From = monday.AddDays(1).AddHours(14), To = monday.AddDays(1).AddHours(15.5), Recurring = true, CourseId = 4, Location = "Room 102", Duration = 1.5m },
-            new ClassEvent { Email = user1.Email, From = monday.AddDays(3).AddHours(14), To = monday.AddDays(3).AddHours(15.5), Recurring = true, CourseId = 4, Location = "Room 102", Duration = 1.5m },
-        };
-        db.ClassEvents.AddRange(classEvents);
 
         // Work events
         db.WorkEvents.AddRange(
             new WorkEvent { Email = user1.Email, From = monday.AddDays(5).AddHours(9), To = monday.AddDays(5).AddHours(17), Recurring = true, TravelTime = 30, WorkPlace = "Tech Startup Inc." },
             new WorkEvent { Email = user1.Email, From = monday.AddDays(5).AddDays(7).AddHours(9), To = monday.AddDays(5).AddDays(7).AddHours(17), Recurring = true, TravelTime = 30, WorkPlace = "Tech Startup Inc." }
-        );
-
-        // Task events (calendar blocks for working on specific tasks)
-        db.TaskEvents.AddRange(
-            new TaskEvent { Email = user1.Email, From = monday.AddDays(1).AddHours(16), To = monday.AddDays(1).AddHours(18), Recurring = false, TaskId = tasks[1].TaskId, Priority = "High", Status = "Scheduled" },
-            new TaskEvent { Email = user1.Email, From = monday.AddDays(3).AddHours(16), To = monday.AddDays(3).AddHours(19), Recurring = false, TaskId = tasks[5].TaskId, Priority = "High", Status = "In Progress" },
-            new TaskEvent { Email = user1.Email, From = monday.AddDays(4).AddHours(14), To = monday.AddDays(4).AddHours(17), Recurring = false, TaskId = tasks[9].TaskId, Priority = "High", Status = "Scheduled" }
         );
 
         // Personal events
@@ -190,12 +91,119 @@ public static class SeedDataService
 
         // === Friendships (normalized pairs: Email1 < Email2 alphabetically) ===
         db.Friendships.AddRange(
-            new Friendship { Email1 = user1.Email, Email2 = user3.Email, CreatedAt = new DateTime(2026, 1, 15), IsActive = true },   // demo < sarah
-            new Friendship { Email1 = user4.Email, Email2 = user1.Email, CreatedAt = new DateTime(2026, 1, 22), IsActive = true },   // david < demo
-            new Friendship { Email1 = user3.Email, Email2 = user2.Email, CreatedAt = new DateTime(2026, 1, 20), IsActive = true }    // sarah < yuval
+            new Friendship { Email1 = user1.Email, Email2 = user3.Email, CreatedAt = new DateTime(2026, 1, 15), IsActive = true },
+            new Friendship { Email1 = user4.Email, Email2 = user1.Email, CreatedAt = new DateTime(2026, 1, 22), IsActive = true },
+            new Friendship { Email1 = user3.Email, Email2 = user2.Email, CreatedAt = new DateTime(2026, 1, 20), IsActive = true }
         );
 
         db.SaveChanges();
+    }
+
+    /// <summary>
+    /// Create demo tasks for Ruppinet-synced courses. Called after first sync for a user.
+    /// Only creates tasks if the user has no tasks yet.
+    /// </summary>
+    public static void SeedTasksForSyncedCourses(SmartStudyDbContext db, string email)
+    {
+        if (db.Tasks.Any(t => t.Email == email)) return;
+
+        var enrolledCourseIds = db.UserCourses
+            .Where(uc => uc.Email == email)
+            .Select(uc => uc.CourseId)
+            .ToHashSet();
+
+        var tasks = new List<StudentTask>();
+
+        // פיתוח מערכות מידע אינטרנטיות 2
+        if (enrolledCourseIds.Contains(129485))
+        {
+            tasks.AddRange(new[]
+            {
+                new StudentTask { CourseId = 129485, Title = "תרגיל 1 - REST API", Type = "Homework", EstimatedHours = 4, DueDate = new DateTime(2026, 4, 15), IsCompleted = true, Priority = "Medium", Email = email },
+                new StudentTask { CourseId = 129485, Title = "תרגיל 2 - React Components", Type = "Homework", EstimatedHours = 5, DueDate = new DateTime(2026, 4, 29), IsCompleted = false, Priority = "High", Email = email },
+                new StudentTask { CourseId = 129485, Title = "פרויקט אמצע - Full Stack App", Type = "Project", EstimatedHours = 15, DueDate = new DateTime(2026, 5, 20), IsCompleted = false, Priority = "High", Email = email },
+            });
+        }
+
+        // תקשורת נתונים ואבטחת מידע
+        if (enrolledCourseIds.Contains(128777))
+        {
+            tasks.AddRange(new[]
+            {
+                new StudentTask { CourseId = 128777, Title = "תרגיל 1 - פרוטוקולי תקשורת", Type = "Homework", EstimatedHours = 3, DueDate = new DateTime(2026, 4, 13), IsCompleted = true, Priority = "Medium", Email = email },
+                new StudentTask { CourseId = 128777, Title = "תרגיל 2 - הצפנה וחתימות דיגיטליות", Type = "Homework", EstimatedHours = 4, DueDate = new DateTime(2026, 5, 4), IsCompleted = false, Priority = "High", Email = email },
+                new StudentTask { CourseId = 128777, Title = "מעבדה - Wireshark Analysis", Type = "Lab", EstimatedHours = 3, DueDate = new DateTime(2026, 5, 11), IsCompleted = false, Priority = "Medium", Email = email },
+            });
+        }
+
+        // סוגיות יישומיות בלמידת מכונה
+        if (enrolledCourseIds.Contains(129729))
+        {
+            tasks.AddRange(new[]
+            {
+                new StudentTask { CourseId = 129729, Title = "תרגיל 1 - Linear Regression", Type = "Homework", EstimatedHours = 4, DueDate = new DateTime(2026, 4, 20), IsCompleted = true, Priority = "Medium", Email = email },
+                new StudentTask { CourseId = 129729, Title = "תרגיל 2 - Neural Networks", Type = "Homework", EstimatedHours = 6, DueDate = new DateTime(2026, 5, 8), IsCompleted = false, Priority = "High", Email = email },
+                new StudentTask { CourseId = 129729, Title = "פרויקט סופי - מודל ML", Type = "Project", EstimatedHours = 20, DueDate = new DateTime(2026, 6, 15), IsCompleted = false, Priority = "High", Email = email },
+            });
+        }
+
+        // אפיון ועיצוב ממשק משתמשים
+        if (enrolledCourseIds.Contains(129076))
+        {
+            tasks.AddRange(new[]
+            {
+                new StudentTask { CourseId = 129076, Title = "תרגיל 1 - User Research", Type = "Homework", EstimatedHours = 3, DueDate = new DateTime(2026, 4, 14), IsCompleted = true, Priority = "Low", Email = email },
+                new StudentTask { CourseId = 129076, Title = "תרגיל 2 - Wireframes & Prototyping", Type = "Homework", EstimatedHours = 5, DueDate = new DateTime(2026, 5, 1), IsCompleted = false, Priority = "Medium", Email = email },
+                new StudentTask { CourseId = 129076, Title = "פרויקט - UI Design System", Type = "Project", EstimatedHours = 12, DueDate = new DateTime(2026, 6, 1), IsCompleted = false, Priority = "High", Email = email },
+            });
+        }
+
+        // פרוייקט גמר 1
+        if (enrolledCourseIds.Contains(129149))
+        {
+            tasks.AddRange(new[]
+            {
+                new StudentTask { CourseId = 129149, Title = "הגשת הצעת פרויקט", Type = "Project", EstimatedHours = 8, DueDate = new DateTime(2026, 4, 10), IsCompleted = true, Priority = "High", Email = email },
+                new StudentTask { CourseId = 129149, Title = "Sprint 1 - Backend Core", Type = "Project", EstimatedHours = 20, DueDate = new DateTime(2026, 5, 15), IsCompleted = false, Priority = "High", Email = email },
+                new StudentTask { CourseId = 129149, Title = "Sprint 2 - Frontend Integration", Type = "Project", EstimatedHours = 20, DueDate = new DateTime(2026, 6, 10), IsCompleted = false, Priority = "High", Email = email },
+            });
+        }
+
+        // פרוייקט גמר 2
+        if (enrolledCourseIds.Contains(129138))
+        {
+            tasks.AddRange(new[]
+            {
+                new StudentTask { CourseId = 129138, Title = "Sprint 3 - Testing & Polish", Type = "Project", EstimatedHours = 15, DueDate = new DateTime(2026, 5, 20), IsCompleted = false, Priority = "High", Email = email },
+                new StudentTask { CourseId = 129138, Title = "הכנת מצגת סופית", Type = "Project", EstimatedHours = 6, DueDate = new DateTime(2026, 6, 20), IsCompleted = false, Priority = "Medium", Email = email },
+            });
+        }
+
+        // תעשייה 4.0
+        if (enrolledCourseIds.Contains(129712))
+        {
+            tasks.AddRange(new[]
+            {
+                new StudentTask { CourseId = 129712, Title = "סיכום מאמר - Industry 4.0", Type = "Homework", EstimatedHours = 3, DueDate = new DateTime(2026, 4, 22), IsCompleted = false, Priority = "Medium", Email = email },
+                new StudentTask { CourseId = 129712, Title = "עבודת סיכום - IoT & Smart Factory", Type = "Assignment", EstimatedHours = 8, DueDate = new DateTime(2026, 5, 25), IsCompleted = false, Priority = "Medium", Email = email },
+            });
+        }
+
+        // מיומנויות לעולם העבודה
+        if (enrolledCourseIds.Contains(130524))
+        {
+            tasks.AddRange(new[]
+            {
+                new StudentTask { CourseId = 130524, Title = "LinkedIn Profile Setup", Type = "Assignment", EstimatedHours = 2, DueDate = new DateTime(2026, 4, 18), IsCompleted = true, Priority = "Low", Email = email },
+                new StudentTask { CourseId = 130524, Title = "Presentation - Career Plan", Type = "Assignment", EstimatedHours = 4, DueDate = new DateTime(2026, 5, 10), IsCompleted = false, Priority = "Medium", Email = email },
+            });
+        }
+
+        if (tasks.Count > 0)
+        {
+            db.Tasks.AddRange(tasks);
+            db.SaveChanges();
+        }
     }
 
     private static string BCryptSimple(string password)
@@ -204,5 +212,23 @@ public static class SeedDataService
         using var sha = System.Security.Cryptography.SHA256.Create();
         var bytes = sha.ComputeHash(System.Text.Encoding.UTF8.GetBytes(password + "SmartStudySalt2026"));
         return Convert.ToBase64String(bytes);
+    }
+
+    private static string EncryptRuppinetPassword(string plainText)
+    {
+        var configKey = "SmartStudyRuppinetEncKey2026!aa";
+        using var shaKey = System.Security.Cryptography.SHA256.Create();
+        var key = shaKey.ComputeHash(System.Text.Encoding.UTF8.GetBytes(configKey));
+
+        using var aes = System.Security.Cryptography.Aes.Create();
+        aes.Key = key;
+        aes.GenerateIV();
+        using var encryptor = aes.CreateEncryptor();
+        var plainBytes = System.Text.Encoding.UTF8.GetBytes(plainText);
+        var cipherBytes = encryptor.TransformFinalBlock(plainBytes, 0, plainBytes.Length);
+        var result = new byte[aes.IV.Length + cipherBytes.Length];
+        Buffer.BlockCopy(aes.IV, 0, result, 0, aes.IV.Length);
+        Buffer.BlockCopy(cipherBytes, 0, result, aes.IV.Length, cipherBytes.Length);
+        return Convert.ToBase64String(result);
     }
 }

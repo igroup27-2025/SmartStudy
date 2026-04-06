@@ -24,6 +24,7 @@ public class TaskDto
     public bool IsShared { get; set; }
     public string? SharedStatus { get; set; }
     public string? SharedWithName { get; set; }
+    public string? SharedWithEmail { get; set; }
 
     // Scheduling fields
     public DateTime? ScheduledDate { get; set; }

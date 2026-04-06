@@ -1,5 +1,4 @@
-using Microsoft.EntityFrameworkCore;
-using SmartStudy.Data;
+using SmartStudy.DAL;
 using SmartStudy.DTOs;
 using SmartStudy.Models;
 
@@ -7,13 +6,13 @@ namespace SmartStudy.Services;
 
 public class SchedulingService
 {
-    private readonly SmartStudyDbContext _db;
+    private readonly DBservices _dal;
 
     private const int SlotMinutes = 30;
 
-    public SchedulingService(SmartStudyDbContext db)
+    public SchedulingService(DBservices dal)
     {
-        _db = db;
+        _dal = dal;
     }
 
     public async Task<SchedulingResultDto> ScheduleAllTasksAsync(string email)
@@ -22,7 +21,7 @@ public class SchedulingService
         var result = new SchedulingResultDto();
 
         // Load user preferences
-        var prefs = await _db.SchedulingPreferences.FindAsync(email);
+        var prefs = await _dal.GetSchedPrefsByEmailAsync(email);
         int dayStart = prefs?.DayStartHour ?? 8;
         int dayEnd = prefs?.DayEndHour ?? 22;
         double maxDailyStudy = prefs?.MaxDailyStudyHours ?? 6.0;
@@ -32,41 +31,25 @@ public class SchedulingService
         double examPrepHoursPerDay = prefs?.ExamPrepHoursPerDay ?? 5.0;
         int examPrepDays = prefs?.ExamPrepDays ?? 3;
 
-        // 1. Get all incomplete tasks with due dates (only leaf tasks - no parents with children)
-        var allTasks = await _db.Tasks
-            .Include(t => t.Course)
-            .Include(t => t.TaskEvents)
-            .Include(t => t.SubTasks)
-            .Include(t => t.SharedTask)
-            .Where(t => t.Email == email && !t.IsCompleted && t.DueDate.HasValue)
-            .ToListAsync();
-        var tasks = allTasks.Where(t => !t.SubTasks.Any()).ToList();
+        // 1. Get all incomplete leaf tasks with due dates
+        var allLeafTasks = await _dal.GetIncompleteLeafTasksAsync(email);
 
         // 2. Determine scheduling window
-        var maxDueDate = tasks.Any() ? tasks.Max(t => t.DueDate!.Value) : now.AddDays(14);
+        var maxDueDate = allLeafTasks.Any() ? allLeafTasks.Max(t => t.DueDate!.Value) : now.AddDays(14);
         if (maxDueDate < now.AddDays(7)) maxDueDate = now.AddDays(7);
         var scheduleEnd = maxDueDate.Date.AddDays(1);
         var scheduleStart = now.Date;
 
-        // Load pinned task IDs — these are excluded from auto-scheduling
-        var pinnedTaskIds = await _db.Tasks
-            .Where(t => t.Email == email && t.IsManuallyPinned)
-            .Select(t => t.TaskId)
-            .ToListAsync();
+        // Load pinned task IDs
+        var pinnedTaskIds = await _dal.GetPinnedTaskIdsAsync(email);
         var pinnedTaskIdSet = new HashSet<int>(pinnedTaskIds);
 
-        // Load tasks with NeedReview events (shared task common scheduling) — skip from auto-scheduling
-        var needReviewTaskIds = await _db.TaskEvents
-            .Where(te => te.StudentTask.Email == email && te.Status == "NeedReview")
-            .Select(te => te.TaskId)
-            .Distinct()
-            .ToListAsync();
+        // Load tasks with NeedReview events
+        var needReviewTaskIds = await _dal.GetNeedReviewTaskIdsAsync(email);
         var needReviewTaskIdSet = new HashSet<int>(needReviewTaskIds);
 
         // 3. Clear existing auto-scheduled TaskEvents (SKIP pinned tasks)
-        var existingTaskEvents = await _db.TaskEvents
-            .Where(te => te.StudentTask.Email == email && (te.Status == "Scheduled" || te.Status == "Partial"))
-            .ToListAsync();
+        var existingTaskEvents = await _dal.GetTaskEventsByUserAndStatusAsync(email, "Scheduled", "Partial");
 
         var existingTaskEventIds = existingTaskEvents
             .Where(te => !pinnedTaskIdSet.Contains(te.TaskId))
@@ -75,11 +58,8 @@ public class SchedulingService
 
         if (existingTaskEventIds.Any())
         {
-            var toRemove = await _db.Events
-                .Where(e => existingTaskEventIds.Contains(e.EventId))
-                .ToListAsync();
-            _db.Events.RemoveRange(toRemove);
-            await _db.SaveChangesAsync();
+            foreach (var eventId in existingTaskEventIds)
+                await _dal.DeleteEventByIdAsync(eventId);
         }
 
         // Add pinned TaskEvents as fixed busy intervals
@@ -104,16 +84,19 @@ public class SchedulingService
         }
 
         // Also load typed events for relocation suggestions and workload breakdown
-        var typedEvents = await _db.Events
-            .Where(e => e.Email == email && ((e.From < scheduleEnd && e.To > scheduleStart) || e.Recurring))
-            .ToListAsync();
-        var classEventIds = await _db.ClassEvents.Select(ce => ce.EventId).ToListAsync();
-        var workEvents = await _db.WorkEvents.Where(w => w.Email == email).ToListAsync();
+        var classEventIds = await _dal.GetClassEventIdsByUserAsync(email);
+        var classEventIdSet = new HashSet<int>(classEventIds);
+        var workEvents = await _dal.GetWorkEventsByUserAsync(email);
         var workEventIds = workEvents.Select(w => w.EventId).ToList();
-        var personalEvents = await _db.PersonalEvents.Where(p => p.Email == email).ToListAsync();
+        var workEventIdSet = new HashSet<int>(workEventIds);
+        var personalEvents = await _dal.GetPersonalEventsByUserAsync(email);
         var personalEventIds = personalEvents.Select(p => p.EventId).ToList();
+        var personalEventIdSet = new HashSet<int>(personalEventIds);
         var workEventLookup = workEvents.ToDictionary(w => w.EventId);
         var personalEventLookup = personalEvents.ToDictionary(p => p.EventId);
+
+        // The typed events list for relocation suggestions
+        var typedEvents = fixedEvents; // fixedEvents already has expanded events
 
         // Add lunch break as blocked slots if configured
         if (prefs?.LunchBreakStart != null && prefs?.LunchBreakEnd != null)
@@ -130,40 +113,32 @@ public class SchedulingService
             }
         }
 
-        // Load exams to block exam days and reserve pre-exam study time (only exams user is taking)
-        var exams = await _db.Exams
-            .Include(e => e.Course)
-            .Where(e => e.Course.UserCourses.Any(uc => uc.Email == email)
-                && e.Date >= scheduleStart && e.Date <= scheduleEnd
-                && e.IsTakingExam)
-            .ToListAsync();
-
+        // Load exams
+        var exams = await _dal.GetExamsForSchedulingAsync(email, scheduleStart, scheduleEnd);
         var examDays = new HashSet<DateTime>(exams.Select(e => e.Date.Date));
 
-        // Auto-create "Study for exam" tasks with configurable prep hours/days
-        var examStudyTasks = new List<StudentTask>();
+        // Auto-create "Study for exam" tasks
+        var examStudyTasks = new List<SimpleTaskRow>();
         foreach (var exam in exams)
         {
             if (exam.Date.Date <= now.Date) continue;
 
-            // Get per-course or global prep settings
-            var coursePrepHoursPerDay = exam.Course?.ExamPrepHoursPerDay ?? examPrepHoursPerDay;
-            var coursePrepDays = exam.Course?.ExamPrepDays ?? examPrepDays;
+            var coursePrepHoursPerDay = exam.CourseExamPrepHoursPerDay ?? examPrepHoursPerDay;
+            var coursePrepDays = exam.CourseExamPrepDays ?? examPrepDays;
             var totalPrepHours = coursePrepHoursPerDay * coursePrepDays;
 
-            var existingStudyTask = await _db.Tasks
-                .FirstOrDefaultAsync(t => t.Email == email
-                    && t.CourseId == exam.CourseId
-                    && t.Type == "Study for exam"
-                    && t.DueDate == exam.Date.Date
-                    && !t.IsCompleted);
+            var existingStudyTask = await _dal.GetStudyForExamTaskAsync(email, exam.CourseId, exam.Date.Date);
 
             if (existingStudyTask == null)
             {
-                var courseName = exam.Course?.CourseName ?? (await _db.Courses.FindAsync(exam.CourseId))?.CourseName ?? "Exam";
-                existingStudyTask = new StudentTask
+                var courseName = exam.CourseName;
+                var taskId = await _dal.CreateTaskAsync(exam.CourseId, email,
+                    $"Study for exam - {courseName}", "Study for exam",
+                    (decimal)totalPrepHours, exam.Date.Date, null, true, "High", false);
+
+                existingStudyTask = new SimpleTaskRow
                 {
-                    Email = email,
+                    TaskId = taskId,
                     CourseId = exam.CourseId,
                     Title = $"Study for exam - {courseName}",
                     Type = "Study for exam",
@@ -171,67 +146,47 @@ public class SchedulingService
                     DueDate = exam.Date.Date,
                     IsCompleted = false,
                     Priority = "High",
-                    AllowSplitting = true  // Exam prep spans multiple days by design
+                    AllowSplitting = true,
+                    Email = email
                 };
-                _db.Tasks.Add(existingStudyTask);
-                await _db.SaveChangesAsync();
             }
             else
             {
-                bool changed = false;
                 if ((double)(existingStudyTask.EstimatedHours ?? 0) != totalPrepHours)
                 {
+                    await _dal.UpdateTaskAsync(existingStudyTask.TaskId, estimatedHours: (decimal)totalPrepHours);
                     existingStudyTask.EstimatedHours = (decimal)totalPrepHours;
-                    changed = true;
                 }
-                // Ensure exam prep tasks always allow splitting (multi-day by design)
                 if (!existingStudyTask.AllowSplitting)
                 {
+                    await _dal.UpdateTaskAsync(existingStudyTask.TaskId, allowSplitting: true);
                     existingStudyTask.AllowSplitting = true;
-                    changed = true;
                 }
-                if (changed) await _db.SaveChangesAsync();
             }
 
             examStudyTasks.Add(existingStudyTask);
         }
 
-        // Clean up orphaned exam study tasks (exam was deleted or date changed)
+        // Clean up orphaned exam study tasks
         var validExamStudyIds = examStudyTasks.Select(t => t.TaskId).ToHashSet();
-        var orphanedStudyTasks = await _db.Tasks
-            .Include(t => t.TaskEvents)
-            .Where(t => t.Email == email && t.Type == "Study for exam" && !t.IsCompleted
-                && !validExamStudyIds.Contains(t.TaskId))
-            .ToListAsync();
+        var allStudyTaskIds = await _dal.GetOrphanedStudyTaskIdsAsync(email);
+        var orphanedIds = allStudyTaskIds.Where(id => !validExamStudyIds.Contains(id)).ToList();
 
-        if (orphanedStudyTasks.Any())
+        foreach (var orphanId in orphanedIds)
         {
-            // Remove their task events first, then the tasks
-            var orphanEventIds = orphanedStudyTasks
-                .SelectMany(t => t.TaskEvents)
-                .Select(te => te.EventId)
-                .ToList();
-            if (orphanEventIds.Any())
-            {
-                var orphanEvents = await _db.Events
-                    .Where(e => orphanEventIds.Contains(e.EventId))
-                    .ToListAsync();
-                _db.Events.RemoveRange(orphanEvents);
-            }
-            _db.Tasks.RemoveRange(orphanedStudyTasks);
-            await _db.SaveChangesAsync();
+            await _dal.DeleteTaskWithEventsAsync(orphanId);
         }
 
         // Map exam dates to their study tasks for targeted scheduling
-        var examStudyByDate = new Dictionary<DateTime, List<(StudentTask Task, double TargetHours)>>();
+        var examStudyByDate = new Dictionary<DateTime, List<(SimpleTaskRow Task, double TargetHours)>>();
         foreach (var exam in exams)
         {
             if (exam.Date.Date <= now.Date) continue;
             var studyTask = examStudyTasks.FirstOrDefault(t => t.CourseId == exam.CourseId && t.DueDate == exam.Date.Date);
             if (studyTask == null) continue;
 
-            var coursePrepHoursPerDay = exam.Course?.ExamPrepHoursPerDay ?? examPrepHoursPerDay;
-            var coursePrepDays = exam.Course?.ExamPrepDays ?? examPrepDays;
+            var coursePrepHoursPerDay = exam.CourseExamPrepHoursPerDay ?? examPrepHoursPerDay;
+            var coursePrepDays = exam.CourseExamPrepDays ?? examPrepDays;
 
             for (int d = 1; d <= coursePrepDays; d++)
             {
@@ -239,32 +194,30 @@ public class SchedulingService
                 if (prepDay >= scheduleStart)
                 {
                     if (!examStudyByDate.ContainsKey(prepDay))
-                        examStudyByDate[prepDay] = new List<(StudentTask, double)>();
+                        examStudyByDate[prepDay] = new List<(SimpleTaskRow, double)>();
                     if (!examStudyByDate[prepDay].Any(x => x.Task.TaskId == studyTask.TaskId))
                         examStudyByDate[prepDay].Add((studyTask, coursePrepHoursPerDay));
                 }
             }
         }
 
-        // ML-adjusted hours: apply per-course ratio from completed tasks
-        var completedForML = await _db.Tasks
-            .Where(t => t.Email == email && t.IsCompleted && t.ActualHours.HasValue && t.EstimatedHours.HasValue && t.EstimatedHours > 0)
-            .Select(t => new { t.CourseId, Actual = (double)t.ActualHours!.Value, Estimated = (double)t.EstimatedHours!.Value })
-            .ToListAsync();
-
+        // ML-adjusted hours
+        var completedForML = await _dal.GetCompletedTasksForMLAsync(email);
         var courseRatios = completedForML
             .GroupBy(t => t.CourseId)
             .Where(g => g.Count() >= 2)
-            .ToDictionary(g => g.Key, g => g.Average(t => t.Actual / t.Estimated));
+            .ToDictionary(g => g.Key, g => g.Average(t => t.ActualHours / t.EstimatedHours));
 
-        // 4. Compute priority score for every task (exclude pinned tasks from scheduling)
-        var schedulableTasks = tasks.Where(t => !pinnedTaskIdSet.Contains(t.TaskId) && !needReviewTaskIdSet.Contains(t.TaskId)).ToList();
+        // 4. Compute priority score for every task
+        var schedulableTasks = allLeafTasks
+            .Where(t => !pinnedTaskIdSet.Contains(t.TaskId) && !needReviewTaskIdSet.Contains(t.TaskId))
+            .ToList();
         var scoredTasks = schedulableTasks.Select(t =>
         {
             var daysUntilDue = Math.Max(0.1, (t.DueDate!.Value - now).TotalDays);
             var hours = GetEffectiveHours(t, courseRatios, prefs);
-            var credits = (double)(t.Course?.Credits ?? 3);
-            var isShared = t.SharedTask != null;
+            var credits = (double)(t.CourseCredits ?? 3);
+            var isShared = t.HasSharedTask;
 
             var score = (1.0 / daysUntilDue) * 50
                       + Math.Min(hours, 10) * 5
@@ -278,25 +231,28 @@ public class SchedulingService
                 _ => "Low"
             };
 
-            // Store computed priority on the task entity (skip if manually set)
+            string finalPriority;
             if (!t.IsManualPriority)
-                t.Priority = priority;
+            {
+                finalPriority = priority;
+                // Update priority in DB
+                _ = _dal.UpdateTaskPriorityAsync(t.TaskId, priority);
+            }
             else
-                priority = t.Priority ?? priority;
+            {
+                finalPriority = t.Priority ?? priority;
+            }
 
-            return new { Task = t, Score = score, Priority = priority, EffectiveHours = hours };
+            return new { Task = t, Score = score, Priority = finalPriority, EffectiveHours = hours };
         })
         .OrderByDescending(x => x.Score)
         .ToList();
-
-        // Save computed priorities
-        await _db.SaveChangesAsync();
 
         // Track scheduled hours per day
         var dailyScheduledStudyHours = new Dictionary<DateTime, double>();
         var newTaskEvents = new List<TaskEvent>();
 
-        // Helper: get total event hours for a day (classes + work + personal, NOT study tasks)
+        // Helper: get total event hours for a day
         double GetTotalFixedEventHours(DateTime day)
         {
             return fixedEvents
@@ -384,7 +340,6 @@ public class SchedulingService
 
             if (!task.AllowSplitting)
             {
-                // NON-SPLITTING: find a single continuous window that fits the entire task
                 var totalNeeded = totalHours + (Math.Floor(totalHours / (maxContinuousMinutes / 60.0)) * (breakMinutes / 60.0));
 
                 bool scheduled = false;
@@ -396,7 +351,6 @@ public class SchedulingService
                     if (!dailyScheduledStudyHours.ContainsKey(dayKey))
                         dailyScheduledStudyHours[dayKey] = 0;
 
-                    // Check both study and total daily limits
                     var studyAvailable = maxDailyStudy - dailyScheduledStudyHours[dayKey];
                     if (studyAvailable < totalHours) continue;
 
@@ -411,7 +365,6 @@ public class SchedulingService
                         var slotDuration = (freeSlot.To - freeSlot.From).TotalHours;
                         if (slotDuration >= totalNeeded)
                         {
-                            // Schedule with internal breaks
                             var sessions = SplitIntoSessionsWithBreaks(freeSlot.From, totalHours, maxContinuousMinutes, breakMinutes);
                             foreach (var session in sessions)
                             {
@@ -444,15 +397,13 @@ public class SchedulingService
                         Reason = "No continuous slot available"
                     });
 
-                    // Generate relocation suggestions for work/personal events
-                    GenerateRelocationSuggestions(result, task, scheduleStart, dueDate, fixedEvents,
-                        newTaskEvents, dayStart, dayEnd, totalNeeded, examDays, typedEvents, workEventIds, personalEventIds,
+                    GenerateRelocationSuggestions(result, task.TaskId, task.Title, scheduleStart, dueDate, fixedEvents,
+                        newTaskEvents, dayStart, dayEnd, totalNeeded, examDays, workEventIdSet, personalEventIdSet,
                         workEventLookup, personalEventLookup);
                 }
             }
             else
             {
-                // SPLITTING MODE: spread across available slots (original behavior)
                 for (var day = scheduleStart; day < dueDate && remainingHours > 0; day = day.AddDays(1))
                 {
                     var dayKey = day.Date;
@@ -464,7 +415,6 @@ public class SchedulingService
                     var studyAvailable = maxDailyStudy - dailyScheduledStudyHours[dayKey];
                     if (studyAvailable <= 0) continue;
 
-                    // Check total daily load
                     var fixedHours = GetTotalFixedEventHours(day);
                     var totalDayHours = fixedHours + dailyScheduledStudyHours[dayKey];
                     if (totalDayHours >= maxDailyTotal) continue;
@@ -546,17 +496,17 @@ public class SchedulingService
                     Reason = "No available time slots before due date"
                 });
 
-                GenerateRelocationSuggestions(result, task, scheduleStart, dueDate, fixedEvents,
-                    newTaskEvents, dayStart, dayEnd, totalHours, examDays, typedEvents, workEventIds, personalEventIds,
+                GenerateRelocationSuggestions(result, task.TaskId, task.Title, scheduleStart, dueDate, fixedEvents,
+                    newTaskEvents, dayStart, dayEnd, totalHours, examDays, workEventIdSet, personalEventIdSet,
                     workEventLookup, personalEventLookup);
             }
         }
 
         // 6. Save all new task events
-        if (newTaskEvents.Any())
+        foreach (var te in newTaskEvents)
         {
-            _db.TaskEvents.AddRange(newTaskEvents);
-            await _db.SaveChangesAsync();
+            await _dal.CreateTaskEventAsync(te.Email, te.From, te.To, te.Recurring, null,
+                te.TaskId, te.Priority, te.Status);
         }
 
         // 7. Build daily workload summary with breakdown
@@ -570,17 +520,16 @@ public class SchedulingService
             var studyHours = dailyScheduledStudyHours.GetValueOrDefault(dayKey, 0);
             var availableHours = (dayEnd - dayStart) - GetBlockedHours(day, fixedEvents, dayStart, dayEnd);
 
-            // Breakdown by event type for this day
             var dayExpandedEvents = fixedEvents.Where(e => e.From.Date == dayKey || (e.From < dayKey.AddDays(1) && e.To > dayKey)).ToList();
             double classHours = 0, workHours = 0, personalHours = 0;
             foreach (var evt in dayExpandedEvents)
             {
                 var duration = Math.Max(0, (evt.To - evt.From).TotalHours);
-                if (classEventIds.Contains(evt.EventId))
+                if (classEventIdSet.Contains(evt.EventId))
                     classHours += duration;
-                else if (workEventIds.Contains(evt.EventId))
+                else if (workEventIdSet.Contains(evt.EventId))
                     workHours += duration;
-                else if (personalEventIds.Contains(evt.EventId))
+                else if (personalEventIdSet.Contains(evt.EventId))
                     personalHours += duration;
             }
 
@@ -612,11 +561,7 @@ public class SchedulingService
         return result;
     }
 
-    /// <summary>
-    /// Gets effective hours for a task using the hierarchy:
-    /// ML ratio (≥2 completed tasks) → Course default → Global default → 4.0
-    /// </summary>
-    private double GetEffectiveHours(StudentTask task, Dictionary<int, double> courseRatios, SchedulingPreferences? prefs)
+    private double GetEffectiveHours(SchedulingTaskRow task, Dictionary<int, double> courseRatios, SchedulingPreferences? prefs)
     {
         double baseHours;
 
@@ -626,7 +571,7 @@ public class SchedulingService
         }
         else
         {
-            baseHours = task.Course?.DefaultTaskEstimatedHours
+            baseHours = task.DefaultTaskEstimatedHours
                         ?? prefs?.DefaultTaskEstimatedHours
                         ?? 4.0;
         }
@@ -637,11 +582,6 @@ public class SchedulingService
         return baseHours;
     }
 
-    /// <summary>
-    /// Splits a continuous block into sessions with breaks.
-    /// E.g., 3h task with 90-min max continuous + 15-min break:
-    /// 09:00-10:30 (90 min), break, 10:45-12:15 (90 min)
-    /// </summary>
     private List<(DateTime From, DateTime To)> SplitIntoSessionsWithBreaks(
         DateTime start, double totalHours, int maxContinuousMinutes, int breakMinutes)
     {
@@ -658,41 +598,37 @@ public class SchedulingService
 
             if (remainingMinutes > 0)
             {
-                cursor = cursor.AddMinutes(breakMinutes); // break gap (not an event)
+                cursor = cursor.AddMinutes(breakMinutes);
             }
         }
 
         return sessions;
     }
 
-    /// <summary>
-    /// Generates relocation suggestions for work/personal events that block an unscheduled task.
-    /// </summary>
     private void GenerateRelocationSuggestions(
-        SchedulingResultDto result, StudentTask task,
+        SchedulingResultDto result, int taskId, string taskTitle,
         DateTime scheduleStart, DateTime dueDate,
         List<Event> fixedEvents, List<TaskEvent> newTaskEvents,
         int dayStart, int dayEnd, double neededHours,
         HashSet<DateTime> examDays,
-        List<Event> typedEvents, List<int> workEventIds, List<int> personalEventIds,
-        Dictionary<int, WorkEvent> workEventLookup, Dictionary<int, PersonalEvent> personalEventLookup)
+        HashSet<int> workEventIdSet, HashSet<int> personalEventIdSet,
+        Dictionary<int, WorkEventRow> workEventLookup, Dictionary<int, PersonalEventRow> personalEventLookup)
     {
         for (var day = scheduleStart; day < dueDate; day = day.AddDays(1))
         {
             if (examDays.Contains(day.Date)) continue;
 
-            // Find work/personal events on this day that could be moved
-            var movableEvents = typedEvents
+            var movableEvents = fixedEvents
                 .Where(e => (e.From.Date == day.Date || (e.From < day.Date.AddDays(1) && e.To > day.Date))
-                    && (workEventIds.Contains(e.EventId) || personalEventIds.Contains(e.EventId)))
+                    && (workEventIdSet.Contains(e.EventId) || personalEventIdSet.Contains(e.EventId)))
                 .ToList();
 
             foreach (var evt in movableEvents)
             {
                 var evtDuration = (evt.To - evt.From).TotalHours;
-                if (evtDuration >= neededHours * 0.5) // Only suggest if the event frees meaningful time
+                if (evtDuration >= neededHours * 0.5)
                 {
-                    var eventType = workEventIds.Contains(evt.EventId) ? "Work" : "Personal";
+                    var eventType = workEventIdSet.Contains(evt.EventId) ? "Work" : "Personal";
                     var eventTitle = GetEventTitle(evt.EventId, eventType, workEventLookup, personalEventLookup);
                     result.RelocationSuggestions.Add(new RelocationSuggestionDto
                     {
@@ -701,19 +637,19 @@ public class SchedulingService
                         EventType = eventType,
                         CurrentFrom = evt.From,
                         CurrentTo = evt.To,
-                        BlockedTaskTitle = task.Title,
-                        Message = $"Moving \"{eventTitle}\" from {evt.From:ddd HH:mm}-{evt.To:HH:mm} would free up space for \"{task.Title}\""
+                        BlockedTaskTitle = taskTitle,
+                        Message = $"Moving \"{eventTitle}\" from {evt.From:ddd HH:mm}-{evt.To:HH:mm} would free up space for \"{taskTitle}\""
                     });
                 }
             }
 
-            if (result.RelocationSuggestions.Any(rs => rs.BlockedTaskTitle == task.Title))
-                break; // One suggestion per task is enough
+            if (result.RelocationSuggestions.Any(rs => rs.BlockedTaskTitle == taskTitle))
+                break;
         }
     }
 
     private static string GetEventTitle(int eventId, string eventType,
-        Dictionary<int, WorkEvent> workLookup, Dictionary<int, PersonalEvent> personalLookup)
+        Dictionary<int, WorkEventRow> workLookup, Dictionary<int, PersonalEventRow> personalLookup)
     {
         if (eventType == "Work" && workLookup.TryGetValue(eventId, out var work))
             return !string.IsNullOrWhiteSpace(work.WorkPlace) ? work.WorkPlace : "Work";
@@ -727,52 +663,42 @@ public class SchedulingService
     {
         var now = DateTime.Now;
 
-        var prefs = await _db.SchedulingPreferences.FindAsync(email);
+        var prefs = await _dal.GetSchedPrefsByEmailAsync(email);
         int dayStart = prefs?.DayStartHour ?? 8;
         int dayEnd = prefs?.DayEndHour ?? 22;
         double maxDailyStudy = prefs?.MaxDailyStudyHours ?? 6.0;
         double maxDailyTotal = prefs?.MaxDailyTotalHours ?? 14.0;
 
-        var tasks = await _db.Tasks
-            .Include(t => t.TaskEvents)
-            .Where(t => t.Email == email && !t.IsCompleted && t.DueDate.HasValue)
-            .ToListAsync();
+        var allIncompleteTasks = await _dal.GetAllIncompleteTasksAsync(email);
+        var tasksWithDue = allIncompleteTasks.Where(t => t.DueDate.HasValue).ToList();
 
-        var scheduledCount = tasks.Count(t => t.TaskEvents.Any(te => te.Status == "Scheduled" || te.Status == "Partial"));
-        var unscheduledCount = tasks.Count(t => !t.TaskEvents.Any());
+        var scheduledCount = tasksWithDue.Count(t => t.TaskEventCount > 0);
+        var unscheduledCount = tasksWithDue.Count(t => t.TaskEventCount == 0);
 
         var scheduleStart = now.Date;
         var scheduleEnd = now.Date.AddDays(14);
 
-        var taskEvents = await _db.TaskEvents
-            .Where(te => te.StudentTask.Email == email
-                && te.From >= scheduleStart && te.From < scheduleEnd
-                && te.Status == "Scheduled")
-            .ToListAsync();
+        var taskEvents = await _dal.GetTaskEventsInRangeAsync(email, scheduleStart, scheduleEnd, "Scheduled");
 
         var fixedEvents = await GetExpandedEvents(email, scheduleStart, scheduleEnd);
 
-        var result = new SchedulingStatusDto
+        var resultDto = new SchedulingStatusDto
         {
             ScheduledCount = scheduledCount,
             UnscheduledCount = unscheduledCount
         };
 
-        // Load typed event IDs for breakdown and relocation suggestions
-        var workEvents = await _db.WorkEvents
-            .Where(w => w.Email == email)
-            .ToListAsync();
+        // Load typed event IDs for breakdown
+        var workEvents = await _dal.GetWorkEventsByUserAsync(email);
         var workEventIds = workEvents.Select(w => w.EventId).ToList();
+        var workEventIdSet = new HashSet<int>(workEventIds);
         var workEventLookup = workEvents.ToDictionary(w => w.EventId);
-        var personalEvents = await _db.PersonalEvents
-            .Where(p => p.Email == email)
-            .ToListAsync();
+        var personalEvents = await _dal.GetPersonalEventsByUserAsync(email);
         var personalEventIds = personalEvents.Select(p => p.EventId).ToList();
+        var personalEventIdSet = new HashSet<int>(personalEventIds);
         var personalEventLookup = personalEvents.ToDictionary(p => p.EventId);
-        var classEventIds = await _db.ClassEvents
-            .Where(c => c.Email == email)
-            .Select(c => c.EventId)
-            .ToListAsync();
+        var classEventIds = await _dal.GetClassEventIdsByUserAsync(email);
+        var classEventIdSet = new HashSet<int>(classEventIds);
 
         for (var day = scheduleStart; day < scheduleEnd; day = day.AddDays(1))
         {
@@ -781,11 +707,11 @@ public class SchedulingService
             foreach (var evt in dayEvents)
             {
                 var duration = Math.Max(0, (evt.To - evt.From).TotalHours);
-                if (classEventIds.Contains(evt.EventId))
+                if (classEventIdSet.Contains(evt.EventId))
                     classHours += duration;
-                else if (workEventIds.Contains(evt.EventId))
+                else if (workEventIdSet.Contains(evt.EventId))
                     workHours += duration;
-                else if (personalEventIds.Contains(evt.EventId))
+                else if (personalEventIdSet.Contains(evt.EventId))
                     personalHours += duration;
             }
 
@@ -799,7 +725,7 @@ public class SchedulingService
             var totalLoad = maxDailyTotal > 0 ? (totalHours / maxDailyTotal) * 100 : 0;
             var isOverloaded = Math.Max(studyLoad, totalLoad) > 100;
 
-            result.DailyWorkload.Add(new DailyWorkloadDto
+            resultDto.DailyWorkload.Add(new DailyWorkloadDto
             {
                 Date = day,
                 ScheduledHours = Math.Round(totalHours, 1),
@@ -813,11 +739,11 @@ public class SchedulingService
             });
 
             if (isOverloaded)
-                result.OverloadedDays.Add(day.ToString("yyyy-MM-dd"));
+                resultDto.OverloadedDays.Add(day.ToString("yyyy-MM-dd"));
         }
 
         // Generate relocation suggestions for unscheduled tasks
-        var unscheduledTasks = tasks.Where(t => !t.TaskEvents.Any()).ToList();
+        var unscheduledTasks = tasksWithDue.Where(t => t.TaskEventCount == 0).ToList();
         foreach (var task in unscheduledTasks)
         {
             var dueDate = task.DueDate!.Value;
@@ -825,7 +751,7 @@ public class SchedulingService
             {
                 var movableEvents = fixedEvents
                     .Where(e => e.From.Date == day.Date
-                        && (workEventIds.Contains(e.EventId) || personalEventIds.Contains(e.EventId)))
+                        && (workEventIdSet.Contains(e.EventId) || personalEventIdSet.Contains(e.EventId)))
                     .ToList();
 
                 foreach (var evt in movableEvents)
@@ -833,9 +759,9 @@ public class SchedulingService
                     var evtDuration = (evt.To - evt.From).TotalHours;
                     if (evtDuration >= 1.0)
                     {
-                        var eventType = workEventIds.Contains(evt.EventId) ? "Work" : "Personal";
+                        var eventType = workEventIdSet.Contains(evt.EventId) ? "Work" : "Personal";
                         var eventTitle = GetEventTitle(evt.EventId, eventType, workEventLookup, personalEventLookup);
-                        result.RelocationSuggestions.Add(new RelocationSuggestionDto
+                        resultDto.RelocationSuggestions.Add(new RelocationSuggestionDto
                         {
                             EventId = evt.EventId,
                             EventTitle = eventTitle,
@@ -849,40 +775,40 @@ public class SchedulingService
                     }
                 }
 
-                if (result.RelocationSuggestions.Any(rs => rs.BlockedTaskTitle == task.Title))
+                if (resultDto.RelocationSuggestions.Any(rs => rs.BlockedTaskTitle == task.Title))
                     break;
             }
         }
 
-        return result;
+        return resultDto;
     }
 
     private List<(DateTime From, DateTime To)> GetFreeSlots(
         DateTime day, List<Event> fixedEvents, List<TaskEvent> newTaskEvents,
         int dayStartHour, int dayEndHour)
     {
-        var dayStart = day.Date.AddHours(dayStartHour);
-        var dayEnd = day.Date.AddHours(dayEndHour);
+        var dayStartDt = day.Date.AddHours(dayStartHour);
+        var dayEndDt = day.Date.AddHours(dayEndHour);
 
         if (day.Date == DateTime.Now.Date)
         {
             var now = DateTime.Now;
             var roundedNow = new DateTime(now.Year, now.Month, now.Day,
                 now.Hour, now.Minute >= 30 ? 30 : 0, 0).AddMinutes(30);
-            if (roundedNow > dayStart)
-                dayStart = roundedNow;
+            if (roundedNow > dayStartDt)
+                dayStartDt = roundedNow;
         }
 
-        if (dayStart >= dayEnd) return new List<(DateTime, DateTime)>();
+        if (dayStartDt >= dayEndDt) return new List<(DateTime, DateTime)>();
 
         var busy = new List<(DateTime From, DateTime To)>();
 
         foreach (var e in fixedEvents)
         {
-            if (e.From.Date == day.Date || (e.From < dayEnd && e.To > dayStart))
+            if (e.From.Date == day.Date || (e.From < dayEndDt && e.To > dayStartDt))
             {
-                var from = e.From < dayStart ? dayStart : e.From;
-                var to = e.To > dayEnd ? dayEnd : e.To;
+                var from = e.From < dayStartDt ? dayStartDt : e.From;
+                var to = e.To > dayEndDt ? dayEndDt : e.To;
                 if (from < to) busy.Add((from, to));
             }
         }
@@ -891,8 +817,8 @@ public class SchedulingService
         {
             if (te.From.Date == day.Date)
             {
-                var from = te.From < dayStart ? dayStart : te.From;
-                var to = te.To > dayEnd ? dayEnd : te.To;
+                var from = te.From < dayStartDt ? dayStartDt : te.From;
+                var to = te.To > dayEndDt ? dayEndDt : te.To;
                 if (from < to) busy.Add((from, to));
             }
         }
@@ -913,30 +839,30 @@ public class SchedulingService
         }
 
         var free = new List<(DateTime From, DateTime To)>();
-        var cursor = dayStart;
+        var cursor = dayStartDt;
         foreach (var b in merged)
         {
             if (cursor < b.From)
                 free.Add((cursor, b.From));
             cursor = b.To > cursor ? b.To : cursor;
         }
-        if (cursor < dayEnd)
-            free.Add((cursor, dayEnd));
+        if (cursor < dayEndDt)
+            free.Add((cursor, dayEndDt));
 
         return free;
     }
 
     private double GetBlockedHours(DateTime day, List<Event> fixedEvents, int dayStartHour, int dayEndHour)
     {
-        var dayStart = day.Date.AddHours(dayStartHour);
-        var dayEnd = day.Date.AddHours(dayEndHour);
+        var dayStartDt = day.Date.AddHours(dayStartHour);
+        var dayEndDt = day.Date.AddHours(dayEndHour);
 
         return fixedEvents
-            .Where(e => e.From < dayEnd && e.To > dayStart)
+            .Where(e => e.From < dayEndDt && e.To > dayStartDt)
             .Sum(e =>
             {
-                var from = e.From < dayStart ? dayStart : e.From;
-                var to = e.To > dayEnd ? dayEnd : e.To;
+                var from = e.From < dayStartDt ? dayStartDt : e.From;
+                var to = e.To > dayEndDt ? dayEndDt : e.To;
                 return Math.Max(0, (to - from).TotalHours);
             });
     }
@@ -944,11 +870,7 @@ public class SchedulingService
     private async Task<List<Event>> GetExpandedEvents(
         string email, DateTime rangeStart, DateTime rangeEnd)
     {
-        var events = await _db.Events
-            .Where(e => e.Email == email &&
-                ((e.From < rangeEnd && e.To > rangeStart) || e.Recurring))
-            .OrderBy(e => e.From)
-            .ToListAsync();
+        var events = await _dal.GetBaseEventsInRangeOrRecurringAsync(email, rangeStart, rangeEnd);
 
         var expanded = new List<Event>();
         foreach (var evt in events)
@@ -983,41 +905,26 @@ public class SchedulingService
         return expanded;
     }
 
-    /// <summary>
-    /// Schedules a shared task at a common free time for both users.
-    /// Uses a "find first, then swap" strategy: only removes existing events
-    /// if mutual free slots are found. If no common time exists, the existing
-    /// independent scheduling is preserved as fallback.
-    /// </summary>
     public async Task<bool> ScheduleSharedTaskAtCommonTimeAsync(
         int originalTaskId, string creatorEmail, string partnerEmail)
     {
         var now = DateTime.Now;
 
-        var originalTask = await _db.Tasks
-            .Include(t => t.Course)
-            .FirstOrDefaultAsync(t => t.TaskId == originalTaskId);
-        if (originalTask == null) return false;
+        var originalTaskRow = await _dal.GetTaskByIdAsync(originalTaskId);
+        if (originalTaskRow == null) return false;
 
-        var partnerTask = await _db.Tasks
-            .FirstOrDefaultAsync(t => t.Email == partnerEmail
-                && t.Title == originalTask.Title
-                && t.CourseId == originalTask.CourseId
-                && t.DueDate == originalTask.DueDate
-                && !t.IsCompleted);
-        if (partnerTask == null) return false;
+        var partnerTaskRow = await _dal.FindTaskByMatchAsync(partnerEmail, originalTaskRow.Title,
+            originalTaskRow.CourseId, originalTaskRow.DueDate);
+        if (partnerTaskRow == null) return false;
 
-        // Step 1: Collect existing event IDs for the shared task (don't delete yet)
-        var sharedTaskEventIds = await _db.TaskEvents
-            .Where(te => (te.TaskId == originalTask.TaskId || te.TaskId == partnerTask.TaskId)
-                && (te.Status == "Scheduled" || te.Status == "Partial"))
-            .Select(te => te.EventId)
-            .ToListAsync();
+        // Step 1: Collect existing event IDs for the shared task
+        var sharedTaskEvents = await _dal.GetTaskEventsByTaskIdsAndStatusesAsync(originalTaskRow.TaskId, partnerTaskRow.TaskId);
+        var sharedTaskEventIds = sharedTaskEvents.Select(te => te.EventId).ToList();
         var sharedTaskEventIdSet = new HashSet<int>(sharedTaskEventIds);
 
-        // Step 2: Load events but exclude the shared task's own events from busy
-        var creatorPrefs = await _db.SchedulingPreferences.FindAsync(creatorEmail);
-        var partnerPrefs = await _db.SchedulingPreferences.FindAsync(partnerEmail);
+        // Step 2: Load events
+        var creatorPrefs = await _dal.GetSchedPrefsByEmailAsync(creatorEmail);
+        var partnerPrefs = await _dal.GetSchedPrefsByEmailAsync(partnerEmail);
         int dayStart = Math.Max(creatorPrefs?.DayStartHour ?? 8, partnerPrefs?.DayStartHour ?? 8);
         int dayEnd = Math.Min(creatorPrefs?.DayEndHour ?? 22, partnerPrefs?.DayEndHour ?? 22);
         int maxContinuousMinutes = Math.Min(
@@ -1027,7 +934,7 @@ public class SchedulingService
             creatorPrefs?.BreakDurationMinutes ?? 15,
             partnerPrefs?.BreakDurationMinutes ?? 15);
 
-        var dueDate = originalTask.DueDate ?? now.AddDays(14);
+        var dueDate = originalTaskRow.DueDate ?? now.AddDays(14);
         var scheduleStart = now.Date;
         var scheduleEnd = dueDate.Date.AddDays(1);
 
@@ -1036,10 +943,11 @@ public class SchedulingService
         var partnerEvents = (await GetExpandedEvents(partnerEmail, scheduleStart, scheduleEnd))
             .Where(e => !sharedTaskEventIdSet.Contains(e.EventId)).ToList();
 
-        // Step 3: Find mutual free slots and build new events in memory
-        double effectiveHours = (double)(originalTask.EstimatedHours ?? 4);
+        // Step 3: Find mutual free slots
+        double effectiveHours = (double)(originalTaskRow.EstimatedHours ?? 4);
         var remainingHours = effectiveHours;
         var newTaskEvents = new List<TaskEvent>();
+        bool allowSplitting = originalTaskRow.AllowSplitting;
 
         for (var day = scheduleStart; day < scheduleEnd && remainingHours > 0; day = day.AddDays(1))
         {
@@ -1065,7 +973,7 @@ public class SchedulingService
 
             var mutualFree = FindMutualFreeSlots(dayStartTime, dayEndTime, creatorBusy, partnerBusy);
 
-            if (!originalTask.AllowSplitting)
+            if (!allowSplitting)
             {
                 var totalNeeded = effectiveHours +
                     (Math.Floor(effectiveHours / (maxContinuousMinutes / 60.0)) * (breakMinutes / 60.0));
@@ -1082,14 +990,14 @@ public class SchedulingService
                             newTaskEvents.Add(new TaskEvent
                             {
                                 Email = creatorEmail, From = session.From, To = session.To,
-                                Recurring = false, TaskId = originalTask.TaskId,
-                                Priority = originalTask.Priority ?? "Medium", Status = "NeedReview"
+                                Recurring = false, TaskId = originalTaskRow.TaskId,
+                                Priority = originalTaskRow.Priority ?? "Medium", Status = "NeedReview"
                             });
                             newTaskEvents.Add(new TaskEvent
                             {
                                 Email = partnerEmail, From = session.From, To = session.To,
-                                Recurring = false, TaskId = partnerTask.TaskId,
-                                Priority = partnerTask.Priority ?? "Medium", Status = "NeedReview"
+                                Recurring = false, TaskId = partnerTaskRow.TaskId,
+                                Priority = partnerTaskRow.Priority ?? "Medium", Status = "NeedReview"
                             });
                         }
                         remainingHours = 0;
@@ -1118,14 +1026,14 @@ public class SchedulingService
                     newTaskEvents.Add(new TaskEvent
                     {
                         Email = creatorEmail, From = slotFrom, To = slotTo,
-                        Recurring = false, TaskId = originalTask.TaskId,
-                        Priority = originalTask.Priority ?? "Medium", Status = "NeedReview"
+                        Recurring = false, TaskId = originalTaskRow.TaskId,
+                        Priority = originalTaskRow.Priority ?? "Medium", Status = "NeedReview"
                     });
                     newTaskEvents.Add(new TaskEvent
                     {
                         Email = partnerEmail, From = slotFrom, To = slotTo,
-                        Recurring = false, TaskId = partnerTask.TaskId,
-                        Priority = partnerTask.Priority ?? "Medium", Status = "NeedReview"
+                        Recurring = false, TaskId = partnerTaskRow.TaskId,
+                        Priority = partnerTaskRow.Priority ?? "Medium", Status = "NeedReview"
                     });
 
                     remainingHours -= canUse;
@@ -1133,18 +1041,16 @@ public class SchedulingService
             }
         }
 
-        // Step 4: Only swap if we found common slots; otherwise keep independent scheduling
+        // Step 4: Only swap if we found common slots
         if (newTaskEvents.Any())
         {
-            if (sharedTaskEventIdSet.Any())
-            {
-                var toRemove = await _db.Events
-                    .Where(e => sharedTaskEventIdSet.Contains(e.EventId))
-                    .ToListAsync();
-                _db.Events.RemoveRange(toRemove);
-            }
-            _db.TaskEvents.AddRange(newTaskEvents);
-            await _db.SaveChangesAsync();
+            foreach (var eventId in sharedTaskEventIds)
+                await _dal.DeleteEventByIdAsync(eventId);
+
+            foreach (var te in newTaskEvents)
+                await _dal.CreateTaskEventAsync(te.Email, te.From, te.To, te.Recurring, null,
+                    te.TaskId, te.Priority, te.Status);
+
             return true;
         }
 

@@ -1,5 +1,4 @@
-using Microsoft.EntityFrameworkCore;
-using SmartStudy.Data;
+using SmartStudy.DAL;
 
 namespace SmartStudy.Services;
 
@@ -17,8 +16,15 @@ public class NotificationBackgroundService : BackgroundService
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        // Wait a bit before first run to let the app fully start
-        await Task.Delay(TimeSpan.FromSeconds(30), stoppingToken);
+        try
+        {
+            // Wait a bit before first run to let the app fully start
+            await Task.Delay(TimeSpan.FromSeconds(30), stoppingToken);
+        }
+        catch (TaskCanceledException)
+        {
+            return; // App is shutting down, exit gracefully
+        }
 
         while (!stoppingToken.IsCancellationRequested)
         {
@@ -31,18 +37,25 @@ public class NotificationBackgroundService : BackgroundService
                 _logger.LogError(ex, "Error in NotificationBackgroundService");
             }
 
-            await Task.Delay(Interval, stoppingToken);
+            try
+            {
+                await Task.Delay(Interval, stoppingToken);
+            }
+            catch (TaskCanceledException)
+            {
+                return; // App is shutting down, exit gracefully
+            }
         }
     }
 
     private async Task GenerateNotificationsForAllUsersAsync()
     {
         using var scope = _scopeFactory.CreateScope();
-        var db = scope.ServiceProvider.GetRequiredService<SmartStudyDbContext>();
+        var db = scope.ServiceProvider.GetRequiredService<DBservices>();
         var notificationService = scope.ServiceProvider.GetRequiredService<NotificationService>();
         var stressService = scope.ServiceProvider.GetRequiredService<StressService>();
 
-        var userEmails = await db.Users.Select(u => u.Email).ToListAsync();
+        var userEmails = await db.GetAllUserEmailsAsync();
 
         foreach (var email in userEmails)
         {
