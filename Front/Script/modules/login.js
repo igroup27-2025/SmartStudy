@@ -157,16 +157,15 @@ export function initLogin() {
         }
     });
 
-    // Google Sign-In
-    document.getElementById('googleSignIn')?.addEventListener('click', async () => {
-        try {
-            if (typeof google !== 'undefined' && google.accounts && google.accounts.id) {
-                google.accounts.id.prompt();
-            } else {
-                showToast('Google Sign-In is not configured. Please use email & password.', 'error');
-            }
-        } catch {
-            showToast('Google Sign-In failed', 'error');
+    // Google Sign-In — proxy clicks from the styled button to the hidden
+    // Google-rendered button (google.accounts.id.prompt() is unreliable on
+    // production due to One Tap cooldown / FedCM).
+    document.getElementById('googleSignIn')?.addEventListener('click', () => {
+        const rendered = document.querySelector('#googleSignInRender [role="button"]');
+        if (rendered) {
+            rendered.click();
+        } else {
+            showToast('Google Sign-In is still loading. Please try again in a moment.', 'error');
         }
     });
 
@@ -187,14 +186,32 @@ async function initGoogleSignIn() {
         script.async = true;
         script.defer = true;
         script.onload = () => {
-            if (typeof google !== 'undefined' && google.accounts) {
-                google.accounts.id.initialize({
-                    client_id: clientId,
-                    callback: handleGoogleCallback,
-                });
-                const btn = document.getElementById('googleSignIn');
-                if (btn) btn.style.display = '';
+            if (typeof google === 'undefined' || !google.accounts) return;
+
+            google.accounts.id.initialize({
+                client_id: clientId,
+                callback: handleGoogleCallback,
+                ux_mode: 'popup',
+                auto_select: false,
+            });
+
+            // Render Google's official button into a hidden container. The
+            // visible styled button forwards clicks to it.
+            let container = document.getElementById('googleSignInRender');
+            if (!container) {
+                container = document.createElement('div');
+                container.id = 'googleSignInRender';
+                container.style.position = 'absolute';
+                container.style.left = '-9999px';
+                container.style.top = '-9999px';
+                container.setAttribute('aria-hidden', 'true');
+                document.body.appendChild(container);
             }
+            google.accounts.id.renderButton(container, {
+                type: 'standard',
+                theme: 'outline',
+                size: 'large',
+            });
         };
         document.head.appendChild(script);
     } catch {

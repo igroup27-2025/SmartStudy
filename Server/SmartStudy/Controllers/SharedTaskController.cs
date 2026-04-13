@@ -129,7 +129,6 @@ public class SharedTaskController : ControllerBase
             await _db.UpdateSharedTaskStatusAsync(taskId, "Cancelled");
         }
 
-        // Notify the creator about the response
         var responder = await _db.GetUserByEmailAsync(email);
         var responderName = responder != null ? $"{responder.FirstName} {responder.LastName}" : email;
         var task = await _db.GetTaskByIdAsync(taskId);
@@ -137,40 +136,14 @@ public class SharedTaskController : ControllerBase
         await _notifications.CreateSharedTaskResponseNotificationAsync(
             sharedInfo.CreatedByEmail, responderName, taskId, taskTitle, dto.Accept);
 
-        // When confirmed, create a task copy for the accepting user and reschedule both
         if (sharedStatus == "Confirmed" && task != null)
         {
-            // Check if accepting user already has a copy (by title + course + due date)
-            var userTasks = await _db.GetTasksByUserAsync(email, task.CourseId);
-            var existingCopy = userTasks.FirstOrDefault(t =>
-                t.Title == task.Title && t.CourseId == task.CourseId && t.DueDate == task.DueDate);
-
-            if (existingCopy == null)
-            {
-                // Ensure the accepting user is enrolled in the same course
-                var enrolled = await _db.UserCourseExistsAsync(email, task.CourseId);
-                if (!enrolled)
-                {
-                    await _db.CreateUserCourseAsync(email, task.CourseId);
-                }
-
-                var copyTaskId = await _db.CreateTaskAsync(
-                    task.CourseId, email, task.Title, task.Type,
-                    task.EstimatedHours, task.DueDate, null,
-                    task.AllowSplitting, task.Priority, task.IsManualPriority);
-
-                // Link the copy back to the shared task so partner's task shows as shared
-                await _db.UpdateSharedTaskMemberCopyTaskIdAsync(taskId, email, copyTaskId);
-            }
-
-            var memberEmails = await _db.GetSharedTaskMemberEmailsAsync(taskId);
-            foreach (var memberEmail in memberEmails)
-            {
-                await _scheduling.ScheduleAllTasksAsync(memberEmail);
-            }
-
-            // Override the shared task's schedule with a common time slot for both users
-            var foundCommonTime = await _scheduling.ScheduleSharedTaskAtCommonTimeAsync(
+            // Create the accepting partner's copy (if missing), find a mutual-free
+            // slot, and place NeedReview events on BOTH calendars at the same
+            // time. If no mutual slot exists, the helper mirrors the creator's
+            // current schedule onto the partner — either way, both sides end up
+            // with events at identical times.
+            var foundCommonTime = await _scheduling.EnsurePartnerCopyAndScheduleAsync(
                 taskId, sharedInfo.CreatedByEmail, email);
 
             if (!foundCommonTime)
@@ -180,6 +153,18 @@ public class SharedTaskController : ControllerBase
                 await _notifications.CreateNoCommonTimeNotificationAsync(
                     email, taskId, taskTitle);
             }
+
+            // Reschedule every member's remaining tasks around the locked shared slot.
+            var memberEmails = await _db.GetSharedTaskMemberEmailsAsync(taskId);
+            foreach (var memberEmail in memberEmails)
+                await _scheduling.ScheduleAllTasksAsync(memberEmail);
+        }
+        else if (sharedStatus == "Cancelled")
+        {
+            // Decline removes the partner's copy and any already-placed events so
+            // the accepting user's calendar doesn't keep a stale shared slot.
+            await _db.CleanupSharedTaskPartnerCopiesAsync(taskId);
+            await _scheduling.ScheduleAllTasksAsync(sharedInfo.CreatedByEmail);
         }
 
         return Ok(new { taskId, status = sharedStatus });
@@ -194,21 +179,33 @@ public class SharedTaskController : ControllerBase
         var email = GetEmail();
 
         var sharedInfo = await _db.GetSharedInfoAsync(taskId);
-        if (sharedInfo == null || sharedInfo.CreatedByEmail != email)
+        if (sharedInfo == null || !string.Equals(sharedInfo.CreatedByEmail, email, StringComparison.OrdinalIgnoreCase))
             return NotFound(new { message = "Shared task not found" });
 
         await _db.UpdateSharedTaskStatusAsync(taskId, "Cancelled");
 
-        // Notify other members about the cancellation
         var task = await _db.GetTaskByIdAsync(taskId);
         var taskTitle = task?.Title ?? "Task";
         var creator = await _db.GetUserByEmailAsync(email);
         var creatorName = creator != null ? $"{creator.FirstName} {creator.LastName}" : email;
-        foreach (var member in sharedInfo.Members.Where(m => m.Email != email))
+
+        var affectedPartners = sharedInfo.Members
+            .Where(m => !string.Equals(m.Email, email, StringComparison.OrdinalIgnoreCase))
+            .Select(m => m.Email)
+            .ToList();
+
+        // Remove each partner's copy task + its events before they're stranded
+        // with an orphaned slot on their calendar.
+        await _db.CleanupSharedTaskPartnerCopiesAsync(taskId);
+
+        foreach (var partnerEmail in affectedPartners)
         {
             await _notifications.CreateSharedTaskResponseNotificationAsync(
-                member.Email, creatorName, taskId, taskTitle, false);
+                partnerEmail, creatorName, taskId, taskTitle, false);
+            await _scheduling.ScheduleAllTasksAsync(partnerEmail);
         }
+
+        await _scheduling.ScheduleAllTasksAsync(email);
 
         return Ok(new { taskId, status = "Cancelled" });
     }

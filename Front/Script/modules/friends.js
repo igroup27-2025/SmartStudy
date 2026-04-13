@@ -10,7 +10,8 @@ export async function initFriends() {
     try {
         const data = await api.getConnections();
         connections = data.filter(c => c.status === 'accepted');
-        pendingRequests = data.filter(c => c.status === 'pending');
+        // 'pending' = incoming (can accept/decline); 'sent' = outgoing (awaiting response)
+        pendingRequests = data.filter(c => c.status === 'pending' || c.status === 'sent');
     } catch (err) {
         console.error('Failed to load connections:', err);
         showToast('Failed to load friends', 'error');
@@ -64,8 +65,10 @@ function renderPendingRequests() {
                 <div class="friend-request-email">${r.friendEmail}</div>
             </div>
             <div class="friend-request-actions">
-                <button class="btn btn-primary btn-sm request-accept" data-id="${r.connectionId}">Accept</button>
-                <button class="btn btn-secondary btn-sm request-decline" data-id="${r.connectionId}">Decline</button>
+                ${r.status === 'sent'
+                    ? `<span style="color: var(--text-muted, #888); font-size: 0.9rem; font-style: italic;">Waiting for response…</span>`
+                    : `<button class="btn btn-primary btn-sm request-accept" data-id="${r.connectionId}">Accept</button>
+                       <button class="btn btn-secondary btn-sm request-decline" data-id="${r.connectionId}">Decline</button>`}
             </div>
         </div>
     `).join('');
@@ -83,13 +86,15 @@ function renderPendingRequests() {
 
             const req = pendingRequests.find(r => r.connectionId === id);
             if (req) {
+                // Remove from pending first — reassigning connectionId below
+                // would otherwise break the filter predicate.
+                pendingRequests = pendingRequests.filter(r => r.connectionId !== id);
                 req.status = 'accepted';
-                // Use the friendshipId returned by the server for safe-zone lookups
+                // Swap to the friendshipId so later remove/delete calls target the friendship row.
                 if (result && result.friendshipId) {
                     req.connectionId = result.friendshipId;
                 }
                 connections.push(req);
-                pendingRequests = pendingRequests.filter(r => r.connectionId !== id);
             }
             renderPendingRequests();
             renderFriends();
@@ -140,7 +145,6 @@ function renderFriends() {
             </div>
             <div class="friend-card-footer">
                 <div class="friend-card-footer-buttons">
-                    <button class="btn btn-primary btn-sm friend-safezone" data-id="${c.connectionId}" data-name="${c.friendName}">Find Safe Zone</button>
                     <button class="btn btn-secondary btn-sm friend-share-task" data-email="${c.friendEmail}" data-name="${c.friendName}">Share Task</button>
                 </div>
             </div>
@@ -161,14 +165,6 @@ function renderFriends() {
             connections = connections.filter(c => c.connectionId !== id);
             renderFriends();
             showToast('Friend removed');
-        });
-    });
-
-    el.querySelectorAll('.friend-safezone').forEach(btn => {
-        btn.addEventListener('click', () => {
-            const id = parseInt(btn.dataset.id);
-            const name = btn.dataset.name;
-            openSafeZone(id, name);
         });
     });
 
@@ -212,72 +208,6 @@ function setupInvite() {
         closeModal('inviteModal');
         showToast('Invitation sent!');
     });
-}
-
-async function openSafeZone(connectionId, name) {
-    document.getElementById('safeZoneTitle').textContent = `Safe Zones with ${name}`;
-    document.getElementById('safeZoneContent').innerHTML = '<div class="spinner-center"><div class="spinner"></div></div>';
-    openModal('safeZoneModal');
-
-    let zones;
-    try {
-        zones = await api.getSafeZones(connectionId);
-    } catch (err) {
-        document.getElementById('safeZoneContent').innerHTML = `
-            <div class="empty-state" style="padding: var(--space-8) 0;">
-                <div class="empty-state-icon">&#9888;</div>
-                <h3>Failed to load safe zones</h3>
-                <p>${err.message || 'Please try again later'}</p>
-            </div>`;
-        return;
-    }
-
-    const content = document.getElementById('safeZoneContent');
-
-    if (!zones.length) {
-        content.innerHTML = `
-            <div class="empty-state" style="padding: var(--space-8) 0;">
-                <div class="empty-state-icon">&#128337;</div>
-                <h3>No safe zones found</h3>
-                <p>No overlapping free time this week</p>
-            </div>`;
-        return;
-    }
-
-    // Group by date
-    const grouped = {};
-    zones.forEach(z => {
-        const key = z.date;
-        if (!grouped[key]) grouped[key] = { day: z.day, date: z.date, slots: [] };
-        grouped[key].slots.push(z);
-    });
-
-    const days = Object.values(grouped);
-
-    content.innerHTML = `
-        <p class="safezone-intro">Mutual free time slots this week — stress levels shown for reference:</p>
-        <div class="safezone-days">
-            ${days.map(d => `
-                <div class="safezone-day">
-                    <div class="safezone-day-header">
-                        <span>${d.day}</span>
-                        <span class="text-muted text-sm">${formatDate(d.date)}</span>
-                    </div>
-                    <div class="safezone-slots">
-                        ${d.slots.map(s => {
-                            const maxStress = Math.max(s.myStress, s.friendStress);
-                            const level = maxStress <= 40 ? 'low' : maxStress <= 70 ? 'medium' : 'high';
-                            return `
-                            <div class="safezone-slot">
-                                <span class="safezone-slot-time">${s.startTime} - ${s.endTime}</span>
-                                <span class="badge badge-${level}">${maxStress}% stress</span>
-                            </div>`;
-                        }).join('')}
-                    </div>
-                </div>
-            `).join('')}
-        </div>
-    `;
 }
 
 /* ── Shared Tasks ── */

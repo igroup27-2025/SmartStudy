@@ -95,6 +95,8 @@ public class EventsController : ControllerBase
                 dto.ActualHours = evt.ActualHours;
                 dto.Status = evt.Status;
                 dto.IsManuallyPinned = evt.IsManuallyPinned;
+                dto.IsShared = evt.IsShared;
+                dto.SharedStatus = evt.SharedStatus;
                 break;
             case "work":
                 dto.EventType = "work";
@@ -210,12 +212,31 @@ public class EventsController : ControllerBase
         var ownerEmail = await _db.GetEventOwnerEmailAsync(id);
         if (ownerEmail == null || ownerEmail != email) return NotFound();
 
-        await _db.UpdateTaskEventAsync(id, dto.From, dto.To, dto.Recurring, dto.RecurrenceEndDate, dto.TaskId, dto.Priority, dto.Status);
+        // Capture the pre-update time window so we can locate the partner's paired
+        // event if this task is shared.
+        var oldTimes = await _db.GetEventTimeRangeAsync(id);
 
-        // Pin the parent task so it's excluded from auto-scheduling
+        await _db.UpdateTaskEventAsync(id, dto.From, dto.To, dto.Recurring, dto.RecurrenceEndDate, dto.TaskId, dto.Priority, dto.Status);
         await _db.PinTaskAsync(dto.TaskId);
 
-        return Ok(new { EventId = id, eventType = "task", isManuallyPinned = true });
+        bool partnerSynced = false;
+        if (oldTimes.HasValue)
+        {
+            var partnerTaskId = await _db.GetSharedPartnerTaskIdAsync(dto.TaskId);
+            if (partnerTaskId.HasValue)
+            {
+                var partnerEventId = await _db.SyncSharedTaskEventMoveAsync(
+                    id, partnerTaskId.Value,
+                    oldTimes.Value.From, oldTimes.Value.To,
+                    dto.From, dto.To);
+                partnerSynced = partnerEventId.HasValue;
+                // Keep the partner's task out of auto-scheduling too so the mirrored
+                // event sticks on their calendar.
+                if (partnerSynced) await _db.PinTaskAsync(partnerTaskId.Value);
+            }
+        }
+
+        return Ok(new { EventId = id, eventType = "task", isManuallyPinned = true, partnerSynced });
     }
 
     [HttpPut("personal/{id}")]

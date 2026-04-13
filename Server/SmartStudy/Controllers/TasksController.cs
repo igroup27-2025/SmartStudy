@@ -76,11 +76,15 @@ public class TasksController : ControllerBase
         var taskId = await _db.CreateTaskAsync(courseId, email, dto.Title, dto.Type,
             dto.EstimatedHours, dueDate, dto.ParentTaskId, dto.AllowSplitting, priority, isManualPriority);
 
-        // Auto-share if course has SharedByDefault enabled and has a study partner
+        string? autoSharedPartner = null;
+        bool autoSharedConfirmed = false;
+
         var userCourse = await _db.GetUserCourseAsync(email, courseId);
         if (userCourse?.SharedByDefault == true && !string.IsNullOrEmpty(userCourse.StudyPartnerEmail))
         {
+            // Creator row = Accepted immediately; creator can always run the schedule.
             await _db.CreateSharedTaskAsync(taskId, email, "Pending");
+            await _db.CreateSharedTaskMemberAsync(taskId, email, "Accepted", DateTime.UtcNow);
 
             var partnerUserCourse = await _db.GetUserCourseAsync(userCourse.StudyPartnerEmail, courseId);
             var autoApproved = partnerUserCourse?.CourseShareApproved == true;
@@ -90,10 +94,26 @@ public class TasksController : ControllerBase
                 autoApproved ? DateTime.UtcNow : null);
 
             if (autoApproved)
+            {
                 await _db.UpdateSharedTaskStatusAsync(taskId, "Confirmed");
+                autoSharedConfirmed = true;
+                autoSharedPartner = userCourse.StudyPartnerEmail;
+            }
         }
 
-        await _scheduling.ScheduleAllTasksAsync(email);
+        if (autoSharedConfirmed && autoSharedPartner != null)
+        {
+            // Create the partner's copy task AND place both calendars at a mutual-
+            // free slot (NeedReview) BEFORE rescheduling so the rest of each
+            // user's tasks slot around the shared block.
+            await _scheduling.EnsurePartnerCopyAndScheduleAsync(taskId, email, autoSharedPartner);
+            await _scheduling.ScheduleAllTasksAsync(email);
+            await _scheduling.ScheduleAllTasksAsync(autoSharedPartner);
+        }
+        else
+        {
+            await _scheduling.ScheduleAllTasksAsync(email);
+        }
 
         var reloaded = await _db.GetTaskByIdAsync(taskId);
         return CreatedAtAction(nameof(Get), new { id = taskId }, reloaded != null ? await BuildTaskDtoAsync(reloaded) : null);
@@ -260,7 +280,8 @@ public class TasksController : ControllerBase
         string? sharedWithEmail = null;
         if (sharedInfo?.Members != null)
         {
-            var otherMember = sharedInfo.Members.FirstOrDefault(m => m.Email != t.Email);
+            var otherMember = sharedInfo.Members.FirstOrDefault(m =>
+                !string.Equals(m.Email, t.Email, StringComparison.OrdinalIgnoreCase));
             sharedWithName = otherMember?.FullName;
             sharedWithEmail = otherMember?.Email;
         }

@@ -918,6 +918,30 @@ CREATE PROCEDURE SS_Exams_Delete
 AS
 BEGIN
     SET NOCOUNT ON;
+
+    DECLARE @CourseId INT, @ExamDate DATETIME2;
+    SELECT @CourseId = CourseId, @ExamDate = [Date]
+    FROM SmartStudy_Exams WHERE ExamId = @ExamId;
+
+    IF @CourseId IS NOT NULL
+    BEGIN
+        DECLARE @StudyTaskIds TABLE (TaskId INT PRIMARY KEY);
+        INSERT INTO @StudyTaskIds
+        SELECT TaskId FROM SmartStudy_Tasks
+        WHERE CourseId = @CourseId
+          AND [Type] = 'Study for exam'
+          AND CAST(DueDate AS DATE) = CAST(@ExamDate AS DATE);
+
+        DECLARE @StudyEventIds TABLE (EventId INT PRIMARY KEY);
+        INSERT INTO @StudyEventIds
+        SELECT te.EventId FROM SmartStudy_TaskEvents te
+        WHERE te.TaskId IN (SELECT TaskId FROM @StudyTaskIds);
+
+        DELETE FROM SmartStudy_TaskEvents WHERE EventId IN (SELECT EventId FROM @StudyEventIds);
+        DELETE FROM SmartStudy_Events     WHERE EventId IN (SELECT EventId FROM @StudyEventIds);
+        DELETE FROM SmartStudy_Tasks      WHERE TaskId  IN (SELECT TaskId  FROM @StudyTaskIds);
+    END
+
     DELETE FROM SmartStudy_Exams WHERE ExamId = @ExamId;
 END
 GO
@@ -1041,10 +1065,28 @@ CREATE PROCEDURE SS_Tasks_Delete
 AS
 BEGIN
     SET NOCOUNT ON;
-    -- Delete sub-tasks first (their TaskEvents cascade via Events)
+
+    DECLARE @TasksToDelete TABLE (TaskId INT PRIMARY KEY);
+    INSERT INTO @TasksToDelete (TaskId) VALUES (@TaskId);
+    INSERT INTO @TasksToDelete (TaskId)
+        SELECT TaskId FROM SmartStudy_Tasks
+        WHERE ParentTaskId = @TaskId AND TaskId NOT IN (SELECT TaskId FROM @TasksToDelete);
+
+    DECLARE @EventIds TABLE (EventId INT PRIMARY KEY);
+    INSERT INTO @EventIds (EventId)
+        SELECT te.EventId FROM SmartStudy_TaskEvents te
+        WHERE te.TaskId IN (SELECT TaskId FROM @TasksToDelete);
+
+    -- TaskEvents → Events FK is NO_ACTION on the live DB (EF-Core default name).
+    -- Delete the subtype rows explicitly so the base Events deletes can succeed.
+    DELETE FROM SmartStudy_TaskEvents WHERE EventId IN (SELECT EventId FROM @EventIds);
+    DELETE FROM SmartStudy_Events     WHERE EventId IN (SELECT EventId FROM @EventIds);
+
+    UPDATE SmartStudy_SharedTaskMembers
+    SET CopyTaskId = NULL
+    WHERE CopyTaskId IN (SELECT TaskId FROM @TasksToDelete);
+
     DELETE FROM SmartStudy_Tasks WHERE ParentTaskId = @TaskId;
-    -- Delete task events via Events table cascade
-    DELETE FROM SmartStudy_Events WHERE EventId IN (SELECT EventId FROM SmartStudy_TaskEvents WHERE TaskId = @TaskId);
     DELETE FROM SmartStudy_Tasks WHERE TaskId = @TaskId;
 END
 GO
@@ -1226,18 +1268,22 @@ CREATE PROCEDURE SS_Tasks_DeleteStudyTasksForExam
 AS
 BEGIN
     SET NOCOUNT ON;
-    -- Delete task events first (via Events cascade), then the tasks
-    DELETE FROM SmartStudy_Events WHERE EventId IN (
-        SELECT te.EventId FROM SmartStudy_TaskEvents te
-        INNER JOIN SmartStudy_Tasks t ON te.TaskId = t.TaskId
-        WHERE t.Email = @Email AND t.CourseId = @CourseId
-          AND t.[Type] = 'Study for exam' AND CAST(t.DueDate AS DATE) = CAST(@ExamDate AS DATE)
-          AND t.IsCompleted = 0
-    );
-    DELETE FROM SmartStudy_Tasks
+
+    DECLARE @StudyTaskIds TABLE (TaskId INT PRIMARY KEY);
+    INSERT INTO @StudyTaskIds
+    SELECT TaskId FROM SmartStudy_Tasks
     WHERE Email = @Email AND CourseId = @CourseId
       AND [Type] = 'Study for exam' AND CAST(DueDate AS DATE) = CAST(@ExamDate AS DATE)
       AND IsCompleted = 0;
+
+    DECLARE @StudyEventIds TABLE (EventId INT PRIMARY KEY);
+    INSERT INTO @StudyEventIds
+    SELECT te.EventId FROM SmartStudy_TaskEvents te
+    WHERE te.TaskId IN (SELECT TaskId FROM @StudyTaskIds);
+
+    DELETE FROM SmartStudy_TaskEvents WHERE EventId IN (SELECT EventId FROM @StudyEventIds);
+    DELETE FROM SmartStudy_Events     WHERE EventId IN (SELECT EventId FROM @StudyEventIds);
+    DELETE FROM SmartStudy_Tasks      WHERE TaskId  IN (SELECT TaskId  FROM @StudyTaskIds);
 END
 GO
 
@@ -1509,6 +1555,54 @@ BEGIN
 END
 GO
 
+IF OBJECT_ID('SS_SharedTaskMembers_GetCopyTaskId','P') IS NOT NULL DROP PROCEDURE SS_SharedTaskMembers_GetCopyTaskId;
+GO
+CREATE PROCEDURE SS_SharedTaskMembers_GetCopyTaskId
+    @TaskId INT,
+    @Email  NVARCHAR(255)
+AS
+BEGIN
+    SET NOCOUNT ON;
+    SELECT TOP 1 CopyTaskId
+    FROM SmartStudy_SharedTaskMembers
+    WHERE TaskId = @TaskId AND Email = @Email;
+END
+GO
+
+IF OBJECT_ID('SS_SharedTasks_CleanupPartnerCopies','P') IS NOT NULL DROP PROCEDURE SS_SharedTasks_CleanupPartnerCopies;
+GO
+CREATE PROCEDURE SS_SharedTasks_CleanupPartnerCopies
+    @TaskId INT
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    DECLARE @CopyIds TABLE (TaskId INT PRIMARY KEY);
+    INSERT INTO @CopyIds (TaskId)
+    SELECT DISTINCT stm.CopyTaskId
+    FROM SmartStudy_SharedTaskMembers stm
+    INNER JOIN SmartStudy_SharedTasks st ON st.TaskId = stm.TaskId
+    WHERE stm.TaskId = @TaskId
+      AND stm.CopyTaskId IS NOT NULL
+      AND stm.Email <> st.CreatedByEmail;
+
+    DECLARE @CopyEventIds TABLE (EventId INT PRIMARY KEY);
+    INSERT INTO @CopyEventIds
+    SELECT te.EventId FROM SmartStudy_TaskEvents te
+    WHERE te.TaskId IN (SELECT TaskId FROM @CopyIds);
+
+    DELETE FROM SmartStudy_TaskEvents WHERE EventId IN (SELECT EventId FROM @CopyEventIds);
+    DELETE FROM SmartStudy_Events     WHERE EventId IN (SELECT EventId FROM @CopyEventIds);
+    DELETE FROM SmartStudy_Tasks      WHERE TaskId  IN (SELECT TaskId  FROM @CopyIds);
+
+    UPDATE SmartStudy_SharedTaskMembers
+    SET CopyTaskId = NULL
+    WHERE TaskId = @TaskId;
+
+    SELECT COUNT(*) AS DeletedCount FROM @CopyIds;
+END
+GO
+
 IF OBJECT_ID('SS_SharedTaskMembers_UpdateCopyTaskId','P') IS NOT NULL DROP PROCEDURE SS_SharedTaskMembers_UpdateCopyTaskId;
 GO
 CREATE PROCEDURE SS_SharedTaskMembers_UpdateCopyTaskId
@@ -1685,6 +1779,12 @@ BEGIN
         te.ActualHours,
         te.[Status],
         t.IsManuallyPinned,
+        -- Shared indicator: task is either the creator's original or a partner's copy of a non-cancelled SharedTask
+        CAST(CASE
+            WHEN st_direct.TaskId IS NOT NULL OR st_copy.TaskId IS NOT NULL THEN 1
+            ELSE 0
+        END AS BIT) AS IsShared,
+        COALESCE(st_direct.SharedStatus, st_copy.SharedStatus) AS SharedStatus,
         -- WorkEvent fields
         we.TravelTime,
         we.WorkPlace,
@@ -1696,6 +1796,9 @@ BEGIN
     LEFT JOIN SmartStudy_Courses c ON c.CourseId = ce.CourseId
     LEFT JOIN SmartStudy_TaskEvents te ON te.EventId = e.EventId
     LEFT JOIN SmartStudy_Tasks t ON t.TaskId = te.TaskId
+    LEFT JOIN SmartStudy_SharedTasks st_direct ON st_direct.TaskId = te.TaskId AND st_direct.SharedStatus <> 'Cancelled'
+    LEFT JOIN SmartStudy_SharedTaskMembers stm_copy ON stm_copy.CopyTaskId = te.TaskId
+    LEFT JOIN SmartStudy_SharedTasks st_copy ON st_copy.TaskId = stm_copy.TaskId AND st_copy.SharedStatus <> 'Cancelled'
     LEFT JOIN SmartStudy_WorkEvents we ON we.EventId = e.EventId
     LEFT JOIN SmartStudy_PersonalEvents pe ON pe.EventId = e.EventId
     WHERE e.Email = @Email
@@ -1932,6 +2035,10 @@ BEGIN
         END AS EventType,
         ce.CourseId, c.CourseName, ce.[Location], ce.Duration,
         te.TaskId, t.Title AS TaskTitle, te.[Priority], te.ActualHours, te.[Status], t.IsManuallyPinned,
+        CAST(CASE
+            WHEN st_direct.TaskId IS NOT NULL OR st_copy.TaskId IS NOT NULL THEN 1
+            ELSE 0
+        END AS BIT) AS IsShared,
         we.TravelTime, we.WorkPlace,
         pe.[Type], pe.[Description]
     FROM SmartStudy_Events e
@@ -1939,6 +2046,9 @@ BEGIN
     LEFT JOIN SmartStudy_Courses c ON c.CourseId = ce.CourseId
     LEFT JOIN SmartStudy_TaskEvents te ON te.EventId = e.EventId
     LEFT JOIN SmartStudy_Tasks t ON t.TaskId = te.TaskId
+    LEFT JOIN SmartStudy_SharedTasks st_direct ON st_direct.TaskId = te.TaskId AND st_direct.SharedStatus <> 'Cancelled'
+    LEFT JOIN SmartStudy_SharedTaskMembers stm_copy ON stm_copy.CopyTaskId = te.TaskId
+    LEFT JOIN SmartStudy_SharedTasks st_copy ON st_copy.TaskId = stm_copy.TaskId AND st_copy.SharedStatus <> 'Cancelled'
     LEFT JOIN SmartStudy_WorkEvents we ON we.EventId = e.EventId
     LEFT JOIN SmartStudy_PersonalEvents pe ON pe.EventId = e.EventId
     WHERE e.Email = @Email
@@ -2277,10 +2387,13 @@ CREATE PROCEDURE SS_TaskEvents_GetNeedReviewTaskIds
 AS
 BEGIN
     SET NOCOUNT ON;
+    -- Tasks with events still awaiting approval (either this user's pending review,
+    -- or a shared task awaiting the partner). Both states keep the task out of
+    -- the auto-scheduler so its slot is preserved.
     SELECT DISTINCT te.TaskId
     FROM SmartStudy_TaskEvents te
     INNER JOIN SmartStudy_Tasks t ON t.TaskId = te.TaskId
-    WHERE t.Email = @Email AND te.Status = 'NeedReview';
+    WHERE t.Email = @Email AND te.Status IN ('NeedReview', 'PartiallyApproved');
 END
 GO
 
@@ -2318,8 +2431,84 @@ BEGIN
     FROM SmartStudy_TaskEvents te
     INNER JOIN SmartStudy_Events e ON e.EventId = te.EventId
     WHERE (te.TaskId = @TaskId1 OR te.TaskId = @TaskId2)
-      AND (te.Status = 'Scheduled' OR te.Status = 'Partial')
+      AND te.Status IN ('Scheduled', 'Partial', 'NeedReview', 'PartiallyApproved')
     ORDER BY e.[From];
+END
+GO
+
+IF OBJECT_ID('SS_Events_GetTimeRange','P') IS NOT NULL DROP PROCEDURE SS_Events_GetTimeRange;
+GO
+CREATE PROCEDURE SS_Events_GetTimeRange
+    @EventId INT
+AS
+BEGIN
+    SET NOCOUNT ON;
+    SELECT [From], [To] FROM SmartStudy_Events WHERE EventId = @EventId;
+END
+GO
+
+IF OBJECT_ID('SS_SharedTasks_GetPartnerTaskId','P') IS NOT NULL DROP PROCEDURE SS_SharedTasks_GetPartnerTaskId;
+GO
+CREATE PROCEDURE SS_SharedTasks_GetPartnerTaskId
+    @TaskId INT
+AS
+BEGIN
+    SET NOCOUNT ON;
+    DECLARE @PartnerTaskId INT = NULL;
+
+    SELECT TOP 1 @PartnerTaskId = stm.CopyTaskId
+    FROM SmartStudy_SharedTasks st
+    INNER JOIN SmartStudy_SharedTaskMembers stm
+        ON stm.TaskId = st.TaskId
+       AND stm.CopyTaskId IS NOT NULL
+       AND stm.Email <> st.CreatedByEmail
+    WHERE st.TaskId = @TaskId
+      AND st.SharedStatus = 'Confirmed';
+
+    IF @PartnerTaskId IS NULL
+    BEGIN
+        SELECT TOP 1 @PartnerTaskId = st.TaskId
+        FROM SmartStudy_SharedTaskMembers stm
+        INNER JOIN SmartStudy_SharedTasks st ON st.TaskId = stm.TaskId
+        WHERE stm.CopyTaskId = @TaskId
+          AND st.SharedStatus = 'Confirmed';
+    END
+
+    SELECT @PartnerTaskId AS PartnerTaskId;
+END
+GO
+
+IF OBJECT_ID('SS_TaskEvents_SyncSharedMove','P') IS NOT NULL DROP PROCEDURE SS_TaskEvents_SyncSharedMove;
+GO
+CREATE PROCEDURE SS_TaskEvents_SyncSharedMove
+    @MovedEventId  INT,
+    @PartnerTaskId INT,
+    @OldFrom       DATETIME2,
+    @OldTo         DATETIME2,
+    @NewFrom       DATETIME2,
+    @NewTo         DATETIME2
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    DECLARE @PartnerEventId INT;
+    SELECT TOP 1 @PartnerEventId = e.EventId
+    FROM SmartStudy_TaskEvents te
+    INNER JOIN SmartStudy_Events e ON e.EventId = te.EventId
+    WHERE te.TaskId = @PartnerTaskId
+      AND e.EventId <> @MovedEventId
+      AND e.[From] = @OldFrom
+      AND e.[To]   = @OldTo
+    ORDER BY e.EventId;
+
+    IF @PartnerEventId IS NOT NULL
+    BEGIN
+        UPDATE SmartStudy_Events
+        SET [From] = @NewFrom, [To] = @NewTo
+        WHERE EventId = @PartnerEventId;
+    END
+
+    SELECT @PartnerEventId AS PartnerEventId;
 END
 GO
 
@@ -2874,23 +3063,87 @@ CREATE PROCEDURE SS_TaskEvents_Approve
 AS
 BEGIN
     SET NOCOUNT ON;
-    DECLARE @ApprovedCount INT;
-    SELECT @ApprovedCount = COUNT(*)
-    FROM SmartStudy_TaskEvents te
-    INNER JOIN SmartStudy_Tasks t ON t.TaskId = te.TaskId
-    WHERE te.TaskId = @TaskId AND t.Email = @Email AND te.Status = 'NeedReview';
 
-    UPDATE te SET te.Status = 'Scheduled'
-    FROM SmartStudy_TaskEvents te
-    INNER JOIN SmartStudy_Tasks t ON t.TaskId = te.TaskId
-    WHERE te.TaskId = @TaskId AND t.Email = @Email AND te.Status = 'NeedReview';
+    -- Figure out if this task is part of a shared task, and if so, find the
+    -- partner's task id (via SharedTaskMembers.CopyTaskId linkage).
+    DECLARE @CreatorTaskId INT = NULL;
+    DECLARE @PartnerTaskId INT = NULL;
+
+    -- Scenario A: @TaskId is the creator's task
+    IF EXISTS (SELECT 1 FROM SmartStudy_SharedTasks
+               WHERE TaskId = @TaskId AND SharedStatus = 'Confirmed')
+    BEGIN
+        SET @CreatorTaskId = @TaskId;
+        SELECT TOP 1 @PartnerTaskId = stm.CopyTaskId
+        FROM SmartStudy_SharedTaskMembers stm
+        WHERE stm.TaskId = @TaskId
+          AND stm.CopyTaskId IS NOT NULL
+          AND stm.Email <> @Email;
+    END
+    ELSE
+    BEGIN
+        -- Scenario B: @TaskId is a partner's copy
+        SELECT TOP 1 @CreatorTaskId = stm.TaskId, @PartnerTaskId = stm.CopyTaskId
+        FROM SmartStudy_SharedTaskMembers stm
+        INNER JOIN SmartStudy_SharedTasks st ON st.TaskId = stm.TaskId
+        WHERE stm.CopyTaskId = @TaskId
+          AND st.SharedStatus = 'Confirmed';
+    END
+
+    DECLARE @ApprovedCount INT = 0;
+    DECLARE @IsShared BIT = CASE WHEN @CreatorTaskId IS NOT NULL AND @PartnerTaskId IS NOT NULL THEN 1 ELSE 0 END;
+
+    IF @IsShared = 1
+    BEGIN
+        -- Shared task: flip MY NeedReview events to an intermediate status so
+        -- they stay "Pending" on the calendar until the partner also approves.
+        UPDATE te SET te.Status = 'PartiallyApproved'
+        FROM SmartStudy_TaskEvents te
+        INNER JOIN SmartStudy_Tasks t ON t.TaskId = te.TaskId
+        WHERE te.TaskId = @TaskId AND t.Email = @Email AND te.Status = 'NeedReview';
+
+        SET @ApprovedCount = @@ROWCOUNT;
+
+        -- Determine partner's TaskId (the other side).
+        DECLARE @OtherTaskId INT =
+            CASE WHEN @TaskId = @CreatorTaskId THEN @PartnerTaskId ELSE @CreatorTaskId END;
+
+        DECLARE @PartnerPending INT;
+        SELECT @PartnerPending = COUNT(*)
+        FROM SmartStudy_TaskEvents
+        WHERE TaskId = @OtherTaskId AND Status = 'NeedReview';
+
+        DECLARE @PartnerApproved INT;
+        SELECT @PartnerApproved = COUNT(*)
+        FROM SmartStudy_TaskEvents
+        WHERE TaskId = @OtherTaskId AND Status = 'PartiallyApproved';
+
+        -- Partner already approved → no NeedReview remaining, at least one PartiallyApproved.
+        -- Finalise both sides to Scheduled, removing the Pending tag.
+        IF @PartnerPending = 0 AND @PartnerApproved > 0
+        BEGIN
+            UPDATE SmartStudy_TaskEvents SET Status = 'Scheduled'
+            WHERE TaskId IN (@CreatorTaskId, @PartnerTaskId) AND Status = 'PartiallyApproved';
+        END
+    END
+    ELSE
+    BEGIN
+        -- Non-shared task: approve immediately (original behaviour).
+        UPDATE te SET te.Status = 'Scheduled'
+        FROM SmartStudy_TaskEvents te
+        INNER JOIN SmartStudy_Tasks t ON t.TaskId = te.TaskId
+        WHERE te.TaskId = @TaskId AND t.Email = @Email AND te.Status = 'NeedReview';
+
+        SET @ApprovedCount = @@ROWCOUNT;
+    END
 
     DECLARE @PastEventIds TABLE (EventId INT);
     INSERT INTO @PastEventIds
     SELECT te.EventId
     FROM SmartStudy_TaskEvents te
     INNER JOIN SmartStudy_Events e ON e.EventId = te.EventId
-    WHERE te.TaskId = @TaskId AND e.[From] < @Now AND te.Status != 'NeedReview';
+    WHERE te.TaskId = @TaskId AND e.[From] < @Now
+      AND te.Status NOT IN ('NeedReview', 'PartiallyApproved');
 
     DECLARE @RemovedPast INT = (SELECT COUNT(*) FROM @PastEventIds);
     DELETE FROM SmartStudy_TaskEvents WHERE EventId IN (SELECT EventId FROM @PastEventIds);

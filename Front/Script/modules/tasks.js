@@ -495,6 +495,11 @@ function setupAddTask() {
                         await api.createSharedTask({ taskId: parseInt(taskId), partnerEmail: friendEmail });
                         showToast('Task updated and shared with friend');
                     } catch (err) { showToast('Task updated but sharing failed: ' + err.message, 'error'); }
+                } else if (!isShared && wasShared) {
+                    try {
+                        await api.cancelSharedTask(parseInt(taskId));
+                        showToast('Task updated and sharing removed');
+                    } catch (err) { showToast('Task updated but unsharing failed: ' + err.message, 'error'); }
                 } else {
                     showToast('Task updated');
                 }

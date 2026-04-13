@@ -165,6 +165,11 @@ public class AuthController : ControllerBase
                     OnboardingCompleted = false
                 };
             }
+            else if (!user.OnboardingCompleted)
+            {
+                await _db.SetOnboardingCompleteAsync(user.Email);
+                user.OnboardingCompleted = true;
+            }
 
             var token = GenerateToken(user);
             return Ok(new AuthResponseDto

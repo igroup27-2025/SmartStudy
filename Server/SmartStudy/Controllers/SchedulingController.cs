@@ -44,9 +44,11 @@ public class SchedulingController : ControllerBase
         var email = GetEmail();
         var now = DateTime.Now;
 
-        // Verify task exists and belongs to user
+        // Verify task exists and belongs to user (case-insensitive — JWT claim
+        // and DB email can differ in casing).
         var task = await _dal.GetTaskByIdAsync(taskId);
-        if (task == null || task.Email != email) return NotFound();
+        if (task == null || !string.Equals(task.Email, email, StringComparison.OrdinalIgnoreCase))
+            return NotFound();
 
         var (approvedCount, removedPast) = await _dal.ApproveTaskEventsAsync(taskId, email, now);
 

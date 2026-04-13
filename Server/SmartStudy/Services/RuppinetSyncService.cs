@@ -94,9 +94,6 @@ public class RuppinetSyncService
 
             await _dal.UpdateLastRuppinetSyncAsync(email, DateTime.UtcNow);
 
-            // Seed demo tasks on first sync (only if user has no tasks)
-            await SeedTasksForSyncedCoursesAsync(email);
-
             // Run the scheduling engine to place tasks into calendar slots
             await _scheduling.ScheduleAllTasksAsync(email);
 
@@ -472,48 +469,6 @@ public class RuppinetSyncService
         if (instructor != null) return instructor.InstructorId;
 
         return await _dal.CreateInstructorAsync(truncatedName);
-    }
-
-    /// <summary>
-    /// Seed demo tasks for Ruppinet-synced courses. Called after first sync.
-    /// Only creates tasks if the user has no tasks yet.
-    /// </summary>
-    private async Task SeedTasksForSyncedCoursesAsync(string email)
-    {
-        var taskCount = await _dal.CountTasksByUserAsync(email);
-        if (taskCount > 0) return;
-
-        var courseIds = (await _dal.GetCourseIdsByEmailAsync(email)).ToHashSet();
-
-        // Same demo tasks as in SeedDataService but via DAL
-        if (courseIds.Contains(129485))
-        {
-            await _dal.CreateTaskAsync(129485, email, "תרגיל 1 - REST API", "Homework", 4, new DateTime(2026, 4, 15), null, false, "Medium", false);
-            await _dal.CompleteTaskAsync((await _dal.GetTasksByUserAsync(email)).Last().TaskId, true);
-            await _dal.CreateTaskAsync(129485, email, "תרגיל 2 - React Components", "Homework", 5, new DateTime(2026, 4, 29), null, false, "High", false);
-            await _dal.CreateTaskAsync(129485, email, "פרויקט אמצע - Full Stack App", "Project", 15, new DateTime(2026, 5, 20), null, false, "High", false);
-        }
-        if (courseIds.Contains(128777))
-        {
-            await _dal.CreateTaskAsync(128777, email, "תרגיל 1 - פרוטוקולי תקשורת", "Homework", 3, new DateTime(2026, 4, 13), null, false, "Medium", false);
-            await _dal.CompleteTaskAsync((await _dal.GetTasksByUserAsync(email)).Last().TaskId, true);
-            await _dal.CreateTaskAsync(128777, email, "תרגיל 2 - הצפנה וחתימות דיגיטליות", "Homework", 4, new DateTime(2026, 5, 4), null, false, "High", false);
-            await _dal.CreateTaskAsync(128777, email, "מעבדה - Wireshark Analysis", "Lab", 3, new DateTime(2026, 5, 11), null, false, "Medium", false);
-        }
-        if (courseIds.Contains(129729))
-        {
-            await _dal.CreateTaskAsync(129729, email, "תרגיל 1 - Linear Regression", "Homework", 4, new DateTime(2026, 4, 20), null, false, "Medium", false);
-            await _dal.CompleteTaskAsync((await _dal.GetTasksByUserAsync(email)).Last().TaskId, true);
-            await _dal.CreateTaskAsync(129729, email, "תרגיל 2 - Neural Networks", "Homework", 6, new DateTime(2026, 5, 8), null, false, "High", false);
-            await _dal.CreateTaskAsync(129729, email, "פרויקט סופי - מודל ML", "Project", 20, new DateTime(2026, 6, 15), null, false, "High", false);
-        }
-        if (courseIds.Contains(129076))
-        {
-            await _dal.CreateTaskAsync(129076, email, "תרגיל 1 - User Research", "Homework", 3, new DateTime(2026, 4, 14), null, false, "Low", false);
-            await _dal.CompleteTaskAsync((await _dal.GetTasksByUserAsync(email)).Last().TaskId, true);
-            await _dal.CreateTaskAsync(129076, email, "תרגיל 2 - Wireframes & Prototyping", "Homework", 5, new DateTime(2026, 5, 1), null, false, "Medium", false);
-            await _dal.CreateTaskAsync(129076, email, "פרויקט - UI Design System", "Project", 12, new DateTime(2026, 6, 1), null, false, "High", false);
-        }
     }
 
     private static string Truncate(string? value, int maxLength)

@@ -34,11 +34,23 @@ public class SchedulingService
         // 1. Get all incomplete leaf tasks with due dates
         var allLeafTasks = await _dal.GetIncompleteLeafTasksAsync(email);
 
-        // 2. Determine scheduling window
+        // 2. Determine scheduling window — must cover both task due dates AND
+        // upcoming exam dates, otherwise exam-prep "Study for exam" tasks are
+        // never created for exams that sit beyond the farthest task due date.
+        var scheduleStart = now.Date;
         var maxDueDate = allLeafTasks.Any() ? allLeafTasks.Max(t => t.DueDate!.Value) : now.AddDays(14);
+
+        // Peek at exams across a wide horizon so the window can be extended to
+        // include them (and their prep days).
+        var upcomingExams = await _dal.GetExamsForSchedulingAsync(email, scheduleStart, now.AddYears(1));
+        if (upcomingExams.Any())
+        {
+            var maxExamDate = upcomingExams.Max(e => e.Date);
+            if (maxExamDate > maxDueDate) maxDueDate = maxExamDate;
+        }
+
         if (maxDueDate < now.AddDays(7)) maxDueDate = now.AddDays(7);
         var scheduleEnd = maxDueDate.Date.AddDays(1);
-        var scheduleStart = now.Date;
 
         // Load pinned task IDs
         var pinnedTaskIds = await _dal.GetPinnedTaskIdsAsync(email);
@@ -113,8 +125,8 @@ public class SchedulingService
             }
         }
 
-        // Load exams
-        var exams = await _dal.GetExamsForSchedulingAsync(email, scheduleStart, scheduleEnd);
+        // Reuse the exams already fetched above (they span now → +1y).
+        var exams = upcomingExams;
         var examDays = new HashSet<DateTime>(exams.Select(e => e.Date.Date));
 
         // Auto-create "Study for exam" tasks
@@ -905,6 +917,36 @@ public class SchedulingService
         return expanded;
     }
 
+    /// <summary>
+    /// Ensures the partner has a copy of a confirmed shared task and both users'
+    /// calendars receive synchronized events at a mutually-free slot. Safe to call
+    /// from any confirmation path (auto-share at creation, partner accepting).
+    /// Returns true if a mutual free slot was found; false if the fallback mirror
+    /// of the creator's schedule was used (or the task/member metadata is missing).
+    /// </summary>
+    public async Task<bool> EnsurePartnerCopyAndScheduleAsync(
+        int originalTaskId, string creatorEmail, string partnerEmail)
+    {
+        var task = await _dal.GetTaskByIdAsync(originalTaskId);
+        if (task == null) return false;
+
+        if (!await _dal.UserCourseExistsAsync(partnerEmail, task.CourseId))
+            await _dal.CreateUserCourseAsync(partnerEmail, task.CourseId);
+
+        var existingCopyId = await _dal.GetSharedTaskMemberCopyTaskIdAsync(originalTaskId, partnerEmail);
+
+        if (!existingCopyId.HasValue)
+        {
+            var copyTaskId = await _dal.CreateTaskAsync(
+                task.CourseId, partnerEmail, task.Title, task.Type,
+                task.EstimatedHours, task.DueDate, null,
+                task.AllowSplitting, task.Priority, task.IsManualPriority);
+            await _dal.UpdateSharedTaskMemberCopyTaskIdAsync(originalTaskId, partnerEmail, copyTaskId);
+        }
+
+        return await ScheduleSharedTaskAtCommonTimeAsync(originalTaskId, creatorEmail, partnerEmail);
+    }
+
     public async Task<bool> ScheduleSharedTaskAtCommonTimeAsync(
         int originalTaskId, string creatorEmail, string partnerEmail)
     {
@@ -913,8 +955,19 @@ public class SchedulingService
         var originalTaskRow = await _dal.GetTaskByIdAsync(originalTaskId);
         if (originalTaskRow == null) return false;
 
-        var partnerTaskRow = await _dal.FindTaskByMatchAsync(partnerEmail, originalTaskRow.Title,
-            originalTaskRow.CourseId, originalTaskRow.DueDate);
+        // Prefer the explicit CopyTaskId linkage on the member row so we never
+        // mis-match against an unrelated task with the same title+course+due.
+        TaskWithCourse? partnerTaskRow = null;
+        var copyTaskId = await _dal.GetSharedTaskMemberCopyTaskIdAsync(originalTaskId, partnerEmail);
+        if (copyTaskId.HasValue)
+            partnerTaskRow = await _dal.GetTaskByIdAsync(copyTaskId.Value);
+        if (partnerTaskRow == null)
+        {
+            var partnerMatch = await _dal.FindTaskByMatchAsync(partnerEmail, originalTaskRow.Title,
+                originalTaskRow.CourseId, originalTaskRow.DueDate);
+            if (partnerMatch != null)
+                partnerTaskRow = await _dal.GetTaskByIdAsync(partnerMatch.TaskId);
+        }
         if (partnerTaskRow == null) return false;
 
         // Step 1: Collect existing event IDs for the shared task
@@ -1041,7 +1094,10 @@ public class SchedulingService
             }
         }
 
-        // Step 4: Only swap if we found common slots
+        // Step 4: Apply. If we found common slots, swap both sides to those slots.
+        // Otherwise fall back to mirroring whatever schedule the creator already
+        // has onto the partner's calendar so the pair is at least synchronised
+        // in time (the no-common-time notification warns about possible conflicts).
         if (newTaskEvents.Any())
         {
             foreach (var eventId in sharedTaskEventIds)
@@ -1052,6 +1108,34 @@ public class SchedulingService
                     te.TaskId, te.Priority, te.Status);
 
             return true;
+        }
+
+        // Fallback: mirror creator's existing slots onto the partner so both users
+        // see the task at the same time even when no mutual free slot exists.
+        var creatorSharedTaskEvents = sharedTaskEvents
+            .Where(te => te.TaskId == originalTaskRow.TaskId)
+            .ToList();
+
+        if (creatorSharedTaskEvents.Any())
+        {
+            // Remove any stale partner events for this task before mirroring.
+            var partnerSharedEventIds = sharedTaskEvents
+                .Where(te => te.TaskId == partnerTaskRow.TaskId)
+                .Select(te => te.EventId)
+                .ToList();
+            foreach (var eventId in partnerSharedEventIds)
+                await _dal.DeleteEventByIdAsync(eventId);
+
+            foreach (var te in creatorSharedTaskEvents)
+            {
+                await _dal.CreateTaskEventAsync(
+                    partnerEmail, te.From, te.To, te.Recurring, null,
+                    partnerTaskRow.TaskId,
+                    partnerTaskRow.Priority ?? te.Priority ?? "Medium",
+                    "NeedReview");
+            }
+
+            return false; // signal "no mutual slot" so caller still warns users
         }
 
         return false;

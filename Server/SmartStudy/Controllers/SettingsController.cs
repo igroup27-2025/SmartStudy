@@ -26,6 +26,10 @@ public class SettingsController : ControllerBase
 
     private string GetEmail() => User.FindFirst(ClaimTypes.Email)!.Value;
 
+    [AllowAnonymous]
+    [HttpGet("version")]
+    public IActionResult GetVersion() => Ok(new { version = "2.1-moodle", timestamp = "2026-04-06T18:00:00" });
+
     [HttpGet("profile")]
     public async Task<IActionResult> GetProfile()
     {
@@ -287,6 +291,14 @@ public class SettingsController : ControllerBase
             IsAvailable = !string.IsNullOrEmpty(user.RuppinetId) && !string.IsNullOrEmpty(user.RuppinetPassword),
             LastSync = user.LastMoodleSync
         });
+    }
+
+    [HttpGet("moodle/debug")]
+    public async Task<IActionResult> DebugMoodle()
+    {
+        var email = GetEmail();
+        var result = await _moodleSync.DebugFetchAsync(email);
+        return Ok(result);
     }
 
     [HttpPost("moodle/sync")]

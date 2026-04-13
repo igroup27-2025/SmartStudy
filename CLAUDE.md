@@ -10,7 +10,7 @@ SmartStudy is a student planning web app (Stage 1 MVP). Students manage courses,
 
 - **Frontend**: Static HTML5/CSS3/Vanilla JS (ES6 modules) — no build step, no bundler
 - **Backend**: ASP.NET Core, C#, .NET 6.0
-- **Database**: SQL Server with EF Core 6.0, auto-creates tables on startup
+- **Database**: SQL Server. Schema + stored procedures are provisioned manually from `Schema.sql` (run it once against the target DB before starting the app). All runtime data access goes through stored procedures via `DAL/DBservices.cs` — no EF Core, no LINQ.
 
 ## Running the Project
 
@@ -24,13 +24,13 @@ dotnet run                          # HTTP on localhost:5071
 Served automatically by the backend from `Front/` directory. Navigate to `http://localhost:5071` after starting the server.
 
 ### Database
-Tables are auto-created and seeded on first run via `SeedDataService`. Target SQL Server configured in `appsettings.json`.
+Provision the target SQL Server (configured in `appsettings.json`) by running `Schema.sql` once. It creates all 18 tables and ~150 stored procedures. There is no auto-seed — the app starts with an empty database and users register through the UI.
 
 ## Architecture
 
 ### Three-Tier Design
 ```
-Browser (HTML/CSS/JS)  →  AJAX (JSON)  →  ASP.NET Core API  →  EF Core  →  SQL Server
+Browser (HTML/CSS/JS)  →  AJAX (JSON)  →  ASP.NET Core API  →  DBservices (ADO.NET + stored procs)  →  SQL Server
 ```
 
 ### Frontend Architecture
@@ -43,10 +43,10 @@ Browser (HTML/CSS/JS)  →  AJAX (JSON)  →  ASP.NET Core API  →  EF Core  �
 
 ### Backend Architecture
 - `Controllers/` — 11 API controllers (Auth, Courses, Tasks, Exams, Events, Stress, Dashboard, Settings, Scheduling, ScheduleImport, Connections, Collaboration)
-- `Models/` — 13 EF Core entity classes with navigation properties
+- `Models/` — POCO entity classes mapped by ADO.NET readers in `DBservices`
 - `DTOs/` — Request/response objects (separate files per domain)
-- `Services/` — Business logic (StressService, SchedulingService, ScheduleImportService, SafeZoneService, SeedDataService)
-- `Data/` — SmartStudyDbContext with TPT event inheritance
+- `Services/` — Business logic (StressService, SchedulingService, ScheduleImportService, SafeZoneService, NotificationService, Ruppinet/Moodle sync)
+- `DAL/` — `DBservices.cs` wraps every stored procedure call; `SqlHelper.cs` handles parameterized ADO.NET execution
 
 ### Database Schema
 13 tables with `SmartStudy_` prefix. Key design decisions:
@@ -97,4 +97,4 @@ All under `/api`, JSON in/out, JWT authenticated (except auth endpoints):
 - **Import**: `POST /api/schedule/import` (PDF parsing)
 
 ## Implementation Status
-- **Complete**: All 13 frontend pages, CSS design system, JS module system, 40+ API endpoints, EF Core entities/DbContext, JWT authentication, stress service, scheduling engine, collaboration module, PDF import, auto-seeding
+- **Complete**: All 13 frontend pages, CSS design system, JS module system, 40+ API endpoints, stored-procedure DAL, JWT authentication, stress service, scheduling engine, collaboration module, PDF import, Ruppinet + Moodle integrations

@@ -22,6 +22,8 @@ public class EventDto
     public decimal? ActualHours { get; set; }
     public string? Status { get; set; }
     public bool? IsManuallyPinned { get; set; }
+    public bool IsShared { get; set; }
+    public string? SharedStatus { get; set; }
 
     // WorkEvent fields
     public int? TravelTime { get; set; }

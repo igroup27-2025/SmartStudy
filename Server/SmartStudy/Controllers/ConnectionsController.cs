@@ -34,10 +34,12 @@ public class ConnectionsController : ControllerBase
 
         var result = new List<ConnectionDto>();
 
-        // Map pending requests
+        // Map pending requests. Email comparison must be case-insensitive:
+        // SQL Server default collation is CI, so the SP returns rows regardless
+        // of casing, but a case-sensitive C# == would mislabel direction.
         foreach (var r in requests)
         {
-            var status = r.AddresseeEmail == email ? "pending" : "sent";
+            var status = string.Equals(r.AddresseeEmail, email, StringComparison.OrdinalIgnoreCase) ? "pending" : "sent";
             result.Add(new ConnectionDto
             {
                 ConnectionId = r.RequestId,

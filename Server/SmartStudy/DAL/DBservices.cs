@@ -305,6 +305,39 @@ public class DBservices
             SqlHelper.Param("@Status", status));
     }
 
+    public async Task<int?> GetSharedPartnerTaskIdAsync(int taskId)
+    {
+        var result = await _sql.ScalarAsync("SS_SharedTasks_GetPartnerTaskId",
+            SqlHelper.Param("@TaskId", taskId));
+        if (result == null || result == DBNull.Value) return null;
+        return Convert.ToInt32(result);
+    }
+
+    public async Task<int?> SyncSharedTaskEventMoveAsync(int movedEventId, int partnerTaskId,
+        DateTime oldFrom, DateTime oldTo, DateTime newFrom, DateTime newTo)
+    {
+        var result = await _sql.ScalarAsync("SS_TaskEvents_SyncSharedMove",
+            SqlHelper.Param("@MovedEventId", movedEventId),
+            SqlHelper.Param("@PartnerTaskId", partnerTaskId),
+            SqlHelper.Param("@OldFrom", oldFrom),
+            SqlHelper.Param("@OldTo", oldTo),
+            SqlHelper.Param("@NewFrom", newFrom),
+            SqlHelper.Param("@NewTo", newTo));
+        if (result == null || result == DBNull.Value) return null;
+        return Convert.ToInt32(result);
+    }
+
+    public async Task<(DateTime From, DateTime To)?> GetEventTimeRangeAsync(int eventId)
+    {
+        var row = await _sql.QuerySingleAsync("SS_Events_GetTimeRange",
+            r => new EventTimeRange {
+                From = r.GetDateTime(r.GetOrdinal("From")),
+                To = r.GetDateTime(r.GetOrdinal("To"))
+            },
+            SqlHelper.Param("@EventId", eventId));
+        return row == null ? null : (row.From, row.To);
+    }
+
     public async Task UpdateWorkEventAsync(int eventId, DateTime from, DateTime to, bool recurring, DateTime? recurrenceEndDate, string? workPlace, int? travelTime)
     {
         await _sql.ExecuteAsync("SS_WorkEvents_Update",
@@ -386,6 +419,14 @@ public class DBservices
             SqlHelper.Param("@TaskId", taskId));
     }
 
+    private static bool HasColumn(SqlDataReader r, string name)
+    {
+        for (int i = 0; i < r.FieldCount; i++)
+            if (string.Equals(r.GetName(i), name, StringComparison.OrdinalIgnoreCase))
+                return true;
+        return false;
+    }
+
     private static TypedEvent MapTypedEvent(SqlDataReader r)
     {
         return new TypedEvent
@@ -409,6 +450,12 @@ public class DBservices
             ActualHours = r.IsDBNull(r.GetOrdinal("ActualHours")) ? null : r.GetDecimal(r.GetOrdinal("ActualHours")),
             Status = r.IsDBNull(r.GetOrdinal("Status")) ? null : r.GetString(r.GetOrdinal("Status")),
             IsManuallyPinned = r.IsDBNull(r.GetOrdinal("IsManuallyPinned")) ? null : Convert.ToBoolean(r.GetValue(r.GetOrdinal("IsManuallyPinned"))),
+            // Tolerate old SP versions that don't yet return IsShared (e.g.,
+            // backend deployed before the migration SQL ran).
+            IsShared = HasColumn(r, "IsShared") && !r.IsDBNull(r.GetOrdinal("IsShared"))
+                && Convert.ToBoolean(r.GetValue(r.GetOrdinal("IsShared"))),
+            SharedStatus = HasColumn(r, "SharedStatus") && !r.IsDBNull(r.GetOrdinal("SharedStatus"))
+                ? r.GetString(r.GetOrdinal("SharedStatus")) : null,
             // WorkEvent
             TravelTime = r.IsDBNull(r.GetOrdinal("TravelTime")) ? null : r.GetInt32(r.GetOrdinal("TravelTime")),
             WorkPlace = r.IsDBNull(r.GetOrdinal("WorkPlace")) ? null : r.GetString(r.GetOrdinal("WorkPlace")),
@@ -987,6 +1034,23 @@ public class DBservices
             SqlHelper.Param("@TaskId", taskId),
             SqlHelper.Param("@Email", email),
             SqlHelper.Param("@CopyTaskId", copyTaskId));
+    }
+
+    public async Task<int?> GetSharedTaskMemberCopyTaskIdAsync(int taskId, string email)
+    {
+        var result = await _sql.ScalarAsync("SS_SharedTaskMembers_GetCopyTaskId",
+            SqlHelper.Param("@TaskId", taskId),
+            SqlHelper.Param("@Email", email));
+        if (result == null || result == DBNull.Value) return null;
+        return Convert.ToInt32(result);
+    }
+
+    public async Task<int> CleanupSharedTaskPartnerCopiesAsync(int taskId)
+    {
+        var result = await _sql.ScalarAsync("SS_SharedTasks_CleanupPartnerCopies",
+            SqlHelper.Param("@TaskId", taskId));
+        if (result == null || result == DBNull.Value) return 0;
+        return Convert.ToInt32(result);
     }
 
     private static SharedTaskFullRow MapSharedTaskFullRow(SqlDataReader r)
@@ -1599,6 +1663,12 @@ public class DBservices
         return Convert.ToInt32(result);
     }
 
+    public async Task DeleteMoodleTasksWithoutDueDateAsync(string email)
+    {
+        await _sql.ExecuteAsync("SS_Tasks_DeleteMoodleNoDueDate",
+            SqlHelper.Param("@Email", email));
+    }
+
     public async Task UpdateComposioIdAsync(string email, string? composioId)
     {
         await _sql.ExecuteAsync("SS_Users_UpdateComposioId",
@@ -1749,6 +1819,10 @@ public class DBservices
             Email = r.GetString(r.GetOrdinal("Email")),
             From = r.GetDateTime(r.GetOrdinal("From")),
             To = r.GetDateTime(r.GetOrdinal("To")),
+            Recurring = HasColumn(r, "Recurring") && !r.IsDBNull(r.GetOrdinal("Recurring"))
+                && Convert.ToBoolean(r.GetValue(r.GetOrdinal("Recurring"))),
+            RecurrenceEndDate = HasColumn(r, "RecurrenceEndDate") && !r.IsDBNull(r.GetOrdinal("RecurrenceEndDate"))
+                ? r.GetDateTime(r.GetOrdinal("RecurrenceEndDate")) : (DateTime?)null,
             TaskId = r.GetInt32(r.GetOrdinal("TaskId")),
             Priority = r.IsDBNull(r.GetOrdinal("Priority")) ? null : r.GetString(r.GetOrdinal("Priority")),
             Status = r.IsDBNull(r.GetOrdinal("Status")) ? null : r.GetString(r.GetOrdinal("Status"))
@@ -1964,6 +2038,8 @@ public class TypedEvent
     public decimal? ActualHours { get; set; }
     public string? Status { get; set; }
     public bool? IsManuallyPinned { get; set; }
+    public bool IsShared { get; set; }
+    public string? SharedStatus { get; set; }
 
     // WorkEvent fields
     public int? TravelTime { get; set; }
@@ -2035,9 +2111,17 @@ public class TaskEventRow
     public string Email { get; set; } = null!;
     public DateTime From { get; set; }
     public DateTime To { get; set; }
+    public bool Recurring { get; set; }
+    public DateTime? RecurrenceEndDate { get; set; }
     public int TaskId { get; set; }
     public string? Priority { get; set; }
     public string? Status { get; set; }
+}
+
+public class EventTimeRange
+{
+    public DateTime From { get; set; }
+    public DateTime To { get; set; }
 }
 
 public class SimpleTaskRow

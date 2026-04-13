@@ -32,6 +32,32 @@ public class MoodleSyncService
         _defaultQuizHours = decimal.TryParse(config["Moodle:DefaultQuizHours"], out var qh) ? qh : 2m;
     }
 
+    public async Task<object> DebugFetchAsync(string email)
+    {
+        var user = await _dal.GetUserByEmailAsync(email);
+        if (user == null || string.IsNullOrEmpty(user.RuppinetId) || string.IsNullOrEmpty(user.RuppinetPassword))
+            return new { error = "Not connected" };
+
+        var password = DecryptPassword(user.RuppinetPassword);
+        var token = await _api.GetTokenAsync(user.RuppinetId, password);
+        var siteInfo = await _api.GetSiteInfoAsync(token);
+        var courses = await _api.GetUserCoursesAsync(token, siteInfo.UserId);
+        var courseIds = courses.Select(c => c.Id).ToArray();
+        var assignments = await _api.GetAssignmentsAsync(token, courseIds);
+        var quizzes = await _api.GetQuizzesAsync(token, courseIds);
+
+        return new
+        {
+            userId = siteInfo.UserId,
+            courseCount = courses.Count,
+            courses = courses.Select(c => new { c.Id, c.ShortName, c.FullName }),
+            assignmentCount = assignments.Count,
+            assignments = assignments.Select(a => new { a.Id, a.CourseId, a.Name, a.DueDate, hasDueDate = a.DueDate.HasValue }),
+            quizCount = quizzes.Count,
+            quizzes = quizzes.Select(q => new { q.Id, q.CourseId, q.Name, q.TimeClose, hasTimeClose = q.TimeClose.HasValue })
+        };
+    }
+
     public async Task<MoodleSyncResultDto> SyncAllAsync(string email)
     {
         var result = new MoodleSyncResultDto();
@@ -193,8 +219,8 @@ public class MoodleSyncService
             if (!moodleToSmartStudy.TryGetValue(assignment.CourseId, out var courseId))
                 continue;
 
-            // Skip old items
-            if (assignment.DueDate.HasValue && assignment.DueDate.Value < cutoffDate)
+            // Skip items with no due date or old items
+            if (!assignment.DueDate.HasValue || assignment.DueDate.Value < cutoffDate)
             {
                 result.TasksSkipped++;
                 continue;
@@ -239,8 +265,8 @@ public class MoodleSyncService
             if (!moodleToSmartStudy.TryGetValue(quiz.CourseId, out var courseId))
                 continue;
 
-            // Skip old items
-            if (quiz.TimeClose.HasValue && quiz.TimeClose.Value < cutoffDate)
+            // Skip items with no due date or old items
+            if (!quiz.TimeClose.HasValue || quiz.TimeClose.Value < cutoffDate)
             {
                 result.TasksSkipped++;
                 continue;

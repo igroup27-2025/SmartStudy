@@ -14,11 +14,10 @@ public class NotificationService
 
     public async Task GenerateDeadlineNotificationsAsync(string email)
     {
-        // Check if deadline notifications are enabled
         var settings = await _db.GetNotifSettingsByEmailAsync(email);
-        if (settings != null && !settings.NotifyBeforeTask) return;
-
-        // Check quiet hours
+        // Per-type flag gates in-app creation. EnablePushNotification is a
+        // frontend-only toggle for the browser Notification API.
+        if (settings == null || !settings.NotifyBeforeTask) return;
         if (IsInQuietHours(settings)) return;
 
         var urgentTasks = await _db.GetUpcomingDeadlineTasksAsync(email);
@@ -42,8 +41,8 @@ public class NotificationService
     {
         if (stressScore <= 70) return;
 
-        // Check quiet hours
         var settings = await _db.GetNotifSettingsByEmailAsync(email);
+        if (settings == null) return;
         if (IsInQuietHours(settings)) return;
 
         if (await _db.IsNotificationDuplicateAsync(email, "overload", null, null))
@@ -60,8 +59,8 @@ public class NotificationService
 
     public async Task CreateSharedTaskInviteNotificationAsync(string recipientEmail, string senderName, int taskId, string taskTitle)
     {
-        // Check quiet hours
         var settings = await _db.GetNotifSettingsByEmailAsync(recipientEmail);
+        if (settings == null) return;
         if (IsInQuietHours(settings)) return;
 
         await _db.CreateNotificationAsync(
@@ -75,8 +74,8 @@ public class NotificationService
 
     public async Task CreateSharedTaskResponseNotificationAsync(string recipientEmail, string responderName, int taskId, string taskTitle, bool accepted)
     {
-        // Check quiet hours
         var settings = await _db.GetNotifSettingsByEmailAsync(recipientEmail);
+        if (settings == null) return;
         if (IsInQuietHours(settings)) return;
 
         await _db.CreateNotificationAsync(
@@ -143,6 +142,7 @@ public class NotificationService
     public async Task CreateNoCommonTimeNotificationAsync(string recipientEmail, int taskId, string taskTitle)
     {
         var settings = await _db.GetNotifSettingsByEmailAsync(recipientEmail);
+        if (settings == null) return;
         if (IsInQuietHours(settings)) return;
 
         await _db.CreateNotificationAsync(

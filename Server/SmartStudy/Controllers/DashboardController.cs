@@ -91,7 +91,13 @@ public class DashboardController : ControllerBase
                 Location = e.Location,
                 WorkPlace = e.WorkPlace,
                 Type = e.Type,
-                Description = e.Description
+                Description = e.Description,
+                TaskId = e.TaskId,
+                TaskTitle = e.TaskTitle,
+                Status = e.Status,
+                IsManuallyPinned = e.IsManuallyPinned,
+                IsShared = e.IsShared,
+                SharedStatus = e.SharedStatus
             })
             .ToList();
 
@@ -113,18 +119,31 @@ public class DashboardController : ControllerBase
             .Where(d => d.Date >= today && d.Date < today.AddDays(7))
             .Sum(d => d.ScheduledHours);
 
-        // Needs Review: tasks with past scheduled events OR shared tasks awaiting review
+        // Needs Review: overdue tasks (due date in the past) and tasks with
+        // past scheduled events OR shared tasks awaiting review. Overdue tasks
+        // surface here with SchedulingStatus="Overdue" so the UI can offer
+        // "Mark complete" or "Reschedule".
         var needsReviewTasks = incompleteTasks
             .Where(t =>
             {
                 var events = taskEventsByTaskId.GetValueOrDefault(t.TaskId, new());
-                return events.Any(te => te.From < now) || events.Any(te => te.Status == "NeedReview");
+                var isOverdue = t.DueDate.HasValue && t.DueDate < now;
+                return isOverdue
+                    || events.Any(te => te.From < now)
+                    || events.Any(te => te.Status == "NeedReview");
             })
             .OrderBy(t => t.DueDate)
-            .Take(10)
+            .Take(20)
             .Select(t =>
             {
                 var events = taskEventsByTaskId.GetValueOrDefault(t.TaskId, new());
+                var isOverdue = t.DueDate.HasValue && t.DueDate < now;
+                string status;
+                if (isOverdue) status = "Overdue";
+                else if (events.Any(te => te.Status == "NeedReview")) status = "NeedReview";
+                else if (events.Any()) status = "Scheduled";
+                else status = "Unscheduled";
+
                 return new TaskDto
                 {
                     TaskId = t.TaskId,
@@ -139,8 +158,7 @@ public class DashboardController : ControllerBase
                     IsShared = t.SharedStatus != null,
                     SharedStatus = t.SharedStatus,
                     ScheduledDate = events.OrderBy(te => te.From).FirstOrDefault()?.From,
-                    SchedulingStatus = events.Any(te => te.Status == "NeedReview") ? "NeedReview"
-                        : events.Any() ? "Scheduled" : "Unscheduled",
+                    SchedulingStatus = status,
                     ScheduledSlots = events.OrderBy(te => te.From)
                         .Select(te => new TaskSlotDto { From = te.From, To = te.To })
                         .ToList()
@@ -148,22 +166,9 @@ public class DashboardController : ControllerBase
             })
             .ToList();
 
-        // Overdue tasks: due date in the past, not completed
-        var overdueTasks = allTasks
-            .Where(t => !t.IsCompleted && t.DueDate.HasValue && t.DueDate < now)
-            .OrderBy(t => t.DueDate)
-            .Select(t => new TaskDto
-            {
-                TaskId = t.TaskId,
-                CourseId = t.CourseId,
-                CourseName = t.CourseName,
-                Title = t.Title,
-                Type = t.Type,
-                EstimatedHours = t.EstimatedHours,
-                DueDate = t.DueDate,
-                IsCompleted = t.IsCompleted,
-                Priority = t.Priority
-            })
+        // Kept populated for legacy clients; the Dashboard UI reads NeedsReviewTasks.
+        var overdueTasks = needsReviewTasks
+            .Where(t => t.SchedulingStatus == "Overdue")
             .ToList();
 
         // Next suggested task

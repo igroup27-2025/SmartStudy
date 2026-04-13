@@ -343,10 +343,7 @@ function renderReview(data) {
     const el = document.getElementById('dashReview');
     if (!el) return;
 
-    // Filter overdue tasks OUT of review (they have their own section)
-    const reviewTasks = data.needsReviewTasks || [];
-    const overdueIds = new Set((data.overdueTasks || []).map(t => t.taskId));
-    const tasks = reviewTasks.filter(t => !overdueIds.has(t.taskId)).slice(0, 10);
+    const tasks = (data.needsReviewTasks || []).slice(0, 20);
 
     const header = `
         <div class="dash-review__header">
@@ -365,19 +362,16 @@ function renderReview(data) {
 
     const cards = tasks.map(t => {
         const due = t.dueDate ? new Date(t.dueDate) : null;
-        const now = new Date();
-        const isOverdue = due && due < now;
         const dateStr = due ? due.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '';
         const priorityClass = (t.priority || 'medium').toLowerCase();
 
+        const isOverdue = t.schedulingStatus === 'Overdue';
         const isNeedReview = t.schedulingStatus === 'NeedReview';
         const isUnscheduled = t.schedulingStatus === 'Unscheduled' || t.schedulingStatus === 'Partial';
 
-        // Build scheduled time slots display — group by day
         let slotsHtml = '';
         const slots = t.scheduledSlots || [];
         if (slots.length) {
-            // Group slots by date key, merge into earliest-start / latest-end per day
             const byDay = {};
             slots.forEach(s => {
                 const from = new Date(s.from);
@@ -395,9 +389,11 @@ function renderReview(data) {
             slotsHtml = `<div class="dash-review-slots">${slotItems}</div>`;
         }
 
-        // Status badge
         let scheduleInfo = '';
-        if (isNeedReview) {
+        if (isOverdue) {
+            const daysOverdue = due ? Math.ceil((Date.now() - due.getTime()) / (1000 * 60 * 60 * 24)) : 0;
+            scheduleInfo = `<span class="badge badge-overdue">Overdue · ${daysOverdue} day${daysOverdue !== 1 ? 's' : ''}</span>`;
+        } else if (isNeedReview) {
             scheduleInfo = `<span class="badge badge-review">Pending Review</span>`;
         } else if (t.schedulingStatus === 'Scheduled') {
             scheduleInfo = `<span class="badge badge-scheduled">Scheduled</span>`;
@@ -407,13 +403,33 @@ function renderReview(data) {
             scheduleInfo = '<span class="badge badge-unscheduled">Not Scheduled</span>';
         }
 
-        // Edit goes to calendar (with date param for first slot)
+        let sharedBadge = '';
+        if (t.isShared) {
+            const pending = t.sharedStatus === 'Pending';
+            sharedBadge = `<span class="badge ${pending ? 'badge-shared-pending' : 'badge-shared'}">${pending ? 'Shared · Pending' : 'Shared'}</span>`;
+        }
+
         const firstSlot = slots.length ? new Date(slots[0].from) : null;
         const calDateParam = firstSlot ? `?date=${firstSlot.getFullYear()}-${String(firstSlot.getMonth()+1).padStart(2,'0')}-${String(firstSlot.getDate()).padStart(2,'0')}` : '';
         const editHref = `${BASE_PATH}/Pages/Calendar.html${calDateParam}`;
 
+        let actions;
+        if (isOverdue) {
+            actions = `
+                <button class="btn btn-sm btn-primary dash-complete-overdue-btn" data-task-id="${t.taskId}" data-title="${escapeHtml(t.title)}" data-est-hours="${t.estimatedHours || ''}">Mark Complete</button>
+                <button class="btn btn-sm btn-ghost dash-reschedule-btn" data-task-id="${t.taskId}">Reschedule</button>
+                <a href="${editHref}" class="btn btn-sm btn-ghost">Edit in Calendar</a>
+            `;
+        } else if (isUnscheduled) {
+            actions = `<a href="${BASE_PATH}/Pages/Calendar.html" class="btn btn-sm btn-primary">Schedule Manually</a>
+                       <a href="${editHref}" class="btn btn-sm btn-ghost">Edit in Calendar</a>`;
+        } else {
+            actions = `<button class="btn btn-sm btn-primary dash-approve-btn" data-task-id="${t.taskId}">Approve</button>
+                       <a href="${editHref}" class="btn btn-sm btn-ghost">Edit in Calendar</a>`;
+        }
+
         return `
-            <div class="dash-task-card">
+            <div class="dash-task-card ${isOverdue ? 'dash-task-card--overdue' : ''}">
                 <div class="dash-task-card__body">
                     <div class="dash-task-card__top">
                         <span class="dash-task-card__title">${escapeHtml(t.title)}</span>
@@ -421,19 +437,16 @@ function renderReview(data) {
                     </div>
                     <div class="dash-task-card__bottom">
                         <span class="dash-task-card__status ${isOverdue ? 'dash-task-card__status--overdue' : ''}">
-                            ${isOverdue ? 'Overdue - needs rescheduling' : (dateStr ? 'Due: ' + dateStr : '')}
+                            ${isOverdue ? 'Overdue - needs review' : (dateStr ? 'Due: ' + dateStr : '')}
                         </span>
                         ${scheduleInfo}
+                        ${sharedBadge}
                         ${isUnscheduled ? '<span class="dash-task-card__reason">Could not fit in schedule</span>' : ''}
                     </div>
                     ${slotsHtml}
                 </div>
                 <div class="dash-task-card__actions">
-                    ${isUnscheduled
-                        ? `<a href="${BASE_PATH}/Pages/Calendar.html" class="btn btn-sm btn-primary">Schedule Manually</a>`
-                        : `<button class="btn btn-sm btn-primary dash-approve-btn" data-task-id="${t.taskId}">Approve</button>`
-                    }
-                    <a href="${editHref}" class="btn btn-sm btn-ghost">Edit in Calendar</a>
+                    ${actions}
                 </div>
             </div>
         `;
@@ -441,28 +454,58 @@ function renderReview(data) {
 
     el.innerHTML = header + '<div class="dash-review__list">' + cards + '</div>';
 
-    // Bind approve buttons — call approve endpoint (keeps schedule, removes from review)
+    const refreshDashboard = async () => {
+        const freshData = await api.getDashboard();
+        renderProgress(freshData);
+        renderAlerts(freshData);
+        renderStats(freshData);
+        renderWorkload(freshData);
+        renderRelocationSuggestions(freshData);
+        renderSuggestion(freshData);
+        renderReview(freshData);
+        renderOverdue(freshData);
+    };
+
     el.querySelectorAll('.dash-approve-btn').forEach(btn => {
         btn.addEventListener('click', async () => {
             const taskId = btn.dataset.taskId;
             btn.disabled = true;
             btn.textContent = 'Approving...';
             try {
-                await api.approveScheduledTask(taskId);
-                showToast('Schedule approved!', 'success');
-                const freshData = await api.getDashboard();
-                renderProgress(freshData);
-                renderAlerts(freshData);
-                renderStats(freshData);
-                renderWorkload(freshData);
-                renderRelocationSuggestions(freshData);
-                renderSuggestion(freshData);
-                renderReview(freshData);
-                renderOverdue(freshData);
+                const res = await api.approveScheduledTask(taskId);
+                if (res && res.approvedCount === 0) {
+                    showToast('Nothing to approve — events may already be scheduled.', 'error');
+                } else {
+                    showToast('Schedule approved!', 'success');
+                }
+                await refreshDashboard();
             } catch (err) {
                 showToast('Failed to approve schedule', 'error');
                 btn.disabled = false;
                 btn.textContent = 'Approve';
+            }
+        });
+    });
+
+    el.querySelectorAll('.dash-complete-overdue-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const taskId = parseInt(btn.dataset.taskId);
+            showCompletionModal(taskId, btn.dataset.title, btn.dataset.estHours);
+        });
+    });
+
+    el.querySelectorAll('.dash-reschedule-btn').forEach(btn => {
+        btn.addEventListener('click', async () => {
+            btn.disabled = true;
+            btn.textContent = 'Scheduling...';
+            try {
+                await api.runScheduling();
+                showToast('Scheduling updated!', 'success');
+                await refreshDashboard();
+            } catch (err) {
+                showToast('Failed to reschedule', 'error');
+                btn.disabled = false;
+                btn.textContent = 'Reschedule';
             }
         });
     });
@@ -549,87 +592,10 @@ function showCompletionModal(taskId, taskTitle, estHours) {
     });
 }
 
-/* ---- Section: Overdue Tasks ---- */
+/* Overdue tasks now render inside the Needs Review list (renderReview). */
 function renderOverdue(data) {
     const el = document.getElementById('dashOverdue');
-    if (!el) return;
-
-    const tasks = data.overdueTasks || [];
-    if (!tasks.length) {
-        el.innerHTML = '';
-        return;
-    }
-
-    const cards = tasks.map(t => {
-        const due = t.dueDate ? new Date(t.dueDate) : null;
-        const daysOverdue = due ? Math.ceil((Date.now() - due.getTime()) / (1000 * 60 * 60 * 24)) : 0;
-        const priorityClass = (t.priority || 'medium').toLowerCase();
-
-        return `
-            <div class="dash-task-card dash-task-card--overdue">
-                <div class="dash-task-card__body">
-                    <div class="dash-task-card__top">
-                        <span class="dash-task-card__title">${escapeHtml(t.title)}</span>
-                        <span class="dash-task-card__priority dash-task-card__priority--${priorityClass}">${escapeHtml(t.priority) || 'Medium'}</span>
-                    </div>
-                    <div class="dash-task-card__bottom">
-                        <span class="dash-task-card__status dash-task-card__status--overdue">
-                            ${daysOverdue} day${daysOverdue !== 1 ? 's' : ''} overdue
-                        </span>
-                        <span class="dash-task-card__course">${escapeHtml(t.courseName)}</span>
-                    </div>
-                </div>
-                <div class="dash-task-card__actions">
-                    <button class="btn btn-sm btn-primary dash-complete-overdue-btn" data-task-id="${t.taskId}" data-title="${escapeHtml(t.title)}" data-est-hours="${t.estimatedHours || ''}">Mark Complete</button>
-                    <button class="btn btn-sm btn-ghost dash-reschedule-btn" data-task-id="${t.taskId}">Reschedule</button>
-                </div>
-            </div>
-        `;
-    }).join('');
-
-    el.innerHTML = `
-        <div class="dash-overdue__header">
-            <h2 class="dash-review__title">Overdue Tasks</h2>
-            <span class="dash-review__badge dash-review__badge--danger">${tasks.length}</span>
-        </div>
-        <div class="dash-review__list">${cards}</div>
-    `;
-
-    // Bind Mark Complete buttons
-    el.querySelectorAll('.dash-complete-overdue-btn').forEach(btn => {
-        btn.addEventListener('click', () => {
-            const taskId = parseInt(btn.dataset.taskId);
-            const title = btn.dataset.title;
-            const estHours = btn.dataset.estHours;
-            showCompletionModal(taskId, title, estHours);
-        });
-    });
-
-    // Bind Reschedule buttons
-    el.querySelectorAll('.dash-reschedule-btn').forEach(btn => {
-        btn.addEventListener('click', async () => {
-            const taskId = btn.dataset.taskId;
-            try {
-                btn.disabled = true;
-                btn.textContent = 'Scheduling...';
-                await api.runScheduling();
-                showToast('Scheduling updated!', 'success');
-                const freshData = await api.getDashboard();
-                renderProgress(freshData);
-                renderAlerts(freshData);
-                renderStats(freshData);
-                renderWorkload(freshData);
-                renderRelocationSuggestions(freshData);
-                renderSuggestion(freshData);
-                renderReview(freshData);
-                renderOverdue(freshData);
-            } catch (err) {
-                showToast('Failed to reschedule', 'error');
-                btn.disabled = false;
-                btn.textContent = 'Reschedule';
-            }
-        });
-    });
+    if (el) el.innerHTML = '';
 }
 
 /* ---- Section: Weekly Insights ---- */

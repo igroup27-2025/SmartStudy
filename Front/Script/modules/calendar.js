@@ -70,17 +70,6 @@ function setupNavigation() {
         navigate();
     });
 
-    document.getElementById('calSyncSchedule')?.addEventListener('click', async () => {
-        const btn = document.getElementById('calSyncSchedule');
-        btn.disabled = true; btn.textContent = 'Syncing...';
-        try {
-            await api.runScheduling();
-            showToast('Schedule synced!', 'success');
-            await navigate();
-        } catch { showToast('Failed to sync', 'error'); }
-        finally { btn.disabled = false; btn.textContent = 'Sync'; }
-    });
-
     // Add event button
     document.getElementById('calAddEvent')?.addEventListener('click', () => {
         openEventModal(null);
@@ -154,27 +143,55 @@ function setupNavigation() {
         syncBtn.textContent = 'Sync Google';
     });
 
-    // Import schedule button
-    const importBtn = document.getElementById('calImportSchedule');
-    const fileInput = document.getElementById('scheduleFileInput');
-    importBtn?.addEventListener('click', () => fileInput?.click());
-    fileInput?.addEventListener('change', async () => {
-        const file = fileInput.files[0];
-        if (!file) return;
+    const ruppinetBtn = document.getElementById('calSyncRuppinet');
+    ruppinetBtn?.addEventListener('click', async () => {
+        ruppinetBtn.disabled = true;
+        const originalLabel = ruppinetBtn.textContent;
+        ruppinetBtn.textContent = 'Syncing...';
         try {
-            importBtn.disabled = true;
-            importBtn.textContent = 'Importing...';
-            const result = await api.importSchedule(file);
-            const msg = `Imported ${result.eventsCreated} event(s) from ${result.courses.length} course(s)` +
-                (result.entriesSkipped ? ` (${result.entriesSkipped} skipped)` : '');
-            showToast(msg);
-            await navigate();
+            const result = await api.syncRuppinet();
+            if (result.errorCode) {
+                showToast(result.message || 'Ruppinet sync failed', 'error');
+            } else {
+                const parts = [];
+                if (result.coursesCreated) parts.push(`${result.coursesCreated} course(s)`);
+                if (result.classEventsCreated) parts.push(`${result.classEventsCreated} class event(s)`);
+                if (result.examsCreated) parts.push(`${result.examsCreated} exam(s)`);
+                showToast(parts.length ? `Ruppinet synced: ${parts.join(', ')}` : 'Ruppinet synced — no changes');
+                await navigate();
+            }
         } catch (err) {
-            showToast(err.message || 'Failed to import schedule', 'error');
+            const msg = err?.responseJSON?.message || err.message || 'Connect Ruppinet first in Settings';
+            showToast(msg, 'error');
         } finally {
-            importBtn.disabled = false;
-            importBtn.textContent = 'Import Schedule';
-            fileInput.value = '';
+            ruppinetBtn.disabled = false;
+            ruppinetBtn.textContent = originalLabel;
+        }
+    });
+
+    const moodleBtn = document.getElementById('calSyncMoodle');
+    moodleBtn?.addEventListener('click', async () => {
+        moodleBtn.disabled = true;
+        const originalLabel = moodleBtn.textContent;
+        moodleBtn.textContent = 'Syncing...';
+        try {
+            const result = await api.syncMoodle();
+            if (result.errorCode) {
+                showToast(result.message || 'Moodle sync failed', 'error');
+            } else {
+                const parts = [];
+                if (result.tasksCreated) parts.push(`${result.tasksCreated} task(s)`);
+                if (result.tasksUpdated) parts.push(`${result.tasksUpdated} updated`);
+                if (result.coursesMatched) parts.push(`${result.coursesMatched} course(s) matched`);
+                showToast(parts.length ? `Moodle synced: ${parts.join(', ')}` : 'Moodle synced — no changes');
+                await navigate();
+            }
+        } catch (err) {
+            const msg = err?.responseJSON?.message || err.message || 'Moodle sync failed';
+            showToast(msg, 'error');
+        } finally {
+            moodleBtn.disabled = false;
+            moodleBtn.textContent = originalLabel;
         }
     });
 }
@@ -371,15 +388,21 @@ function renderTimeGrid(events, startDate, dayCount) {
             const label = e.isExam ? `Exam: ${e.courseName || 'Exam'}` : (e.courseName || e.taskTitle || e.workPlace || e.description || e.type || 'Event');
             const isDraggable = !e.isExam;
             const pinIcon = e.eventType === 'task' && e.isManuallyPinned ? '<span class="cal-event-pin" title="Pinned — excluded from auto-scheduling">&#128204;</span>' : '';
-            const isNeedReview = e.eventType === 'task' && e.status === 'NeedReview';
+            const isNeedReview = e.eventType === 'task' && (e.status === 'NeedReview' || e.status === 'PartiallyApproved');
             const reviewClass = isNeedReview ? ' cal-event--need-review' : '';
             const reviewBadge = isNeedReview ? '<span class="cal-event-review-badge">Pending</span>' : '';
+            const isPendingShared = e.eventType === 'task' && e.isShared && e.sharedStatus === 'Pending';
+            const sharedClass = e.eventType === 'task' && e.isShared ? ' cal-event--shared' : '';
+            const pendingSharedClass = isPendingShared ? ' cal-event--shared-pending' : '';
+            const sharedBadge = e.eventType === 'task' && e.isShared
+                ? `<span class="cal-event-shared-badge" title="${isPendingShared ? 'Shared · awaiting partner' : 'Shared task'}">&#128101;</span>`
+                : '';
 
-            html += `<div class="cal-event ${isDraggable ? 'cal-event--draggable' : ''}${reviewClass}"
+            html += `<div class="cal-event ${isDraggable ? 'cal-event--draggable' : ''}${reviewClass}${sharedClass}${pendingSharedClass}"
                 data-event-id="${e.eventId}" data-event-type="${e.eventType}"
                 ${isDraggable ? 'draggable="true"' : ''}
-                style="top:${top}px;height:${height}px;background:${isNeedReview ? 'repeating-linear-gradient(135deg,' + colors.bg + ',' + colors.bg + ' 4px,rgba(255,255,255,0.4) 4px,rgba(255,255,255,0.4) 8px)' : colors.bg};border-left:3px solid ${isNeedReview ? '#90CAF9' : colors.border};color:${colors.text}">
-                <div class="cal-event-title">${pinIcon}${reviewBadge}${label}</div>
+                style="top:${top}px;height:${height}px;background:${isNeedReview || isPendingShared ? 'repeating-linear-gradient(135deg,' + colors.bg + ',' + colors.bg + ' 4px,rgba(255,255,255,0.4) 4px,rgba(255,255,255,0.4) 8px)' : colors.bg};border-left:3px solid ${isNeedReview ? '#90CAF9' : colors.border};color:${colors.text}">
+                <div class="cal-event-title">${pinIcon}${sharedBadge}${reviewBadge}${label}</div>
                 <div class="cal-event-time">${formatTime(from)} - ${formatTime(to)}</div>
             </div>`;
         });
@@ -645,7 +668,11 @@ function renderMonthlyGrid(events, gridStart, gridEnd) {
             dayEvents.slice(0, maxShow).forEach(e => {
                 const colors = EVENT_COLORS[e.eventType] || EVENT_COLORS.personal;
                 const label = e.isExam ? `Exam: ${e.courseName || 'Exam'}` : (e.courseName || e.taskTitle || e.workPlace || e.description || e.type || 'Event');
-                html += `<div class="cal-month-event" style="background:${colors.bg};border-left-color:${colors.border};color:${colors.text}">${label}</div>`;
+                const pendingShared = e.eventType === 'task' && e.isShared && e.sharedStatus === 'Pending';
+                const sharedTag = e.eventType === 'task' && e.isShared
+                    ? `<span class="cal-month-event-shared" title="${pendingShared ? 'Shared · pending' : 'Shared'}">&#128101;</span>`
+                    : '';
+                html += `<div class="cal-month-event" style="background:${colors.bg};border-left-color:${colors.border};color:${colors.text}">${sharedTag}${label}</div>`;
             });
 
             if (dayEvents.length > maxShow) {
@@ -1518,7 +1545,7 @@ function showEventDetails(eventId, targetEl) {
                 ${event.description ? `<div class="cal-event-detail-row"><span class="cal-event-detail-label">Description</span><span class="cal-event-detail-value">${event.description}</span></div>` : ''}
                 ${event.status ? `<div class="cal-event-detail-row"><span class="cal-event-detail-label">Status</span><span class="cal-event-detail-value">${event.status}</span></div>` : ''}
                 ${event.courseName ? `<div class="cal-event-detail-row"><span class="cal-event-detail-label">Course</span><span class="cal-event-detail-value">${event.courseName}</span></div>` : ''}
-                ${event.taskTitle ? `<div class="cal-event-detail-row"><span class="cal-event-detail-label">Task</span><span class="cal-event-detail-value">${event.taskTitle}</span></div>` : ''}
+                ${event.taskTitle ? `<div class="cal-event-detail-row"><span class="cal-event-detail-label">Task</span><span class="cal-event-detail-value">${event.taskTitle}${event.isShared ? ` <span class="badge ${event.sharedStatus === 'Pending' ? 'badge-warning' : event.sharedStatus === 'Cancelled' ? 'badge-danger' : 'badge-success'}">Shared${event.sharedStatus ? ' · ' + event.sharedStatus : ''}</span>` : ''}</span></div>` : ''}
                 ${event.session ? `<div class="cal-event-detail-row"><span class="cal-event-detail-label">Session</span><span class="cal-event-detail-value">${event.session}</span></div>` : ''}
             </div>
             ${event.isExam ? `
@@ -1526,7 +1553,13 @@ function showEventDetails(eventId, targetEl) {
                 <button class="btn btn-secondary" id="calDetailGoExams">Manage Exams</button>
             </div>
             ` : `
+            ${event.eventType === 'task' && event.status === 'PartiallyApproved'
+                ? `<div class="cal-event-detail-row"><span class="cal-event-detail-label">Waiting</span><span class="cal-event-detail-value">You approved — waiting for partner.</span></div>`
+                : ''}
             <div class="cal-event-detail-footer">
+                ${event.eventType === 'task' && event.status === 'NeedReview'
+                    ? `<button class="btn btn-primary" id="calDetailApprove">Approve Schedule</button>`
+                    : ''}
                 <button class="btn btn-secondary" id="calDetailEdit">Edit</button>
                 <button class="btn btn-ghost btn-danger" id="calDetailDelete">Delete</button>
             </div>
@@ -1554,6 +1587,30 @@ function showEventDetails(eventId, targetEl) {
             window.location.href = BASE_PATH + '/Pages/Exams.html';
         });
     } else {
+        modal.querySelector('#calDetailApprove')?.addEventListener('click', async (e) => {
+            const btn = e.currentTarget;
+            if (!event.taskId) {
+                showToast('Missing task reference', 'error');
+                return;
+            }
+            btn.disabled = true;
+            btn.textContent = 'Approving...';
+            try {
+                const res = await api.approveScheduledTask(event.taskId);
+                if (res && res.approvedCount === 0) {
+                    showToast('Nothing to approve — events may already be scheduled.', 'error');
+                } else {
+                    showToast('Schedule approved!');
+                }
+                close();
+                await navigate();
+            } catch (err) {
+                showToast(err.message || 'Failed to approve schedule', 'error');
+                btn.disabled = false;
+                btn.textContent = 'Approve Schedule';
+            }
+        });
+
         modal.querySelector('#calDetailEdit').addEventListener('click', () => {
             close();
             openEventModalForEdit(event);

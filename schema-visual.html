@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SmartStudy — SQL Schema (Visual)</title>
+  <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+  <style>
+    * { box-sizing: border-box; }
+    body { font-family: system-ui, -apple-system, sans-serif; margin: 0; padding: 24px; background: #f5f5f5; color: #222; }
+    h1 { color: #F28D35; margin: 0 0 6px; }
+    .subtitle { color: #666; margin-bottom: 20px; font-size: 14px; }
+    .card { background: #fff; border-radius: 12px; padding: 20px; margin-bottom: 24px; box-shadow: 0 2px 8px rgba(0,0,0,0.08); }
+    .card h2 { color: #54BFB5; margin: 0 0 12px; font-size: 18px; }
+    .mermaid { background: #fafafa; padding: 16px; border-radius: 8px; overflow-x: auto; }
+    .legend { font-size: 13px; color: #555; line-height: 1.7; }
+    .legend code { background: #eef; padding: 1px 6px; border-radius: 4px; }
+    .pill { display: inline-block; padding: 2px 10px; border-radius: 999px; font-size: 12px; margin-right: 6px; }
+    .pill.core { background: #FFE8D0; color: #A35514; }
+    .pill.event { background: #D4F4F0; color: #1F7A71; }
+    .pill.social { background: #FFE0E7; color: #A8324B; }
+    .pill.system { background: #E8E4FF; color: #4B3DA1; }
+  </style>
+</head>
+<body>
+  <h1>SmartStudy — SQL Schema</h1>
+  <p class="subtitle">18 tables · SQL Server · <code>SmartStudy_</code> prefix · PK = Email on Users · TPT inheritance for Events</p>
+
+  <div class="card">
+    <h2>Entity-Relationship Diagram</h2>
+    <div class="mermaid">
+erDiagram
+    SmartStudy_Users ||--o| SmartStudy_NotificationSettings : "1:1"
+    SmartStudy_Users ||--o| SmartStudy_SchedulingPreferences : "1:1"
+    SmartStudy_Users ||--o{ SmartStudy_UserCourses : "enrolls"
+    SmartStudy_Users ||--o{ SmartStudy_Tasks : "owns"
+    SmartStudy_Users ||--o{ SmartStudy_Events : "owns"
+    SmartStudy_Users ||--o{ SmartStudy_FriendRequests : "sends/receives"
+    SmartStudy_Users ||--o{ SmartStudy_Friendships : "has"
+    SmartStudy_Users ||--o{ SmartStudy_SharedTasks : "creates"
+    SmartStudy_Users ||--o{ SmartStudy_SharedTaskMembers : "member"
+    SmartStudy_Users ||--o{ SmartStudy_Notifications : "receives"
+
+    SmartStudy_Instructors ||--o{ SmartStudy_Courses : "teaches"
+    SmartStudy_Courses ||--o{ SmartStudy_UserCourses : "N:N"
+    SmartStudy_Courses ||--o{ SmartStudy_Exams : "has"
+    SmartStudy_Courses ||--o{ SmartStudy_Tasks : "has"
+    SmartStudy_Courses ||--o{ SmartStudy_ClassEvents : "scheduled"
+
+    SmartStudy_Tasks ||--o{ SmartStudy_Tasks : "parent/subtask"
+    SmartStudy_Tasks ||--o{ SmartStudy_TaskEvents : "study blocks"
+    SmartStudy_Tasks ||--o| SmartStudy_SharedTasks : "1:1"
+    SmartStudy_SharedTasks ||--o{ SmartStudy_SharedTaskMembers : "has"
+
+    SmartStudy_Events ||--o| SmartStudy_ClassEvents : "TPT"
+    SmartStudy_Events ||--o| SmartStudy_TaskEvents : "TPT"
+    SmartStudy_Events ||--o| SmartStudy_WorkEvents : "TPT"
+    SmartStudy_Events ||--o| SmartStudy_PersonalEvents : "TPT"
+
+    SmartStudy_Users {
+        string Email PK
+        string FirstName
+        string LastName
+        string Password
+        string AuthProvider
+        bool OnboardingCompleted
+        string GoogleCalendarAccessToken
+        string RuppinetId
+        string MoodleToken
+    }
+
+    SmartStudy_NotificationSettings {
+        string Email PK
+        bool Notify_before_task
+        bool Daily_morning_summary
+        bool Weekly_plan_reminder
+        bool Enable_push_notification
+        time Quiet_hours_start
+        time Quiet_hours_end
+    }
+
+    SmartStudy_SchedulingPreferences {
+        string Email PK
+        float MaxDailyStudyHours
+        int MaxContinuousMinutes
+        int DayStartHour
+        int DayEndHour
+        float SleepHoursPerDay
+        float ExamPrepHoursPerDay
+        int ExamPrepDays
+    }
+
+    SmartStudy_Instructors {
+        int InstructorId PK
+        string InstructorName
+    }
+
+    SmartStudy_Courses {
+        int CourseId PK
+        string CourseName
+        decimal WeeklyHours
+        decimal Credits
+        string Semester
+        int InstructorId FK
+        float DefaultTaskEstimatedHours
+        float ExamPrepHoursPerDay
+        int ExamPrepDays
+    }
+
+    SmartStudy_UserCourses {
+        string Email PK
+        int CourseId PK
+        string StudyPartnerEmail
+        bool SharedByDefault
+        bool CourseShareApproved
+    }
+
+    SmartStudy_Exams {
+        int ExamId PK
+        int CourseId FK
+        datetime Date
+        time Time
+        string Session
+        int Duration
+        bool IsTakingExam
+    }
+
+    SmartStudy_Tasks {
+        int TaskId PK
+        int CourseId FK
+        string Email FK
+        string Title
+        string Type
+        decimal EstimatedHours
+        datetime DueDate
+        bool IsCompleted
+        string Priority
+        decimal ActualHours
+        int ParentTaskId FK
+        bool AllowSplitting
+        bool IsManuallyPinned
+        string MoodleId
+    }
+
+    SmartStudy_Events {
+        int EventId PK
+        string Email FK
+        datetime From
+        datetime To
+        bool Recurring
+        datetime RecurrenceEndDate
+    }
+
+    SmartStudy_ClassEvents {
+        int EventId PK
+        int CourseId FK
+        string Location
+        decimal Duration
+    }
+
+    SmartStudy_TaskEvents {
+        int EventId PK
+        int TaskId FK
+        string Priority
+        decimal ActualHours
+        string Status
+    }
+
+    SmartStudy_WorkEvents {
+        int EventId PK
+        int TravelTime
+        string WorkPlace
+    }
+
+    SmartStudy_PersonalEvents {
+        int EventId PK
+        string Type
+        string Description
+    }
+
+    SmartStudy_FriendRequests {
+        int RequestId PK
+        string RequesterEmail FK
+        string AddresseeEmail FK
+        string Status
+        datetime RequestedAt
+        datetime RespondedAt
+    }
+
+    SmartStudy_Friendships {
+        int FriendshipId PK
+        string Email1 FK
+        string Email2 FK
+        datetime CreatedAt
+        bool IsActive
+    }
+
+    SmartStudy_SharedTasks {
+        int TaskId PK
+        string CreatedByEmail FK
+        datetime CreatedAt
+        string SharedStatus
+    }
+
+    SmartStudy_SharedTaskMembers {
+        int TaskId PK
+        string Email PK
+        string ResponseStatus
+        datetime RespondedAt
+        int CopyTaskId
+    }
+
+    SmartStudy_Notifications {
+        int NotificationId PK
+        string Email FK
+        string Type
+        string Title
+        string Message
+        bool IsRead
+        datetime CreatedAt
+        int RelatedEntityId
+        string RelatedEntityType
+    }
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Table Groups</h2>
+    <div class="legend">
+      <p><span class="pill core">Core / Academic</span> Users, Instructors, Courses, UserCourses, Exams, Tasks</p>
+      <p><span class="pill event">Calendar (TPT)</span> Events + ClassEvents, TaskEvents, WorkEvents, PersonalEvents</p>
+      <p><span class="pill social">Social / Collaboration</span> FriendRequests, Friendships, SharedTasks, SharedTaskMembers</p>
+      <p><span class="pill system">System / User Prefs</span> NotificationSettings, SchedulingPreferences, Notifications</p>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Key Design Notes</h2>
+    <ul class="legend">
+      <li><strong>Users PK = Email</strong> (NVARCHAR), not a surrogate int. All user-owned tables FK on Email.</li>
+      <li><strong>Events use TPT inheritance</strong>: a base <code>SmartStudy_Events</code> row plus exactly one subtype row (Class / Task / Work / Personal), joined on <code>EventId</code>.</li>
+      <li><strong>Tasks → Courses</strong> via <code>CourseId</code> FK with <code>ON DELETE CASCADE</code>. Tasks can also self-reference via <code>ParentTaskId</code> for sub-tasks.</li>
+      <li><strong>UserCourses</strong> is the junction for N:N enrollment (composite PK <code>Email + CourseId</code>).</li>
+      <li><strong>Friendships</strong> are normalized as <code>Email1 &lt; Email2</code> to avoid duplicate pairs.</li>
+      <li><strong>SharedTasks</strong> is 1:1 with Tasks; <strong>SharedTaskMembers</strong> tracks per-partner response status and their <code>CopyTaskId</code>.</li>
+    </ul>
+  </div>
+
+  <script>
+    mermaid.initialize({
+      startOnLoad: true,
+      theme: 'neutral',
+      er: { useMaxWidth: true, fontSize: 13 }
+    });
+  </script>
+</body>
+</html>

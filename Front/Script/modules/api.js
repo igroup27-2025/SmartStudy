@@ -155,7 +155,6 @@ export const api = {
     removeConnection: (id) => request('DELETE', `/connections/${id}`),
 
     // Collaboration
-    getSafeZones: (connectionId) => request('GET', `/collaboration/safe-zones?connectionId=${connectionId}`),
     approveCourseSharing: (courseId) => request('POST', `/collaboration/approve-course-sharing/${courseId}`),
 
     // Shared Tasks
