@@ -23,8 +23,7 @@ public class EventsController : ControllerBase
 
     private string GetEmail() => User.FindFirst(ClaimTypes.Email)!.Value;
 
-    private static string? StripGcalTag(string? desc) =>
-        desc == null ? null : System.Text.RegularExpressions.Regex.Replace(desc, @"\s*\[gcal:[^\]]*\]", "").Trim();
+    private static string? StripGcalTag(string? desc) => TextHelpers.StripGcalTag(desc);
 
     [HttpGet]
     public async Task<IActionResult> GetAll([FromQuery] DateTime? from, [FromQuery] DateTime? to)
@@ -333,7 +332,9 @@ public class EventsController : ControllerBase
         if (ownerEmail == null || ownerEmail != email) return NotFound();
 
         await _db.DeleteEventAsync(id);
-        await _scheduling.ScheduleAllTasksAsync(email);
+        // The row is gone; if rescheduling blows up for any reason, the delete
+        // must still succeed from the caller's perspective.
+        try { await _scheduling.ScheduleAllTasksAsync(email); } catch { }
         return NoContent();
     }
 }

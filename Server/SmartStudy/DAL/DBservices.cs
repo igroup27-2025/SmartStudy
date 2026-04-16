@@ -665,9 +665,12 @@ public class DBservices
             Time = r.GetTimeSpan(r.GetOrdinal("Time")),
             Session = r.GetString(r.GetOrdinal("Session")),
             Duration = r.IsDBNull(r.GetOrdinal("Duration")) ? null : r.GetInt32(r.GetOrdinal("Duration")),
-            IsTakingExam = Convert.ToBoolean(r.GetValue(r.GetOrdinal("IsTakingExam")))
+            IsTakingExam = Convert.ToBoolean(r.GetValue(r.GetOrdinal("IsTakingExam"))),
+            ExamPrepHoursPerDay = r.IsDBNull(r.GetOrdinal("ExamPrepHoursPerDay")) ? null : r.GetDouble(r.GetOrdinal("ExamPrepHoursPerDay")),
+            ExamPrepDays = r.IsDBNull(r.GetOrdinal("ExamPrepDays")) ? null : r.GetInt32(r.GetOrdinal("ExamPrepDays"))
         };
     }
+
 
     // =====================================================
     // TASKS
@@ -1877,6 +1880,8 @@ public class ExamWithCourse
     public string Session { get; set; } = null!;
     public int? Duration { get; set; }
     public bool IsTakingExam { get; set; }
+    public double? ExamPrepHoursPerDay { get; set; }
+    public int? ExamPrepDays { get; set; }
 }
 
 public class TaskWithCourse

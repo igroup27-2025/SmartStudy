@@ -7044,6 +7044,58 @@ body[data-layout="onboarding"] {
   padding: var(--space-5);
 }
 
+.dash-shared-tasks__card {
+  background: #FFF7ED;
+  border: 1px solid #FBD5B5;
+  border-radius: var(--radius-lg);
+  padding: var(--space-5);
+}
+
+.dash-shared-tasks__header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-bottom: var(--space-3);
+}
+
+.dash-shared-tasks__icon {
+  font-size: 1.3rem;
+  color: var(--primary, #F28D35);
+}
+
+.dash-shared-tasks__title {
+  font-size: var(--fs-base);
+  font-weight: var(--fw-semibold);
+  color: #B35918;
+  margin: 0;
+  flex: 1;
+}
+
+.dash-shared-tasks__list .shared-task-card {
+  background: var(--bg-primary);
+  border: 1px solid #FBD5B5;
+  margin-bottom: var(--space-2);
+}
+
+.dash-shared-tasks__list .shared-task-card:last-child {
+  margin-bottom: 0;
+}
+
+.shared-task-card__slots {
+  margin: var(--space-2) 0 0;
+  padding-left: var(--space-4);
+  font-size: var(--fs-sm);
+  color: var(--text-secondary);
+}
+
+.shared-task-card__slots li {
+  margin-bottom: 2px;
+}
+
+.shared-task-card--proposed {
+  border-left: 3px solid var(--primary, #F28D35);
+}
+
 .dash-relocations__header {
   display: flex;
   align-items: center;

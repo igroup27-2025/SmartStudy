@@ -11,6 +11,8 @@ public class ExamDto
     public int? Duration { get; set; }
     public int DaysUntil { get; set; }
     public bool IsTakingExam { get; set; }
+    public double? ExamPrepHoursPerDay { get; set; }
+    public int? ExamPrepDays { get; set; }
 }
 
 public class CreateExamDto
@@ -20,6 +22,8 @@ public class CreateExamDto
     public string Time { get; set; } = null!;
     public string Session { get; set; } = null!;
     public int? Duration { get; set; }
+    public double? ExamPrepHoursPerDay { get; set; }
+    public int? ExamPrepDays { get; set; }
 }
 
 public class UpdateExamDto
@@ -29,4 +33,6 @@ public class UpdateExamDto
     public string? Time { get; set; }
     public string? Session { get; set; }
     public int? Duration { get; set; }
+    public double? ExamPrepHoursPerDay { get; set; }
+    public int? ExamPrepDays { get; set; }
 }

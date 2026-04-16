@@ -110,6 +110,17 @@ function setupAddExam() {
         openModal('examModal');
     });
 
+    // Prep settings live on the Course; mirror the selected course's values
+    // into the form so the user sees what they're about to inherit/overwrite.
+    courseSelect?.addEventListener('change', () => {
+        const editingExisting = document.getElementById('examId').value;
+        if (editingExisting) return;
+        const courseId = parseInt(courseSelect.value);
+        const course = courses.find(c => c.courseId === courseId);
+        document.getElementById('examPrepHoursPerDay').value = course?.examPrepHoursPerDay ?? '';
+        document.getElementById('examPrepDays').value = course?.examPrepDays ?? '';
+    });
+
     document.getElementById('examForm')?.addEventListener('submit', async (e) => {
         e.preventDefault();
         const examId = document.getElementById('examId').value;
@@ -120,12 +131,19 @@ function setupAddExam() {
             return;
         }
 
+        const prepHoursRaw = document.getElementById('examPrepHoursPerDay').value;
+        const prepDaysRaw = document.getElementById('examPrepDays').value;
+        const examPrepHoursPerDay = prepHoursRaw ? parseFloat(prepHoursRaw) : null;
+        const examPrepDays = prepDaysRaw ? parseInt(prepDaysRaw) : null;
+
         const data = {
             courseId: parseInt(document.getElementById('examCourseId').value),
             date: document.getElementById('examDate').value,
             time: document.getElementById('examTime').value,
             session: document.getElementById('examSession').value,
             duration,
+            examPrepHoursPerDay,
+            examPrepDays,
         };
 
         try {
@@ -139,6 +157,11 @@ function setupAddExam() {
                 exams.push(created);
                 exams.sort((a, b) => new Date(a.date) - new Date(b.date));
                 showToast('Exam added');
+            }
+            // Refresh both lists: prep changes propagate to the course, and the
+            // course value is what every other exam in the same course reads.
+            if (data.examPrepHoursPerDay !== null || data.examPrepDays !== null) {
+                [exams, courses] = await Promise.all([api.getExams(), api.getCourses()]);
             }
             closeModal('examModal');
             renderExams();
@@ -159,6 +182,8 @@ function editExam(id) {
     document.getElementById('examTime').value = formatTime(exam.time);
     document.getElementById('examSession').value = exam.session;
     document.getElementById('examDuration').value = exam.duration || '';
+    document.getElementById('examPrepHoursPerDay').value = exam.examPrepHoursPerDay ?? '';
+    document.getElementById('examPrepDays').value = exam.examPrepDays ?? '';
     openModal('examModal');
 }
 

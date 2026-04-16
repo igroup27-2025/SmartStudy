@@ -10,13 +10,17 @@ function escapeHtml(str) {
 
 export async function initDashboard() {
     try {
-        const data = await api.getDashboard();
+        const [data, sharedTasks] = await Promise.all([
+            api.getDashboard(),
+            api.getSharedTasks().catch(() => [])
+        ]);
         renderHeroWithMotivation(data.stress);
         renderProgress(data);
         renderAlerts(data);
         renderStats(data);
         renderWorkload(data);
         renderRelocationSuggestions(data);
+        renderSharedTasks(data, sharedTasks);
         renderSuggestion(data);
         renderWeeklySuggestions();
         renderMiniCalendar();
@@ -288,6 +292,145 @@ function renderRelocationSuggestions(data) {
             if (!el.querySelector('.relocation-card')) el.innerHTML = '';
         });
     });
+}
+
+/* ---- Section: Shared Tasks (invitations + slot confirmations) ---- */
+function formatSlotRange(from, to) {
+    const f = new Date(from);
+    const t = new Date(to);
+    const dateStr = f.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+    const timeStr = (d) => d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false });
+    return `${dateStr} · ${timeStr(f)}–${timeStr(t)}`;
+}
+
+function renderSharedTasks(dashboardData, sharedTasks) {
+    const el = document.getElementById('dashSharedTasks');
+    if (!el) return;
+
+    const user = getUser();
+    const myEmail = user ? user.email.toLowerCase() : '';
+
+    const invitations = (sharedTasks || []).filter(t => {
+        if (t.sharedStatus !== 'Pending') return false;
+        const me = (t.members || []).find(m => m.email.toLowerCase() === myEmail);
+        return me && me.responseStatus === 'Pending';
+    });
+
+    // Proposed slots: confirmed shared tasks with NeedReview scheduled events
+    // (both users must approve the proposed time before it becomes real work).
+    const proposedSlotTasks = (dashboardData.needsReviewTasks || []).filter(t =>
+        t.isShared && t.schedulingStatus === 'NeedReview' && (t.scheduledSlots?.length ?? 0) > 0
+    );
+
+    if (!invitations.length && !proposedSlotTasks.length) {
+        el.innerHTML = '';
+        return;
+    }
+
+    let html = '<div class="dash-shared-tasks__card">';
+
+    if (invitations.length) {
+        html += `
+            <div class="dash-shared-tasks__header">
+                <span class="dash-shared-tasks__icon">&#128101;</span>
+                <h3 class="dash-shared-tasks__title">Shared Task Invitations</h3>
+                <span class="badge badge-medium">${invitations.length}</span>
+            </div>
+            <div class="dash-shared-tasks__list">
+                ${invitations.map(t => {
+                    const partner = (t.members || []).find(m => m.email.toLowerCase() !== myEmail) || {};
+                    return `
+                    <div class="shared-task-card" data-task-id="${t.taskId}">
+                        <div class="shared-task-card__body">
+                            <div class="shared-task-card__title">${escapeHtml(t.taskTitle || 'Untitled Task')}</div>
+                            <div class="shared-task-card__meta">
+                                ${t.courseName ? `<span>${escapeHtml(t.courseName)}</span> · ` : ''}
+                                <span>From: ${escapeHtml(partner.name || partner.email || '')}</span>
+                            </div>
+                        </div>
+                        <div class="shared-task-card__actions">
+                            <button class="btn btn-primary btn-sm dash-shared-accept" data-task-id="${t.taskId}">Accept</button>
+                            <button class="btn btn-secondary btn-sm dash-shared-decline" data-task-id="${t.taskId}">Decline</button>
+                        </div>
+                    </div>`;
+                }).join('')}
+            </div>`;
+    }
+
+    if (proposedSlotTasks.length) {
+        html += `
+            <div class="dash-shared-tasks__header" style="margin-top: var(--space-4);">
+                <span class="dash-shared-tasks__icon">&#128197;</span>
+                <h3 class="dash-shared-tasks__title">Proposed Study Times</h3>
+                <span class="badge badge-medium">${proposedSlotTasks.length}</span>
+            </div>
+            <div class="dash-shared-tasks__list">
+                ${proposedSlotTasks.map(t => {
+                    const slots = (t.scheduledSlots || []).slice(0, 3);
+                    const slotsHtml = slots.map(s =>
+                        `<li>${escapeHtml(formatSlotRange(s.from, s.to))}</li>`
+                    ).join('');
+                    return `
+                    <div class="shared-task-card shared-task-card--proposed" data-task-id="${t.taskId}">
+                        <div class="shared-task-card__body">
+                            <div class="shared-task-card__title">${escapeHtml(t.title)}</div>
+                            ${t.courseName ? `<div class="shared-task-card__meta">${escapeHtml(t.courseName)}</div>` : ''}
+                            <ul class="shared-task-card__slots">${slotsHtml}</ul>
+                        </div>
+                        <div class="shared-task-card__actions">
+                            <button class="btn btn-primary btn-sm dash-slot-confirm" data-task-id="${t.taskId}">Confirm slot</button>
+                            <a href="${BASE_PATH}/Pages/Calendar.html" class="btn btn-ghost btn-sm">View on calendar</a>
+                        </div>
+                    </div>`;
+                }).join('')}
+            </div>`;
+    }
+
+    html += '</div>';
+    el.innerHTML = html;
+
+    el.querySelectorAll('.dash-shared-accept').forEach(btn => {
+        btn.addEventListener('click', () => handleInvitationResponse(parseInt(btn.dataset.taskId), true));
+    });
+    el.querySelectorAll('.dash-shared-decline').forEach(btn => {
+        btn.addEventListener('click', () => handleInvitationResponse(parseInt(btn.dataset.taskId), false));
+    });
+    el.querySelectorAll('.dash-slot-confirm').forEach(btn => {
+        btn.addEventListener('click', async () => {
+            const taskId = parseInt(btn.dataset.taskId);
+            btn.disabled = true;
+            try {
+                await api.approveScheduledTask(taskId);
+                showToast('Study slot confirmed!');
+                await refreshSharedTasksSection();
+            } catch (err) {
+                btn.disabled = false;
+                showToast(err.message || 'Failed to confirm slot', 'error');
+            }
+        });
+    });
+}
+
+async function handleInvitationResponse(taskId, accept) {
+    try {
+        await api.respondSharedTask(taskId, accept);
+        showToast(accept ? 'Shared task accepted!' : 'Shared task declined');
+    } catch (err) {
+        showToast(err.message || 'Failed to respond', 'error');
+        return;
+    }
+    await refreshSharedTasksSection();
+}
+
+async function refreshSharedTasksSection() {
+    try {
+        const [data, sharedTasks] = await Promise.all([
+            api.getDashboard(),
+            api.getSharedTasks().catch(() => [])
+        ]);
+        renderSharedTasks(data, sharedTasks);
+        renderReview(data);
+    } catch { /* silent */ }
 }
 
 /* ---- Section: Suggestion Card ---- */

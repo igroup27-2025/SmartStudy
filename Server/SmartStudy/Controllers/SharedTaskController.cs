@@ -15,12 +15,14 @@ public class SharedTaskController : ControllerBase
     private readonly DBservices _db;
     private readonly NotificationService _notifications;
     private readonly SchedulingService _scheduling;
+    private readonly ILogger<SharedTaskController> _logger;
 
-    public SharedTaskController(DBservices db, NotificationService notifications, SchedulingService scheduling)
+    public SharedTaskController(DBservices db, NotificationService notifications, SchedulingService scheduling, ILogger<SharedTaskController> logger)
     {
         _db = db;
         _notifications = notifications;
         _scheduling = scheduling;
+        _logger = logger;
     }
 
     private string GetEmail() => User.FindFirst(ClaimTypes.Email)!.Value;
@@ -136,35 +138,37 @@ public class SharedTaskController : ControllerBase
         await _notifications.CreateSharedTaskResponseNotificationAsync(
             sharedInfo.CreatedByEmail, responderName, taskId, taskTitle, dto.Accept);
 
-        if (sharedStatus == "Confirmed" && task != null)
+        // Approval itself is already durable — scheduling side-effects must not
+        // be allowed to fail the request, otherwise the user sees a "Failed"
+        // toast even though the accept was saved.
+        try
         {
-            // Create the accepting partner's copy (if missing), find a mutual-free
-            // slot, and place NeedReview events on BOTH calendars at the same
-            // time. If no mutual slot exists, the helper mirrors the creator's
-            // current schedule onto the partner — either way, both sides end up
-            // with events at identical times.
-            var foundCommonTime = await _scheduling.EnsurePartnerCopyAndScheduleAsync(
-                taskId, sharedInfo.CreatedByEmail, email);
-
-            if (!foundCommonTime)
+            if (sharedStatus == "Confirmed" && task != null)
             {
-                await _notifications.CreateNoCommonTimeNotificationAsync(
-                    sharedInfo.CreatedByEmail, taskId, taskTitle);
-                await _notifications.CreateNoCommonTimeNotificationAsync(
-                    email, taskId, taskTitle);
-            }
+                var foundCommonTime = await _scheduling.EnsurePartnerCopyAndScheduleAsync(
+                    taskId, sharedInfo.CreatedByEmail, email);
 
-            // Reschedule every member's remaining tasks around the locked shared slot.
-            var memberEmails = await _db.GetSharedTaskMemberEmailsAsync(taskId);
-            foreach (var memberEmail in memberEmails)
-                await _scheduling.ScheduleAllTasksAsync(memberEmail);
+                if (!foundCommonTime)
+                {
+                    await _notifications.CreateNoCommonTimeNotificationAsync(
+                        sharedInfo.CreatedByEmail, taskId, taskTitle);
+                    await _notifications.CreateNoCommonTimeNotificationAsync(
+                        email, taskId, taskTitle);
+                }
+
+                var memberEmails = await _db.GetSharedTaskMemberEmailsAsync(taskId);
+                foreach (var memberEmail in memberEmails)
+                    await _scheduling.ScheduleAllTasksAsync(memberEmail);
+            }
+            else if (sharedStatus == "Cancelled")
+            {
+                await _db.CleanupSharedTaskPartnerCopiesAsync(taskId);
+                await _scheduling.ScheduleAllTasksAsync(sharedInfo.CreatedByEmail);
+            }
         }
-        else if (sharedStatus == "Cancelled")
+        catch (Exception ex)
         {
-            // Decline removes the partner's copy and any already-placed events so
-            // the accepting user's calendar doesn't keep a stale shared slot.
-            await _db.CleanupSharedTaskPartnerCopiesAsync(taskId);
-            await _scheduling.ScheduleAllTasksAsync(sharedInfo.CreatedByEmail);
+            _logger.LogError(ex, "Shared task {TaskId} response saved but follow-up scheduling failed", taskId);
         }
 
         return Ok(new { taskId, status = sharedStatus });

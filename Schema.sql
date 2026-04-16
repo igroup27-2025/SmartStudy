@@ -154,6 +154,9 @@ CREATE TABLE SmartStudy_Exams (
     [Session]    NVARCHAR(10) NOT NULL,
     Duration     INT          NULL,
     IsTakingExam BIT          NOT NULL DEFAULT 1,
+    -- Exam prep settings (hours/day, days) live on SmartStudy_Courses and apply
+    -- to every exam in the course. The Exams form edits the course's value;
+    -- there is no per-exam override.
     CONSTRAINT PK_SmartStudy_Exams PRIMARY KEY (ExamId),
     CONSTRAINT FK_Exams_Courses FOREIGN KEY (CourseId)
         REFERENCES SmartStudy_Courses(CourseId) ON DELETE CASCADE
@@ -835,7 +838,8 @@ CREATE PROCEDURE SS_Exams_GetByUser
 AS
 BEGIN
     SET NOCOUNT ON;
-    SELECT e.ExamId, e.CourseId, c.CourseName, e.[Date], e.[Time], e.[Session], e.Duration, e.IsTakingExam
+    SELECT e.ExamId, e.CourseId, c.CourseName, e.[Date], e.[Time], e.[Session], e.Duration, e.IsTakingExam,
+           c.ExamPrepHoursPerDay, c.ExamPrepDays
     FROM SmartStudy_Exams e
     INNER JOIN SmartStudy_Courses c ON e.CourseId = c.CourseId
     INNER JOIN SmartStudy_UserCourses uc ON e.CourseId = uc.CourseId AND uc.Email = @Email
@@ -851,7 +855,8 @@ CREATE PROCEDURE SS_Exams_GetById
 AS
 BEGIN
     SET NOCOUNT ON;
-    SELECT e.ExamId, e.CourseId, c.CourseName, e.[Date], e.[Time], e.[Session], e.Duration, e.IsTakingExam
+    SELECT e.ExamId, e.CourseId, c.CourseName, e.[Date], e.[Time], e.[Session], e.Duration, e.IsTakingExam,
+           c.ExamPrepHoursPerDay, c.ExamPrepDays
     FROM SmartStudy_Exams e
     INNER JOIN SmartStudy_Courses c ON e.CourseId = c.CourseId
     INNER JOIN SmartStudy_UserCourses uc ON e.CourseId = uc.CourseId AND uc.Email = @Email

@@ -19,6 +19,11 @@ dotnet publish "$SCRIPT_DIR/Server/SmartStudy/SmartStudy.csproj" \
   -o "$PUBLISH_DIR" \
   --no-self-contained
 
+# MSBuild's <Copy> target can miss files on macOS/Linux — mirror the full Front/
+# tree via rsync to guarantee every asset (especially Script/modules/*.js) is present.
+echo "Syncing Front/ assets..."
+rsync -a --delete --exclude='.DS_Store' "$SCRIPT_DIR/Front/" "$PUBLISH_DIR/Front/"
+
 # Verify Front/ was copied
 if [ -d "$PUBLISH_DIR/Front" ]; then
   echo "Front/ directory found in publish output."

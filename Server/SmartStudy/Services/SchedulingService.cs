@@ -642,6 +642,7 @@ public class SchedulingService
                 {
                     var eventType = workEventIdSet.Contains(evt.EventId) ? "Work" : "Personal";
                     var eventTitle = GetEventTitle(evt.EventId, eventType, workEventLookup, personalEventLookup);
+                    var cleanTaskTitle = TextHelpers.StripGcalTag(taskTitle) ?? taskTitle;
                     result.RelocationSuggestions.Add(new RelocationSuggestionDto
                     {
                         EventId = evt.EventId,
@@ -649,13 +650,14 @@ public class SchedulingService
                         EventType = eventType,
                         CurrentFrom = evt.From,
                         CurrentTo = evt.To,
-                        BlockedTaskTitle = taskTitle,
-                        Message = $"Moving \"{eventTitle}\" from {evt.From:ddd HH:mm}-{evt.To:HH:mm} would free up space for \"{taskTitle}\""
+                        BlockedTaskTitle = cleanTaskTitle,
+                        Message = $"Moving \"{eventTitle}\" from {evt.From:ddd HH:mm}-{evt.To:HH:mm} would free up space for \"{cleanTaskTitle}\""
                     });
                 }
             }
 
-            if (result.RelocationSuggestions.Any(rs => rs.BlockedTaskTitle == taskTitle))
+            var cleanTaskTitleForCheck = TextHelpers.StripGcalTag(taskTitle) ?? taskTitle;
+            if (result.RelocationSuggestions.Any(rs => rs.BlockedTaskTitle == cleanTaskTitleForCheck))
                 break;
         }
     }
@@ -666,8 +668,11 @@ public class SchedulingService
         if (eventType == "Work" && workLookup.TryGetValue(eventId, out var work))
             return !string.IsNullOrWhiteSpace(work.WorkPlace) ? work.WorkPlace : "Work";
         if (eventType == "Personal" && personalLookup.TryGetValue(eventId, out var personal))
-            return !string.IsNullOrWhiteSpace(personal.Description) ? personal.Description
-                : !string.IsNullOrWhiteSpace(personal.Type) ? personal.Type : "Personal";
+        {
+            var stripped = TextHelpers.StripGcalTag(personal.Description);
+            if (!string.IsNullOrWhiteSpace(stripped)) return stripped!;
+            return !string.IsNullOrWhiteSpace(personal.Type) ? personal.Type : "Personal";
+        }
         return eventType;
     }
 
@@ -773,6 +778,7 @@ public class SchedulingService
                     {
                         var eventType = workEventIdSet.Contains(evt.EventId) ? "Work" : "Personal";
                         var eventTitle = GetEventTitle(evt.EventId, eventType, workEventLookup, personalEventLookup);
+                        var cleanTaskTitle = TextHelpers.StripGcalTag(task.Title) ?? task.Title;
                         resultDto.RelocationSuggestions.Add(new RelocationSuggestionDto
                         {
                             EventId = evt.EventId,
@@ -780,14 +786,15 @@ public class SchedulingService
                             EventType = eventType,
                             CurrentFrom = evt.From,
                             CurrentTo = evt.To,
-                            BlockedTaskTitle = task.Title,
-                            Message = $"Moving \"{eventTitle}\" from {evt.From:ddd HH:mm}-{evt.To:HH:mm} would free up space for \"{task.Title}\""
+                            BlockedTaskTitle = cleanTaskTitle,
+                            Message = $"Moving \"{eventTitle}\" from {evt.From:ddd HH:mm}-{evt.To:HH:mm} would free up space for \"{cleanTaskTitle}\""
                         });
                         break;
                     }
                 }
 
-                if (resultDto.RelocationSuggestions.Any(rs => rs.BlockedTaskTitle == task.Title))
+                var cleanTaskTitleForCheck = TextHelpers.StripGcalTag(task.Title) ?? task.Title;
+                if (resultDto.RelocationSuggestions.Any(rs => rs.BlockedTaskTitle == cleanTaskTitleForCheck))
                     break;
             }
         }

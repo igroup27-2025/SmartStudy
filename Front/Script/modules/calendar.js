@@ -2,6 +2,12 @@ import { api } from './api.js';
 import { openModal, closeModal, showToast } from './modals.js';
 import { BASE_PATH } from './config.js';
 
+// Format Date as local-wall-clock ISO (no timezone suffix) so the backend stores
+// the exact time the user entered, not a UTC-shifted one.
+function toLocalISO(d) {
+    return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}T${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}:${String(d.getSeconds()).padStart(2,'0')}`;
+}
+
 let currentView = window.innerWidth <= 768 ? '3day' : 'weekly'; // 'monthly' | 'weekly' | '3day'
 let currentDate = new Date();
 let cachedEvents = [];
@@ -268,8 +274,8 @@ async function navigate() {
                 return {
                     eventId: `exam-${ex.examId}`,
                     eventType: 'exam',
-                    from: fromDate.toISOString(),
-                    to: toDate.toISOString(),
+                    from: toLocalISO(fromDate),
+                    to: toLocalISO(toDate),
                     recurring: false,
                     courseName: ex.courseName,
                     courseId: ex.courseId,
@@ -507,8 +513,8 @@ function setupDragAndDrop(grid) {
 
             try {
                 const data = {
-                    from: newFrom.toISOString(),
-                    to: newTo.toISOString(),
+                    from: toLocalISO(newFrom),
+                    to: toLocalISO(newTo),
                     recurring: event.recurring,
                 };
 
@@ -534,8 +540,8 @@ function setupDragAndDrop(grid) {
                 // Check for conflicts after move
                 try {
                     const conflicts = await api.checkConflicts({
-                        from: newFrom.toISOString(),
-                        to: newTo.toISOString(),
+                        from: toLocalISO(newFrom),
+                        to: toLocalISO(newTo),
                         excludeEventId: eventId
                     });
                     if (conflicts && conflicts.length > 0) {
@@ -746,7 +752,7 @@ function setupEventCreation() {
         const toTime = document.getElementById('eventToTime').value;
         const recurring = document.getElementById('eventRecurring')?.checked || false;
         const recEndVal = document.getElementById('eventRecurrenceEndDate')?.value;
-        const recurrenceEndDate = recurring && recEndVal ? new Date(recEndVal + 'T23:59:59').toISOString() : null;
+        const recurrenceEndDate = recurring && recEndVal ? toLocalISO(new Date(recEndVal + 'T23:59:59')) : null;
 
         if (type === 'exam') {
             if (!fromDate || !fromTime) {
@@ -774,8 +780,8 @@ function setupEventCreation() {
         if (!conflictsConfirmed && !editingEventId) {
             try {
                 const conflicts = await api.checkConflicts({
-                    from: from.toISOString(),
-                    to: to.toISOString(),
+                    from: toLocalISO(from),
+                    to: toLocalISO(to),
                 });
                 if (conflicts && conflicts.length > 0) {
                     showConflictWarning(conflicts);
@@ -803,8 +809,8 @@ function setupEventCreation() {
                 await api.changeEventType(editingEventId, changeData);
                 // Also update the time if changed
                 const updateData = {
-                    from: from.toISOString(),
-                    to: to.toISOString(),
+                    from: toLocalISO(from),
+                    to: toLocalISO(to),
                     recurring,
                     recurrenceEndDate,
                 };
@@ -827,8 +833,8 @@ function setupEventCreation() {
 
             if (type === 'class') {
                 const data = {
-                    from: from.toISOString(),
-                    to: to.toISOString(),
+                    from: toLocalISO(from),
+                    to: toLocalISO(to),
                     recurring,
                     recurrenceEndDate,
                     courseId: parseInt(document.getElementById('eventCourseId').value),
@@ -841,8 +847,8 @@ function setupEventCreation() {
                 const travelMin = parseInt(document.getElementById('eventTravelTime')?.value) || 0;
                 const adjustedFrom = new Date(from.getTime() - travelMin * 60000);
                 const data = {
-                    from: adjustedFrom.toISOString(),
-                    to: to.toISOString(),
+                    from: toLocalISO(adjustedFrom),
+                    to: toLocalISO(to),
                     recurring,
                     recurrenceEndDate,
                     workPlace: document.getElementById('eventWorkPlace')?.value || null,
@@ -856,8 +862,8 @@ function setupEventCreation() {
                     const existingEvent = cachedEvents.find(e => e.eventId === editingEventId);
                     const taskId = parseInt(document.getElementById('eventTaskId').value) || existingEvent?.taskId;
                     const data = {
-                        from: from.toISOString(),
-                        to: to.toISOString(),
+                        from: toLocalISO(from),
+                        to: toLocalISO(to),
                         recurring,
                         recurrenceEndDate,
                         taskId,
@@ -895,8 +901,8 @@ function setupEventCreation() {
                     }
 
                     const data = {
-                        from: from.toISOString(),
-                        to: to.toISOString(),
+                        from: toLocalISO(from),
+                        to: toLocalISO(to),
                         recurring,
                         recurrenceEndDate,
                         taskId,
@@ -927,8 +933,8 @@ function setupEventCreation() {
                 }
             } else {
                 const data = {
-                    from: from.toISOString(),
-                    to: to.toISOString(),
+                    from: toLocalISO(from),
+                    to: toLocalISO(to),
                     recurring,
                     recurrenceEndDate,
                     type: document.getElementById('eventPersonalType')?.value || null,
@@ -1103,8 +1109,8 @@ async function saveCalConstraint() {
         for (const dayOfWeek of checkedDays) {
             // Find next occurrence of this weekday
             const date = getNextWeekday(dayOfWeek);
-            const fromISO = new Date(`${date}T${startTime}`).toISOString();
-            const toISO = new Date(`${date}T${endTime}`).toISOString();
+            const fromISO = toLocalISO(new Date(`${date}T${startTime}`));
+            const toISO = toLocalISO(new Date(`${date}T${endTime}`));
 
             if (type === 'work') {
                 await api.createWorkEvent({
