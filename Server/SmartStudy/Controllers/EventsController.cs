@@ -7,15 +7,19 @@ using SmartStudy.Services;
 
 namespace SmartStudy.Controllers;
 
+// API endpoints for class/task/work/personal calendar events with conflict checks.
 [ApiController]
 [Route("api/events")]
 [Authorize]
 public class EventsController : ControllerBase
 {
+    // Reads the authenticated user's email from JWT claims.
     private string GetEmail() => User.FindFirst(ClaimTypes.Email)!.Value;
 
+    // Removes the [GCAL:..] sync tag from a description for client display.
     private static string? StripGcalTag(string? desc) => TextHelpers.StripGcalTag(desc);
 
+    // Lists events in a date range, expanding weekly-recurring instances on the fly.
     [HttpGet]
     public IActionResult GetAll([FromQuery] DateTime? from, [FromQuery] DateTime? to)
     {
@@ -55,6 +59,7 @@ public class EventsController : ControllerBase
         return Ok(result.OrderBy(e => e.From));
     }
 
+    // Maps a TypedEvent (any subtype) into the wire-format EventDto.
     private static EventDto BuildDto(TypedEvent evt)
     {
         var dto = new EventDto
@@ -104,6 +109,7 @@ public class EventsController : ControllerBase
         return dto;
     }
 
+    // Creates a class event and re-runs auto-scheduling, reporting any task-event conflicts resolved.
     [HttpPost("class")]
     public IActionResult CreateClass([FromBody] CreateClassEventDto dto)
     {
@@ -123,6 +129,7 @@ public class EventsController : ControllerBase
         });
     }
 
+    // Creates a manually-placed task study block on the calendar.
     [HttpPost("task")]
     public IActionResult CreateTask([FromBody] CreateTaskEventDto dto)
     {
@@ -131,6 +138,7 @@ public class EventsController : ControllerBase
         return CreatedAtAction(nameof(GetAll), new { }, new { EventId = eventId, eventType = "task" });
     }
 
+    // Creates a work-shift event and re-runs auto-scheduling around it.
     [HttpPost("work")]
     public IActionResult CreateWork([FromBody] CreateWorkEventDto dto)
     {
@@ -150,6 +158,7 @@ public class EventsController : ControllerBase
         });
     }
 
+    // Creates a personal event (sleep, meal, gym, etc.) and re-runs auto-scheduling.
     [HttpPost("personal")]
     public IActionResult CreatePersonal([FromBody] CreatePersonalEventDto dto)
     {
@@ -169,6 +178,7 @@ public class EventsController : ControllerBase
         });
     }
 
+    // Updates a class event the user owns and re-runs auto-scheduling.
     [HttpPut("class/{id}")]
     public IActionResult UpdateClass(int id, [FromBody] CreateClassEventDto dto)
     {
@@ -181,6 +191,7 @@ public class EventsController : ControllerBase
         return Ok(new { EventId = id, eventType = "class" });
     }
 
+    // Updates a work event the user owns and re-runs auto-scheduling.
     [HttpPut("work/{id}")]
     public IActionResult UpdateWork(int id, [FromBody] CreateWorkEventDto dto)
     {
@@ -193,6 +204,7 @@ public class EventsController : ControllerBase
         return Ok(new { EventId = id, eventType = "work" });
     }
 
+    // Moves a task event, pins the task, and mirrors the move on the shared partner's copy.
     [HttpPut("task/{id}")]
     public IActionResult UpdateTask(int id, [FromBody] CreateTaskEventDto dto)
     {
@@ -223,6 +235,7 @@ public class EventsController : ControllerBase
         return Ok(new { EventId = id, eventType = "task", isManuallyPinned = true, partnerSynced });
     }
 
+    // Updates a personal event the user owns and re-runs auto-scheduling.
     [HttpPut("personal/{id}")]
     public IActionResult UpdatePersonal(int id, [FromBody] CreatePersonalEventDto dto)
     {
@@ -235,6 +248,7 @@ public class EventsController : ControllerBase
         return Ok(new { EventId = id, eventType = "personal" });
     }
 
+    // Reports overlapping events in a window, including expanded recurring instances.
     [HttpPost("check-conflicts")]
     public IActionResult CheckConflicts([FromBody] CheckConflictDto dto)
     {
@@ -279,6 +293,7 @@ public class EventsController : ControllerBase
         return Ok(new { hasConflicts = conflicts.Any(), conflicts });
     }
 
+    // Converts an event between Work and Personal subtypes (Class/Task are immutable).
     [HttpPut("{id}/change-type")]
     public IActionResult ChangeType(int id, [FromBody] ChangeEventTypeDto dto)
     {
@@ -303,6 +318,7 @@ public class EventsController : ControllerBase
         return Ok(new { EventId = id, eventType = newType });
     }
 
+    // Deletes an event the user owns and re-runs auto-scheduling.
     [HttpDelete("{id}")]
     public IActionResult Delete(int id)
     {

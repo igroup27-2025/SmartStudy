@@ -86,7 +86,9 @@
     <script>
         // ---- API endpoints -----------------------------------------------
         var ExamsApi   = API_BASE + "/exams";
+        // Handles exam api.
         var ExamApi    = function (id) { return API_BASE + "/exams/" + id; };
+        // Handles exam toggle api.
         var ExamToggleApi = function (id) { return API_BASE + "/exams/" + id + "/toggle-taking"; };
         var CoursesApi = API_BASE + "/courses";
 
@@ -94,11 +96,13 @@
         var courses = [];
         var editingId = null;
 
+        // Escapes a string for safe HTML insertion.
         function escapeHtml(s) {
             if (s == null) return "";
             return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
         }
 
+        // Formats a Date as a HH:MM time string.
         function formatTime(t) {
             if (!t) return "";
             if (typeof t === "string" && t.indexOf(":") !== -1) return t.substring(0, 5);
@@ -127,6 +131,7 @@
             LoadAll();
         });
 
+        // Handles load all.
         function LoadAll() {
             ajaxCall("GET", CoursesApi, null, function (data) {
                 courses = data || [];
@@ -137,6 +142,7 @@
             });
         }
 
+        // Handles load exams.
         function LoadExams() {
             ajaxCall("GET", ExamsApi, null, function (data) {
                 exams = data || [];
@@ -146,6 +152,7 @@
             });
         }
 
+        // Handles populate course select.
         function PopulateCourseSelect() {
             var sel = $("#examCourseId");
             sel.find("option:not(:first)").remove();
@@ -154,6 +161,7 @@
             });
         }
 
+        // Handles render exams.
         function RenderExams() {
             if (!exams.length) {
                 $("#examList").html('<div class="empty-state"><div class="empty-state-icon">&#128221;</div><h3>No exams scheduled</h3><p>Add your first exam to track deadlines</p></div>');
@@ -198,6 +206,7 @@
             $(".exam-taking-check").on("change", function () { ToggleTaking(parseInt($(this).data("id")), $(this)); });
         }
 
+        // Handles open add exam.
         function OpenAddExam() {
             editingId = null;
             $("#examModalTitle").text("Add Exam");
@@ -206,6 +215,7 @@
             $("#examModal").addClass("open");
         }
 
+        // Handles open edit exam.
         function OpenEditExam(id) {
             var e = exams.find(function (x) { return x.examId === id; });
             if (!e) return;
@@ -222,8 +232,10 @@
             $("#examModal").addClass("open");
         }
 
+        // Handles close exam modal.
         function CloseExamModal() { $("#examModal").removeClass("open"); }
 
+        // Submits the exam.
         function SubmitExam(e) {
             e.preventDefault();
             var durationRaw = $("#examDuration").val();
@@ -246,9 +258,12 @@
                 ajaxCall("POST", ExamsApi, JSON.stringify(data), ExamSaveSC, ExamSaveEC);
             }
         }
+        // Success callback for Exam Save.
         function ExamSaveSC() { CloseExamModal(); LoadAll(); }
+        // Error callback for Exam Save.
         function ExamSaveEC(xhr) { alert((xhr.responseJSON && xhr.responseJSON.message) || "Failed to save exam"); }
 
+        // Handles delete exam.
         function DeleteExam(id) {
             if (!confirm("Delete this exam?")) return;
             ajaxCall("DELETE", ExamApi(id), null,
@@ -256,6 +271,7 @@
                 function () { alert("Failed to delete exam"); });
         }
 
+        // Handles toggle taking.
         function ToggleTaking(id, cb) {
             ajaxCall("PUT", ExamToggleApi(id), null,
                 function () { LoadExams(); },

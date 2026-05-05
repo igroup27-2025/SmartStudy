@@ -3,16 +3,19 @@ using SmartStudy.Models;
 
 namespace SmartStudy.Services;
 
+// Hosted service that periodically generates deadline, overload, daily, and weekly notifications.
 public class NotificationBackgroundService : BackgroundService
 {
     private readonly ILogger<NotificationBackgroundService> _logger;
     private static readonly TimeSpan Interval = TimeSpan.FromMinutes(30);
 
+    // Injects the logger.
     public NotificationBackgroundService(ILogger<NotificationBackgroundService> logger)
     {
         _logger = logger;
     }
 
+    // Background loop — waits 30 seconds, then runs notification generation every 30 minutes.
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         try
@@ -46,6 +49,7 @@ public class NotificationBackgroundService : BackgroundService
         }
     }
 
+    // Runs deadline, overload, morning summary, and weekly-plan reminder generators per user.
     private void GenerateNotificationsForAllUsers()
     {
         var db = new DBservices();

@@ -98,9 +98,11 @@
     <script>
         // ---- API endpoints -----------------------------------------------
         var CoursesApi     = API_BASE + "/courses";
+        // Handles course api.
         var CourseApi      = function (id) { return API_BASE + "/courses/" + id; };
         var InstructorsApi = API_BASE + "/settings/instructors";
         var ConnectionsApi = API_BASE + "/connections";
+        // Handles partner api.
         var PartnerApi     = function (id) { return API_BASE + "/courses/" + id + "/partner"; };
 
         var COURSE_COLORS = ["#4A90D9", "#F28D35", "#9B76FF", "#43B88C", "#E84B6A", "#54BFB5"];
@@ -109,6 +111,7 @@
         var friends = [];
         var editingId = null;
 
+        // Escapes a string for safe HTML insertion.
         function escapeHtml(s) {
             if (s == null) return "";
             return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
@@ -128,6 +131,7 @@
             LoadAll();
         });
 
+        // Handles load all.
         function LoadAll() {
             ajaxCall("GET", CoursesApi, null, function (data) {
                 courses = data || [];
@@ -157,6 +161,7 @@
             });
         }
 
+        // Handles populate instructors.
         function PopulateInstructors() {
             var sel = $("#courseInstructorId");
             sel.find("option:not(:first)").remove();
@@ -165,6 +170,7 @@
             });
         }
 
+        // Handles populate partners.
         function PopulatePartners() {
             var sel = $("#courseStudyPartner");
             sel.find("option:not(:first)").remove();
@@ -173,6 +179,7 @@
             });
         }
 
+        // Handles render courses.
         function RenderCourses() {
             if (!courses.length) {
                 $("#courseGrid").html('<div class="empty-state"><div class="empty-state-icon">&#128218;</div><h3>No courses yet</h3><p>Add your first course to get started</p></div>');
@@ -208,6 +215,7 @@
             $(".course-delete").on("click", function (e) { e.stopPropagation(); DeleteCourse(parseInt($(this).data("id"))); });
         }
 
+        // Handles open add course.
         function OpenAddCourse() {
             editingId = null;
             $("#courseModalTitle").text("Add Course");
@@ -216,6 +224,7 @@
             $("#courseModal").addClass("open");
         }
 
+        // Handles open edit course.
         function OpenEditCourse(id) {
             var c = courses.find(function (x) { return x.courseId === id; });
             if (!c) return;
@@ -235,8 +244,10 @@
             $("#courseModal").addClass("open");
         }
 
+        // Handles close course modal.
         function CloseCourseModal() { $("#courseModal").removeClass("open"); }
 
+        // Submits the course.
         function SubmitCourse(e) {
             e.preventDefault();
             var data = {
@@ -266,6 +277,7 @@
             }
         }
 
+        // Handles set partner then reload.
         function SetPartnerThenReload(courseId, email) {
             if (courseId && email !== null && email !== undefined) {
                 ajaxCall("PUT", PartnerApi(courseId), JSON.stringify({ email: email }),
@@ -277,10 +289,12 @@
             }
         }
 
+        // Error callback for Course Save.
         function CourseSaveEC(xhr) {
             alert((xhr.responseJSON && xhr.responseJSON.message) || "Failed to save course");
         }
 
+        // Handles delete course.
         function DeleteCourse(id) {
             if (!confirm("Delete this course? All tasks and exams will also be deleted.")) return;
             ajaxCall("DELETE", CourseApi(id), null,

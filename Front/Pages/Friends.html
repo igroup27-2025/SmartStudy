@@ -68,24 +68,31 @@
         // ---- API endpoints -----------------------------------------------
         var ConnectionsApi   = API_BASE + "/connections";
         var InviteApi        = API_BASE + "/connections/invite";
+        // Handles accept api.
         var AcceptApi        = function (id) { return API_BASE + "/connections/" + id + "/accept"; };
+        // Handles decline api.
         var DeclineApi       = function (id) { return API_BASE + "/connections/" + id + "/decline"; };
+        // Handles remove api.
         var RemoveApi        = function (id) { return API_BASE + "/connections/" + id; };
         var SharedTasksApi   = API_BASE + "/shared-tasks";
+        // Handles respond shared api.
         var RespondSharedApi = function (id) { return API_BASE + "/shared-tasks/" + id + "/respond"; };
 
         var connections = [];
         var pendingRequests = [];
         var sharedTasks = [];
 
+        // Escapes a string for safe HTML insertion.
         function escapeHtml(s) {
             if (s == null) return "";
             return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
         }
+        // Returns initials.
         function getInitials(name) {
             if (!name) return "?";
             return name.split(" ").map(function (w) { return w[0]; }).join("").toUpperCase().slice(0, 2);
         }
+        // Formats a Date as a localized date string.
         function formatDate(dateStr) {
             if (!dateStr) return "";
             return new Date(dateStr).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
@@ -110,10 +117,12 @@
             LoadConnections();
         });
 
+        // Handles load connections.
         function LoadConnections() {
             ajaxCall("GET", ConnectionsApi, null, ConnectionsSC, ConnectionsEC);
         }
 
+        // Success callback for Connections.
         function ConnectionsSC(data) {
             var all = data || [];
             connections = all.filter(function (c) { return c.status === "accepted"; });
@@ -122,18 +131,21 @@
             RenderFriends();
             LoadSharedTasks();
         }
+        // Error callback for Connections.
         function ConnectionsEC() {
             connections = []; pendingRequests = [];
             RenderPendingRequests(); RenderFriends();
             LoadSharedTasks();
         }
 
+        // Handles load shared tasks.
         function LoadSharedTasks() {
             ajaxCall("GET", SharedTasksApi, null,
                 function (data) { sharedTasks = data || []; RenderSharedTasks(); },
                 function () { sharedTasks = []; RenderSharedTasks(); });
         }
 
+        // Handles render pending requests.
         function RenderPendingRequests() {
             if (!pendingRequests.length) { $("#friendRequests").hide(); return; }
             $("#friendRequests").show();
@@ -168,6 +180,7 @@
             });
         }
 
+        // Handles render friends.
         function RenderFriends() {
             if (!connections.length) {
                 $("#friendsList").html('<div class="empty-state"><div class="empty-state-icon">&#129309;</div><h3>No friends yet</h3><p>Invite classmates to connect and find study times together</p></div>');
@@ -198,6 +211,7 @@
             });
         }
 
+        // Handles render shared tasks.
         function RenderSharedTasks() {
             var visible = sharedTasks.filter(function (t) { return t.sharedStatus !== "Cancelled"; });
             if (!visible.length) { $("#sharedTasksSection").hide(); return; }
@@ -240,12 +254,14 @@
             $(".shared-task-decline").on("click", function () { RespondShared(parseInt($(this).data("task-id")), false); });
         }
 
+        // Handles respond shared.
         function RespondShared(taskId, accept) {
             ajaxCall("POST", RespondSharedApi(taskId), JSON.stringify({ accept: accept }),
                 function () { LoadSharedTasks(); },
                 function (xhr) { alert((xhr.responseJSON && xhr.responseJSON.message) || "Failed to respond"); });
         }
 
+        // Submits the invite.
         function SubmitInvite(e) {
             e.preventDefault();
             var email = $.trim($("#inviteEmail").val());

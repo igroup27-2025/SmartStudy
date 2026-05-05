@@ -6,6 +6,7 @@ using SmartStudy.Models;
 
 namespace SmartStudy.Services;
 
+// Top-level orchestrator for Ruppinet sync — pulls courses, schedule, and exams into SmartStudy.
 public class RuppinetSyncService
 {
     private readonly DBservices _dal = new DBservices();
@@ -13,6 +14,7 @@ public class RuppinetSyncService
     private readonly IConfiguration _config;
     private readonly ILogger<RuppinetSyncService> _logger;
 
+    // Injects the API client, configuration, and logger.
     public RuppinetSyncService(RuppinetApiClient api,
         IConfiguration config, ILogger<RuppinetSyncService> logger)
     {
@@ -21,6 +23,7 @@ public class RuppinetSyncService
         _logger = logger;
     }
 
+    // Logs into Ruppinet, fetches all data in parallel, persists it, and re-runs scheduling.
     public async Task<RuppinetSyncResultDto> SyncAllAsync(string email)
     {
         var result = new RuppinetSyncResultDto();
@@ -115,6 +118,7 @@ public class RuppinetSyncService
         return result;
     }
 
+    // Verifies Ruppinet credentials by attempting a login (returns true on success).
     public async Task<bool> TestConnectionAsync(string zht, string password)
     {
         try
@@ -128,6 +132,7 @@ public class RuppinetSyncService
         }
     }
 
+    // Upserts courses from Ruppinet and enrolls the user in each.
     private void ProcessCourses(string email, List<RuppinetCourse> ruppinetCourses, RuppinetSyncResultDto result)
     {
         foreach (var rc in ruppinetCourses)
@@ -167,6 +172,7 @@ public class RuppinetSyncService
         }
     }
 
+    // Maps schedule rows to courses and creates class events, skipping duplicates.
     private void ProcessSchedule(string email, List<RuppinetScheduleEvent> events, RuppinetSyncResultDto result)
     {
         var courseMap = BuildCourseMap(email);
@@ -208,6 +214,7 @@ public class RuppinetSyncService
         }
     }
 
+    // Upserts exams per course/session and warns when durations are estimated.
     private void ProcessExams(string email, List<RuppinetExam> ruppinetExams, RuppinetSyncResultDto result)
     {
         var courseMap = BuildCourseMap(email);
@@ -274,6 +281,7 @@ public class RuppinetSyncService
         }
     }
 
+    // Reuses or creates a course from an exam record and enrolls the user.
     private int? CreateCourseFromExam(string email, RuppinetExam re)
     {
         var courseId = re.CourseNmrtr > 0 ? re.CourseNmrtr : GenerateStableId(re.CourseName, 0);
@@ -299,6 +307,7 @@ public class RuppinetSyncService
         return courseId;
     }
 
+    // Reuses or creates a course from a schedule event title and enrolls the user.
     private int? CreateCourseFromSchedule(string email, RuppinetScheduleEvent evt)
     {
         var name = evt.Title.Trim();
@@ -325,6 +334,7 @@ public class RuppinetSyncService
         return courseId;
     }
 
+    // Computes a deterministic 8-digit course ID from a name (with collision walk).
     private int GenerateStableId(string input, int offset)
     {
         using var sha = System.Security.Cryptography.SHA256.Create();
@@ -341,6 +351,7 @@ public class RuppinetSyncService
         return value;
     }
 
+    // Loads the user's enrolled courses keyed by normalized course name.
     private Dictionary<string, int> BuildCourseMap(string email)
     {
         var userCourses = _dal.GetUserCoursesWithName(email);
@@ -353,6 +364,7 @@ public class RuppinetSyncService
         return map;
     }
 
+    // Lowercases and normalizes punctuation so course names compare reliably.
     private static string NormalizeName(string name)
     {
         return name.ToLower().Trim()
@@ -362,6 +374,7 @@ public class RuppinetSyncService
             .Replace('\u201D', '"');
     }
 
+    // Fuzzy-matches a Ruppinet title against the user's course map (exact, substring, then prefix).
     private static int? FindCourseId(string title, Dictionary<string, int> courseMap)
     {
         var normalized = NormalizeName(title);
@@ -412,6 +425,7 @@ public class RuppinetSyncService
         return null;
     }
 
+    // Searches the global courses table for a normalized-name match.
     private Course? FindCourseByName(string name)
     {
         var normalized = NormalizeName(name);
@@ -419,6 +433,7 @@ public class RuppinetSyncService
         return candidates.FirstOrDefault(c => NormalizeName(c.CourseName) == normalized);
     }
 
+    // Detects same-named duplicate courses for the user and merges events/exams/tasks into one.
     private void CleanupDuplicateCourses(string email)
     {
         var userCourses = _dal.GetUserCoursesWithName(email);
@@ -452,6 +467,7 @@ public class RuppinetSyncService
         }
     }
 
+    // Looks up an instructor by name or creates one, returning its ID (uses first comma-split name).
     private int? FindOrCreateInstructor(string? instructorNames)
     {
         if (string.IsNullOrWhiteSpace(instructorNames)) return null;
@@ -467,12 +483,15 @@ public class RuppinetSyncService
         return _dal.CreateInstructor(truncatedName);
     }
 
+    // Cuts a string to a max length to fit a database column.
     private static string Truncate(string? value, int maxLength)
         => string.IsNullOrEmpty(value) ? "" : value.Length <= maxLength ? value : value[..maxLength];
 
+    // Cuts a nullable string to a max length, preserving nulls.
     private static string? TruncateNullable(string? value, int maxLength)
         => value == null ? null : value.Length <= maxLength ? value : value[..maxLength];
 
+    // AES-256 encrypts the plaintext Ruppinet password and returns base64 (IV-prefixed).
     public string EncryptPassword(string plainText)
     {
         var key = GetEncryptionKey();
@@ -488,6 +507,7 @@ public class RuppinetSyncService
         return Convert.ToBase64String(result);
     }
 
+    // AES-256 decrypts an IV-prefixed base64 ciphertext back to plaintext.
     private string DecryptPassword(string cipherText)
     {
         var key = GetEncryptionKey();
@@ -503,6 +523,7 @@ public class RuppinetSyncService
         return Encoding.UTF8.GetString(decryptor.TransformFinalBlock(cipher, 0, cipher.Length));
     }
 
+    // Derives the 32-byte AES key from the configured encryption secret via SHA-256.
     private byte[] GetEncryptionKey()
     {
         var configKey = _config["Ruppinet:EncryptionKey"] ?? "SmartStudyRuppinetEncKey2026!aa";

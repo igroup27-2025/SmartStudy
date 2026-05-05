@@ -45,11 +45,13 @@
         var STORE_KEY = "smartstudy_onboarding";
         var OnboardingApi = API_BASE + "/settings/onboarding";
 
+        // Handles load draft.
         function LoadDraft() {
             try { return JSON.parse(sessionStorage.getItem(STORE_KEY)) || {}; }
             catch (e) { return {}; }
         }
 
+        // Formats hour for display.
         function formatHour(h) {
             if (h === 0) return "12:00 AM";
             if (h < 12)  return h + ":00 AM";
@@ -75,6 +77,7 @@
             });
         });
 
+        // Handles render summary.
         function RenderSummary(data) {
             $("#summaryStudy").text("Max " + (data.maxDailyStudyHours || 6) + "h study/day, " + (data.maxDailyTotalHours || 14) + "h total/day, " + (data.maxContinuousMinutes || 90) + "min continuous, " + (data.breakDurationMinutes || 15) + "min breaks");
             $("#summaryWindow").text("Study window: " + formatHour(data.dayStartHour || 8) + " - " + formatHour(data.dayEndHour || 22));
@@ -94,6 +97,7 @@
             $("#summaryConstraints").text("Recurring constraints: " + (cCount || "None"));
         }
 
+        // Handles build payload.
         function BuildPayload(data) {
             return {
                 schedulingPreferences: {
@@ -122,6 +126,7 @@
             };
         }
 
+        // Success callback for Finish.
         function FinishSC() {
             sessionStorage.removeItem(STORE_KEY);
             var user = getUser();
@@ -129,6 +134,7 @@
             window.location.href = BASE_PATH + "/Pages/Dashboard.html";
         }
 
+        // Error callback for Finish.
         function FinishEC(xhr) {
             console.log("Onboarding save failed:", xhr);
             // Still navigate — user can retry from Settings

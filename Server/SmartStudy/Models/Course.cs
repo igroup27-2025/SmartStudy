@@ -5,6 +5,7 @@ using UglyToad.PdfPig;
 
 namespace SmartStudy.Models;
 
+// Course entity plus folded-in BLL methods for course CRUD and the PDF schedule importer.
 public class Course
 {
     public int CourseId { get; set; }
@@ -27,42 +28,49 @@ public class Course
 
     // ───── CoursesBLL methods folded in ──────────────────────────────────
 
+    // Returns courses the user is enrolled in with task/exam counts and partner data.
     public static List<CourseWithEnrollment> GetByUser(string email)
     {
         DBservices db = new DBservices();
         return db.GetCoursesByUser(email);
     }
 
+    // Loads a single course by ID from the global courses table.
     public static Course? GetById(int courseId)
     {
         DBservices db = new DBservices();
         return db.GetCourseById(courseId);
     }
 
+    // Returns true when the user is enrolled in the course (used to authorize updates).
     public static bool UserCourseExists(string email, int courseId)
     {
         DBservices db = new DBservices();
         return db.UserCourseExists(email, courseId);
     }
 
+    // Returns the highest existing course ID, used to allocate the next manual course.
     public static int GetMaxCourseId()
     {
         DBservices db = new DBservices();
         return db.GetMaxCourseId();
     }
 
+    // Inserts a new course row into the global courses table.
     public static void Create(int courseId, string courseName, decimal? weeklyHours, decimal? credits, string? semester, int? instructorId)
     {
         DBservices db = new DBservices();
         db.CreateCourse(courseId, courseName, weeklyHours, credits, semester, instructorId);
     }
 
+    // Enrolls the user in the course by inserting into the UserCourses junction.
     public static void CreateUserCourse(string email, int courseId)
     {
         DBservices db = new DBservices();
         db.CreateUserCourse(email, courseId);
     }
 
+    // Updates any subset of a course's fields (each parameter optional).
     public static void Update(int courseId, string? courseName = null, decimal? weeklyHours = null, decimal? credits = null,
         string? semester = null, int? instructorId = null, double? defaultTaskEstimatedHours = null,
         double? examPrepHoursPerDay = null, int? examPrepDays = null)
@@ -72,18 +80,21 @@ public class Course
             defaultTaskEstimatedHours, examPrepHoursPerDay, examPrepDays);
     }
 
+    // Sets whether the user's tasks for this course should be auto-shared with their study partner.
     public static void UpdateSharedByDefault(string email, int courseId, bool sharedByDefault)
     {
         DBservices db = new DBservices();
         db.UpdateSharedByDefault(email, courseId, sharedByDefault);
     }
 
+    // Sets or clears the study partner assigned to the user's enrollment.
     public static void UpdateStudyPartner(string email, int courseId, string? partnerEmail)
     {
         DBservices db = new DBservices();
         db.UpdateStudyPartner(email, courseId, partnerEmail);
     }
 
+    // Removes the user's enrollment in the course (does not delete the global course).
     public static void DeleteUserCourse(string email, int courseId)
     {
         DBservices db = new DBservices();
@@ -92,30 +103,35 @@ public class Course
 
     // ───── ScheduleImportBLL methods folded in ──────────────────────────
 
+    // Looks up an instructor by case-insensitive name.
     public static Instructor? FindInstructorByName(string name)
     {
         DBservices db = new DBservices();
         return db.FindInstructorByName(name);
     }
 
+    // Inserts a new instructor row and returns its ID.
     public static int CreateInstructor(string name)
     {
         DBservices db = new DBservices();
         return db.CreateInstructor(name);
     }
 
+    // Sets or replaces the instructor on a course.
     public static void UpdateCourseInstructor(int courseId, int instructorId)
     {
         DBservices db = new DBservices();
         db.UpdateCourseInstructor(courseId, instructorId);
     }
 
+    // Returns true if a class event already exists at this exact time slot for the course.
     public static bool ClassEventExists(string email, int courseId, DateTime from, DateTime to)
     {
         DBservices db = new DBservices();
         return db.ClassEventExists(email, courseId, from, to);
     }
 
+    // Inserts a class event into the user's calendar and returns the new event ID.
     public static int CreateClassEvent(string email, DateTime from, DateTime to, bool recurring, DateTime? recurrenceEndDate, int courseId, string? location, decimal? duration)
     {
         DBservices db = new DBservices();
@@ -124,6 +140,7 @@ public class Course
 
     // ───── Schedule import (from ScheduleImportService) ──────────────────
 
+    // Parses a Hebrew Ruppin schedule PDF and persists each entry as a course/class event.
     public static ScheduleImportResultDto ImportSchedule(Stream pdfStream, string email)
     {
         var db = new DBservices();
@@ -140,6 +157,7 @@ public class Course
         return result;
     }
 
+    // Walks every page of the PDF, groups words into rows, and extracts schedule entries.
     private static List<RawEntry> ParsePdf(Stream pdfStream, ref ColumnLayout? columns)
     {
         using var document = PdfDocument.Open(pdfStream);
@@ -162,6 +180,7 @@ public class Course
         return allEntries;
     }
 
+    // Sorts PDF words by Y coordinate and groups them into rows within a small Y tolerance.
     private static List<List<PdfWord>> GroupIntoRows(List<UglyToad.PdfPig.Content.Word> words, double pageHeight)
     {
         var pdfWords = words.Select(w => new PdfWord
@@ -198,6 +217,7 @@ public class Course
         return rows;
     }
 
+    // Finds the header row and uses Hebrew column titles to compute X-bounds for each column.
     private static ColumnLayout? DetectColumns(List<List<PdfWord>> rows)
     {
         foreach (var row in rows)
@@ -230,6 +250,7 @@ public class Course
         return null;
     }
 
+    // Groups consecutive rows by date and extracts a RawEntry per schedule item.
     private static List<RawEntry> ParseRows(List<List<PdfWord>> rows, ColumnLayout? columns)
     {
         var entryRowGroups = new List<List<List<PdfWord>>>();
@@ -270,6 +291,7 @@ public class Course
         return entries;
     }
 
+    // Pulls course code, date, time range, and credit hours out of a row group's text.
     private static void ExtractFromWords(RawEntry entry, ColumnLayout? columns)
     {
         var allText = string.Join(" ", entry.AllWords.Select(w => w.Text));
@@ -320,6 +342,7 @@ public class Course
         ExtractTextFields(entry, columns);
     }
 
+    // Bins each word into Room/Instructor/Course columns by X coordinate and assembles text fields.
     private static void ExtractTextFields(RawEntry entry, ColumnLayout? columns)
     {
         if (columns == null)
@@ -376,6 +399,7 @@ public class Course
             entry.Location = location;
     }
 
+    // Returns true for words that aren't part of any text column (codes, dates, times, etc.).
     private static bool ShouldFilterWord(string text)
     {
         var t = text.Trim();
@@ -390,6 +414,7 @@ public class Course
         return false;
     }
 
+    // Joins multi-row column words into a single Hebrew-aware text string.
     private static string BuildColumnText(List<List<PdfWord>> rowGroups)
     {
         var parts = new List<string>();
@@ -402,6 +427,7 @@ public class Course
         return Regex.Replace(text, @"\s+", " ").Trim();
     }
 
+    // Returns true if the word is part of a Hebrew calendar date (months, day numerals, year).
     private static bool IsHebrewDatePart(string text)
     {
         var hebrewDateWords = new HashSet<string>
@@ -415,6 +441,7 @@ public class Course
         return hebrewDateWords.Contains(text) || text.StartsWith("תש");
     }
 
+    // Collapses repeated entries for the same course on the same date, keeping the longest one.
     private static List<RawEntry> MergeDuplicates(List<RawEntry> entries)
     {
         return entries
@@ -423,6 +450,7 @@ public class Course
             .ToList();
     }
 
+    // Persists each parsed entry as a course/instructor/enrollment/class-event with dedupe.
     private static ScheduleImportResultDto SaveImportToDatabase(DBservices db, List<RawEntry> entries, string email)
     {
         var result = new ScheduleImportResultDto();
@@ -501,6 +529,7 @@ public class Course
         return result;
     }
 
+    // Converts the "######-##" Ruppin course code to a numeric course ID.
     private static int ParseCourseId(string courseCode)
     {
         var parts = courseCode.Split('-');
@@ -509,6 +538,7 @@ public class Course
         return main * 100 + section;
     }
 
+    // Computes the current academic semester code (e.g. "2025A" or "2025B").
     private static string GetCurrentSemester()
     {
         var now = DateTime.Now;
@@ -517,9 +547,11 @@ public class Course
         return $"{year}{suffix}";
     }
 
+    // Returns true if any character is in the Hebrew Unicode block.
     private static bool ContainsHebrew(string text)
         => text.Any(c => c >= '\u0590' && c <= '\u05FF');
 
+    // Reverses Hebrew word characters from PdfPig's RTL output back to logical order.
     private static string FixRtlWord(string text)
     {
         if (string.IsNullOrEmpty(text) || !ContainsHebrew(text)) return text;
@@ -529,6 +561,7 @@ public class Course
             new string(m.Value.Reverse().ToArray()));
     }
 
+    // Reverses word order to render an RTL line as a left-to-right Hebrew string.
     private static string BuildHebrewText(IEnumerable<PdfWord> words)
     {
         var list = words.ToList();
@@ -538,6 +571,7 @@ public class Course
 
     // ───── PDF import internal types ────────────────────────────
 
+    // X-coordinate boundaries of the four schedule-PDF columns.
     private class ColumnLayout
     {
         public double RoomMaxX { get; set; }
@@ -547,6 +581,7 @@ public class Course
         public double CourseMaxX { get; set; }
     }
 
+    // Lightweight PDF word with text and pixel coordinates for layout analysis.
     private class PdfWord
     {
         public string Text { get; set; } = "";
@@ -556,6 +591,7 @@ public class Course
         public double Height { get; set; }
     }
 
+    // One unsaved schedule entry parsed from the PDF (one course on one date).
     private class RawEntry
     {
         public string? CourseCode { get; set; }
@@ -573,6 +609,7 @@ public class Course
 
 // ───── Course DTOs (from CourseDtos.cs) ────────────────────────────
 
+// Wire-format response shape for the Courses API.
 public class CourseDto
 {
     public int CourseId { get; set; }
@@ -592,11 +629,13 @@ public class CourseDto
     public int? ExamPrepDays { get; set; }
 }
 
+// Request body for PUT /api/courses/{id}/partner.
 public class SetStudyPartnerDto
 {
     public string? Email { get; set; }
 }
 
+// Request body for POST /api/courses.
 public class CreateCourseDto
 {
     public string CourseName { get; set; } = null!;
@@ -606,6 +645,7 @@ public class CreateCourseDto
     public int? InstructorId { get; set; }
 }
 
+// Request body for PUT /api/courses/{id} — all fields optional.
 public class UpdateCourseDto
 {
     public string? CourseName { get; set; }
@@ -621,6 +661,7 @@ public class UpdateCourseDto
 
 // ───── Schedule import DTOs (from ScheduleImportDtos.cs) ───────────
 
+// Result payload from POST /api/schedule/import (counts and per-course summary).
 public class ScheduleImportResultDto
 {
     public int CoursesCreated { get; set; }
@@ -630,6 +671,7 @@ public class ScheduleImportResultDto
     public List<string> Warnings { get; set; } = new();
 }
 
+// Per-course summary inside ScheduleImportResultDto.
 public class ImportedCourseDto
 {
     public int CourseId { get; set; }

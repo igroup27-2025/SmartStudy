@@ -7,13 +7,16 @@ using SchedPrefsModel = SmartStudy.Models.SchedulingPreferences;
 
 namespace SmartStudy.Controllers;
 
+// API endpoints for the home dashboard view (stress, workload, suggestions).
 [ApiController]
 [Route("api/dashboard")]
 [Authorize]
 public class DashboardController : ControllerBase
 {
+    // Reads the authenticated user's email from JWT claims.
     private string GetEmail() => User.FindFirst(ClaimTypes.Email)!.Value;
 
+    // Aggregates stress, deadlines, exams, today's events, workload, and a suggested task.
     [HttpGet]
     public IActionResult Get()
     {
@@ -221,6 +224,7 @@ public class DashboardController : ControllerBase
         });
     }
 
+    // Returns a per-day list of suggested tasks to work on this week.
     [HttpGet("weekly-suggestions")]
     public IActionResult GetWeeklySuggestions()
     {

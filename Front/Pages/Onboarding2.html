@@ -148,10 +148,12 @@
     <script>
         var STORE_KEY = "smartstudy_onboarding";
 
+        // Handles load draft.
         function LoadDraft() {
             try { return JSON.parse(sessionStorage.getItem(STORE_KEY)) || {}; }
             catch (e) { return {}; }
         }
+        // Handles save draft.
         function SaveDraft(patch) {
             var existing = LoadDraft();
             sessionStorage.setItem(STORE_KEY, JSON.stringify($.extend({}, existing, patch)));
@@ -191,12 +193,14 @@
             });
         });
 
+        // Handles update range labels.
         function UpdateRangeLabels() {
             $("#maxDailyStudyValue").text($("#maxDailyStudy").val() + "h");
             $("#sleepHoursValue").text($("#sleepHours").val() + "h");
             $("#maxDailyTotalValue").text($("#maxDailyTotal").val() + "h");
         }
 
+        // Handles collect step2.
         function CollectStep2() {
             SaveDraft({
                 maxDailyStudyHours:   parseFloat($("#maxDailyStudy").val()) || 6,

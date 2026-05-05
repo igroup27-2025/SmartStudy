@@ -3,13 +3,17 @@ using System.Text.Json;
 
 namespace SmartStudy.Services;
 
+// Exception thrown when a call to the Moodle web-services API fails.
 public class MoodleApiException : Exception
 {
+    // Machine-readable error code (AUTH_FAILED, TOKEN_EXPIRED, API_ERROR).
     public string ErrorCode { get; }
+    // Creates a new exception with a message and an optional error code.
     public MoodleApiException(string message, string errorCode = "API_ERROR")
         : base(message) => ErrorCode = errorCode;
 }
 
+// Site info payload from core_webservice_get_site_info.
 public class MoodleSiteInfo
 {
     public int UserId { get; set; }
@@ -17,6 +21,7 @@ public class MoodleSiteInfo
     public string SiteName { get; set; } = "";
 }
 
+// Single course returned from core_enrol_get_users_courses.
 public class MoodleCourse
 {
     public int Id { get; set; }
@@ -24,6 +29,7 @@ public class MoodleCourse
     public string FullName { get; set; } = "";
 }
 
+// Single assignment returned from mod_assign_get_assignments.
 public class MoodleAssignment
 {
     public int Id { get; set; }
@@ -33,6 +39,7 @@ public class MoodleAssignment
     public string? Intro { get; set; }
 }
 
+// Single quiz returned from mod_quiz_get_quizzes_by_courses.
 public class MoodleQuiz
 {
     public int Id { get; set; }
@@ -41,6 +48,7 @@ public class MoodleQuiz
     public DateTime? TimeClose { get; set; }
 }
 
+// HTTP client for the Moodle web-services REST API at moodle.ruppin.ac.il.
 public class MoodleApiClient
 {
     private readonly IHttpClientFactory _httpClientFactory;
@@ -48,6 +56,7 @@ public class MoodleApiClient
     private readonly string _baseUrl;
     private readonly int _maxRetries;
 
+    // Injects HTTP client factory, logger, and reads base URL/retry config.
     public MoodleApiClient(IHttpClientFactory httpClientFactory, ILogger<MoodleApiClient> logger, IConfiguration config)
     {
         _httpClientFactory = httpClientFactory;
@@ -56,6 +65,7 @@ public class MoodleApiClient
         _maxRetries = int.TryParse(config["Moodle:MaxRetries"], out var r) ? r : 2;
     }
 
+    // Exchanges username/password for a long-lived Moodle web-service token.
     public async Task<string> GetTokenAsync(string username, string password)
     {
         var client = _httpClientFactory.CreateClient();
@@ -88,6 +98,7 @@ public class MoodleApiClient
         return tokenEl.GetString()!;
     }
 
+    // Returns the Moodle user ID and username associated with a token.
     public async Task<MoodleSiteInfo> GetSiteInfoAsync(string token)
     {
         var result = await CallFunctionAsync(token, "core_webservice_get_site_info");
@@ -99,6 +110,7 @@ public class MoodleApiClient
         };
     }
 
+    // Lists the Moodle courses the user is enrolled in.
     public async Task<List<MoodleCourse>> GetUserCoursesAsync(string token, int userId)
     {
         var result = await CallFunctionAsync(token, "core_enrol_get_users_courses",
@@ -117,6 +129,7 @@ public class MoodleApiClient
         return courses;
     }
 
+    // Lists assignments across the given courses with their due dates.
     public async Task<List<MoodleAssignment>> GetAssignmentsAsync(string token, int[] courseIds)
     {
         var parameters = new Dictionary<string, string>();
@@ -150,6 +163,7 @@ public class MoodleApiClient
         return assignments;
     }
 
+    // Lists quizzes across the given courses with their close-times.
     public async Task<List<MoodleQuiz>> GetQuizzesAsync(string token, int[] courseIds)
     {
         var parameters = new Dictionary<string, string>();
@@ -176,6 +190,7 @@ public class MoodleApiClient
         return quizzes;
     }
 
+    // Generic POST helper for Moodle web-service functions with error-response detection.
     private async Task<JsonDocument> CallFunctionAsync(string token, string function,
         Dictionary<string, string>? extraParams = null)
     {
@@ -220,6 +235,7 @@ public class MoodleApiClient
         }
     }
 
+    // Sends an HTTP request with exponential-backoff retry on transient failures.
     private async Task<HttpResponseMessage> SendWithRetryAsync(HttpClient client,
         HttpMethod method, string url, HttpContent content)
     {
@@ -254,6 +270,7 @@ public class MoodleApiClient
         throw new MoodleApiException("Moodle server is unavailable after retries", "SERVICE_UNAVAILABLE");
     }
 
+    // Converts a Moodle Unix-epoch timestamp to local DateTime.
     private static DateTime UnixToDateTime(long unixTimestamp)
         => DateTimeOffset.FromUnixTimeSeconds(unixTimestamp).LocalDateTime;
 }

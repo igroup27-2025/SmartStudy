@@ -3,23 +3,24 @@ using SmartStudy.DAL;
 
 namespace SmartStudy.Services;
 
+// Imports Google Calendar events into the user's calendar via Composio or direct OAuth.
 public class GoogleCalendarService
 {
     private readonly DBservices _dal = new DBservices();
     private readonly IConfiguration _config;
     private readonly ComposioService _composio;
 
+    // Injects configuration and the Composio service.
     public GoogleCalendarService(IConfiguration config, ComposioService composio)
     {
         _config = config;
         _composio = composio;
     }
 
+    // True when direct Google Calendar API access is enabled in appsettings.
     public bool IsEnabled => _config.GetValue<bool>("Google:CalendarApiEnabled");
 
-    /// <summary>
-    /// Sync events through Composio (handles OAuth tokens automatically).
-    /// </summary>
+    // Sync events through Composio (handles OAuth tokens automatically).
     public async Task<CalendarSyncResult> SyncViaComposioAsync(string email, string connectedAccountId, DateTime from, DateTime to)
     {
         var result = new CalendarSyncResult();
@@ -80,9 +81,7 @@ public class GoogleCalendarService
         return result;
     }
 
-    /// <summary>
-    /// Legacy: sync events using a direct Google access token.
-    /// </summary>
+    // Legacy: sync events using a direct Google access token.
     public async Task<CalendarSyncResult> SyncEventsAsync(string email, string accessToken, DateTime from, DateTime to)
     {
         var result = new CalendarSyncResult();
@@ -167,10 +166,9 @@ public class GoogleCalendarService
         return result;
     }
 
-    /// <summary>
-    /// Parses event data from Composio's GOOGLECALENDAR_LIST_EVENTS response.
+    // Parses event data from Composio's GOOGLECALENDAR_LIST_EVENTS response.
     /// Handles multiple response formats.
-    /// </summary>
+    // Extracts events from various Composio response shapes into a flat list.
     private List<ParsedGoogleEvent> ParseComposioEvents(string rawJson)
     {
         var events = new List<ParsedGoogleEvent>();
@@ -253,6 +251,7 @@ public class GoogleCalendarService
         return events;
     }
 
+    // Internal shape for parsed Google Calendar events before persistence.
     private class ParsedGoogleEvent
     {
         public string GoogleId { get; set; } = "";
@@ -262,6 +261,7 @@ public class GoogleCalendarService
     }
 }
 
+// Result of a Google Calendar sync — counts created and updated events.
 public class CalendarSyncResult
 {
     public bool Success { get; set; }

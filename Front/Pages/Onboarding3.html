@@ -177,15 +177,18 @@
         var STORE_KEY = "smartstudy_onboarding";
         var constraints = [];
 
+        // Handles load draft.
         function LoadDraft() {
             try { return JSON.parse(sessionStorage.getItem(STORE_KEY)) || {}; }
             catch (e) { return {}; }
         }
+        // Handles save draft.
         function SaveDraft(patch) {
             var existing = LoadDraft();
             sessionStorage.setItem(STORE_KEY, JSON.stringify($.extend({}, existing, patch)));
         }
 
+        // Escapes a string for safe HTML insertion.
         function escapeHtml(s) {
             if (s == null) return "";
             return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
@@ -255,6 +258,7 @@
             });
         });
 
+        // Handles connect google calendar.
         function ConnectGoogleCalendar() {
             var $btn = $("#connectGoogleCal");
             $btn.prop("disabled", true).text("Checking...");
@@ -317,6 +321,7 @@
             });
         }
 
+        // Handles connect ruppinet.
         function ConnectRuppinet() {
             var id = $.trim($("#ruppinetOnbId").val());
             var pass = $("#ruppinetOnbPass").val();
@@ -337,6 +342,7 @@
                 });
         }
 
+        // Handles save constraint.
         function SaveConstraint() {
             var name = $.trim($("#constraintName").val());
             var type = $("#constraintType").val() || "work";
@@ -357,6 +363,7 @@
             $("#addConstraintBtn").show();
         }
 
+        // Handles reset constraint form.
         function ResetConstraintForm() {
             $("#constraintName").val("");
             $("#constraintStart").val("17:00");
@@ -364,6 +371,7 @@
             $("#constraintDayPicker input").prop("checked", false);
         }
 
+        // Handles render constraints.
         function RenderConstraints() {
             var el = $("#constraintList");
             var dayNames = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
@@ -381,6 +389,7 @@
             });
         }
 
+        // Handles collect step3.
         function CollectStep3() {
             SaveDraft({
                 notifyDeadline: $("#notifyDeadline").is(":checked"),

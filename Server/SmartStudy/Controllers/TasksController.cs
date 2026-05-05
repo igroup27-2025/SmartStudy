@@ -6,13 +6,16 @@ using SmartStudy.Models;
 
 namespace SmartStudy.Controllers;
 
+// API endpoints for task CRUD, completion, splitting, ML hour suggestions, and insights.
 [ApiController]
 [Route("api/tasks")]
 [Authorize]
 public class TasksController : ControllerBase
 {
+    // Reads the authenticated user's email from JWT claims.
     private string GetEmail() => User.FindFirst(ClaimTypes.Email)!.Value;
 
+    // Lists tasks for the user, optionally filtered by course and completion state.
     [HttpGet]
     public IActionResult GetAll([FromQuery] int? courseId, [FromQuery] bool? completed)
     {
@@ -27,6 +30,7 @@ public class TasksController : ControllerBase
         return Ok(dtos);
     }
 
+    // Returns one task by ID if owned by the current user.
     [HttpGet("{id}")]
     public IActionResult Get(int id)
     {
@@ -37,6 +41,7 @@ public class TasksController : ControllerBase
         return Ok(BuildTaskDto(task));
     }
 
+    // Creates a task (auto-shares with study partner if course is shared by default) and re-schedules.
     [HttpPost]
     public IActionResult Create([FromBody] CreateTaskDto dto)
     {
@@ -105,6 +110,7 @@ public class TasksController : ControllerBase
         return CreatedAtAction(nameof(Get), new { id = taskId }, reloaded != null ? BuildTaskDto(reloaded) : null);
     }
 
+    // Updates a task's fields, normalizes Auto-vs-manual priority, and re-schedules.
     [HttpPut("{id}")]
     public IActionResult Update(int id, [FromBody] UpdateTaskDto dto)
     {
@@ -136,6 +142,7 @@ public class TasksController : ControllerBase
         return Ok(reloaded != null ? BuildTaskDto(reloaded) : null);
     }
 
+    // Toggles task completion (cascading parent if all siblings done) and returns ML accuracy stats.
     [HttpPost("{id}/complete")]
     public IActionResult Complete(int id, [FromBody] CompleteTaskDto? dto = null)
     {
@@ -172,6 +179,7 @@ public class TasksController : ControllerBase
         return Ok(new { task.TaskId, IsCompleted = newIsCompleted, ActualHours = newIsCompleted ? dto?.ActualHours : null, mlStats });
     }
 
+    // Splits a task into the supplied list of subtasks linked by ParentTaskId.
     [HttpPost("{id}/split")]
     public IActionResult Split(int id, [FromBody] SplitTaskDto dto)
     {
@@ -192,6 +200,7 @@ public class TasksController : ControllerBase
         return Ok(reloaded != null ? BuildTaskDto(reloaded) : null);
     }
 
+    // Deletes a task the user owns and re-runs scheduling.
     [HttpDelete("{id}")]
     public IActionResult Delete(int id)
     {
@@ -205,6 +214,7 @@ public class TasksController : ControllerBase
         return NoContent();
     }
 
+    // Suggests an adjusted hour estimate based on the user's past actual/estimated ratios for the course.
     [HttpGet("suggest-hours")]
     public IActionResult SuggestHours([FromQuery] int courseId, [FromQuery] decimal? estimatedHours)
     {
@@ -226,6 +236,7 @@ public class TasksController : ControllerBase
         });
     }
 
+    // Returns per-course estimation accuracy stats from completed tasks.
     [HttpGet("learning-insights")]
     public IActionResult GetLearningInsights()
     {
@@ -243,6 +254,7 @@ public class TasksController : ControllerBase
         }));
     }
 
+    // Builds the wire-format TaskDto including subtasks, sharing, and scheduled slots.
     private TaskDto BuildTaskDto(TaskWithCourse t)
     {
         var taskEvents = StudentTask.GetTaskEvents(t.TaskId);

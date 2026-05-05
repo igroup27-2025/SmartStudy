@@ -4,8 +4,10 @@ using SmartStudy.Models;
 
 namespace SmartStudy.DAL;
 
+// Data-access layer wrapping every stored procedure call via ADO.NET.
 public class DBservices
 {
+    // Empty constructor — connection is opened per call via connect().
     public DBservices()
     {
     }
@@ -45,6 +47,7 @@ public class DBservices
     // USERS
     // =====================================================
 
+    // Loads the user row by email via SS_Users_GetByEmail.
     public User? GetUserByEmail(string email)
     {
         SqlConnection con;
@@ -68,6 +71,7 @@ public class DBservices
         finally { if (con != null) con.Close(); }
     }
 
+    // Returns true when an account with that email exists.
     public bool UserExists(string email)
     {
         SqlConnection con;
@@ -89,6 +93,7 @@ public class DBservices
         finally { if (con != null) con.Close(); }
     }
 
+    // Inserts a new user row with hashed password and auth provider.
     public void CreateUser(string email, string firstName, string lastName, string password, string? authProvider = null)
     {
         SqlConnection con;
@@ -110,6 +115,7 @@ public class DBservices
         finally { if (con != null) con.Close(); }
     }
 
+    // Updates the user's first/last name.
     public void UpdateUserProfile(string email, string? firstName, string? lastName)
     {
         SqlConnection con;
@@ -129,6 +135,7 @@ public class DBservices
         finally { if (con != null) con.Close(); }
     }
 
+    // Stores the password-reset token and its expiry on the user.
     public void UpdateResetToken(string email, string token, DateTime expiry)
     {
         SqlConnection con;
@@ -148,6 +155,7 @@ public class DBservices
         finally { if (con != null) con.Close(); }
     }
 
+    // Replaces the user's password hash and clears the reset token.
     public void ResetPassword(string email, string newPassword)
     {
         SqlConnection con;
@@ -166,6 +174,7 @@ public class DBservices
         finally { if (con != null) con.Close(); }
     }
 
+    // Flips OnboardingCompleted to true for the user.
     public void SetOnboardingComplete(string email)
     {
         SqlConnection con;
@@ -183,6 +192,7 @@ public class DBservices
         finally { if (con != null) con.Close(); }
     }
 
+    // Stores or updates the user's encrypted Ruppinet credentials.
     public void UpdateRuppinetFields(string email, string? ruppinetId, string? ruppinetPassword, DateTime? lastSync = null)
     {
         SqlConnection con;
@@ -203,6 +213,7 @@ public class DBservices
         finally { if (con != null) con.Close(); }
     }
 
+    // Clears the user's stored Ruppinet credentials.
     public void ClearRuppinet(string email)
     {
         SqlConnection con;
@@ -220,6 +231,7 @@ public class DBservices
         finally { if (con != null) con.Close(); }
     }
 
+    // Reads a SqlDataReader row into a User entity.
     private static User MapUser(SqlDataReader r)
     {
         return new User
@@ -248,6 +260,7 @@ public class DBservices
     // NOTIFICATION SETTINGS
     // =====================================================
 
+    // Loads the user's NotificationSettings row, or null.
     public NotificationSettings? GetNotifSettingsByEmail(string email)
     {
         SqlConnection con;
@@ -271,6 +284,7 @@ public class DBservices
         finally { if (con != null) con.Close(); }
     }
 
+    // Inserts or updates the user's notification toggles and quiet-hours.
     public void UpsertNotifSettings(string email, bool notifyBeforeTask, bool dailyMorningSummary,
         bool weeklyPlanReminder, bool enablePushNotification, TimeSpan? quietStart, TimeSpan? quietEnd)
     {
@@ -295,6 +309,7 @@ public class DBservices
         finally { if (con != null) con.Close(); }
     }
 
+    // Inserts a default-toggles NotificationSettings row for a new user.
     public void CreateDefaultNotifSettings(string email)
     {
         SqlConnection con;
@@ -312,6 +327,7 @@ public class DBservices
         finally { if (con != null) con.Close(); }
     }
 
+    // Reads a SqlDataReader row into a NotificationSettings entity.
     private static NotificationSettings MapNotifSettings(SqlDataReader r)
     {
         return new NotificationSettings
@@ -330,6 +346,7 @@ public class DBservices
     // SCHEDULING PREFERENCES
     // =====================================================
 
+    // Loads the user's SchedulingPreferences row, or null.
     public SchedulingPreferences? GetSchedPrefsByEmail(string email)
     {
         SqlConnection con;
@@ -353,6 +370,7 @@ public class DBservices
         finally { if (con != null) con.Close(); }
     }
 
+    // Inserts or updates the user's auto-scheduler preferences.
     public void UpsertSchedPrefs(SchedulingPreferences p)
     {
         SqlConnection con;
@@ -382,6 +400,7 @@ public class DBservices
         finally { if (con != null) con.Close(); }
     }
 
+    // Reads a SqlDataReader row into a SchedulingPreferences entity.
     private static SchedulingPreferences MapSchedPrefs(SqlDataReader r)
     {
         return new SchedulingPreferences
@@ -406,6 +425,7 @@ public class DBservices
     // INSTRUCTORS
     // =====================================================
 
+    // Returns the global list of instructors.
     public List<Instructor> GetAllInstructors()
     {
         SqlConnection con;
@@ -437,6 +457,7 @@ public class DBservices
     // EVENTS (Full CRUD - Phase 5)
     // =====================================================
 
+    // Returns every event in a date window with subtype data flattened.
     public List<TypedEvent> GetAllTypedEventsInRange(string email, DateTime? from, DateTime? to)
     {
         SqlConnection con;
@@ -463,6 +484,7 @@ public class DBservices
         finally { if (con != null) con.Close(); }
     }
 
+    // Inserts a class event tied to a course and returns its ID.
     public int CreateClassEvent(string email, DateTime from, DateTime to, bool recurring, DateTime? recurrenceEndDate, int courseId, string? location, decimal? duration)
     {
         SqlConnection con;
@@ -491,6 +513,7 @@ public class DBservices
         finally { if (con != null) con.Close(); }
     }
 
+    // Inserts a task study-block event linking back to a task; returns its ID.
     public int CreateTaskEvent(string email, DateTime from, DateTime to, bool recurring, DateTime? recurrenceEndDate, int taskId, string? priority, string? status)
     {
         SqlConnection con;
@@ -519,6 +542,7 @@ public class DBservices
         finally { if (con != null) con.Close(); }
     }
 
+    // Inserts a work-shift event and returns its ID.
     public int CreateWorkEvent(string email, DateTime from, DateTime to, bool recurring, DateTime? recurrenceEndDate, string? workPlace, int? travelTime = null)
     {
         SqlConnection con;
@@ -546,6 +570,7 @@ public class DBservices
         finally { if (con != null) con.Close(); }
     }
 
+    // Inserts a personal event (sleep/meal/etc.) and returns its ID.
     public int CreatePersonalEvent(string email, DateTime from, DateTime to, bool recurring, DateTime? recurrenceEndDate, string? type, string? description)
     {
         SqlConnection con;
@@ -573,6 +598,7 @@ public class DBservices
         finally { if (con != null) con.Close(); }
     }
 
+    // Updates a class event's fields.
     public void UpdateClassEvent(int eventId, DateTime from, DateTime to, bool recurring, DateTime? recurrenceEndDate, int courseId, string? location, decimal? duration)
     {
         SqlConnection con;
@@ -597,6 +623,7 @@ public class DBservices
         finally { if (con != null) con.Close(); }
     }
 
+    // Updates a task-event's fields (used when the user drags a study block).
     public void UpdateTaskEvent(int eventId, DateTime from, DateTime to, bool recurring, DateTime? recurrenceEndDate, int taskId, string? priority, string? status)
     {
         SqlConnection con;
@@ -621,6 +648,7 @@ public class DBservices
         finally { if (con != null) con.Close(); }
     }
 
+    // Returns the partner's copy-task ID for a shared task, or null.
     public int? GetSharedPartnerTaskId(int taskId)
     {
         SqlConnection con;
@@ -643,6 +671,7 @@ public class DBservices
         finally { if (con != null) con.Close(); }
     }
 
+    // Mirrors a moved task-event onto the partner's calendar.
     public int? SyncSharedTaskEventMove(int movedEventId, int partnerTaskId,
         DateTime oldFrom, DateTime oldTo, DateTime newFrom, DateTime newTo)
     {
@@ -696,6 +725,7 @@ public class DBservices
         finally { if (con != null) con.Close(); }
     }
 
+    // Updates a work-event's fields.
     public void UpdateWorkEvent(int eventId, DateTime from, DateTime to, bool recurring, DateTime? recurrenceEndDate, string? workPlace, int? travelTime)
     {
         SqlConnection con;
@@ -719,6 +749,7 @@ public class DBservices
         finally { if (con != null) con.Close(); }
     }
 
+    // Updates a personal-event's fields.
     public void UpdatePersonalEvent(int eventId, DateTime from, DateTime to, bool recurring, DateTime? recurrenceEndDate, string? type, string? description)
     {
         SqlConnection con;
@@ -742,6 +773,7 @@ public class DBservices
         finally { if (con != null) con.Close(); }
     }
 
+    // Deletes an event row (cascades to subtype rows).
     public void DeleteEvent(int eventId)
     {
         SqlConnection con;
@@ -759,6 +791,7 @@ public class DBservices
         finally { if (con != null) con.Close(); }
     }
 
+    // Returns the email of the event's owner, or null.
     public string? GetEventOwnerEmail(int eventId)
     {
         SqlConnection con;
@@ -780,6 +813,7 @@ public class DBservices
         finally { if (con != null) con.Close(); }
     }
 
+    // Returns the event's subtype string (class/task/work/personal).
     public string GetEventSubtype(int eventId)
     {
         SqlConnection con;
@@ -801,6 +835,7 @@ public class DBservices
         finally { if (con != null) con.Close(); }
     }
 
+    // Swaps an event's subtype rows (Work ↔ Personal).
     public void ChangeEventType(int eventId, string oldType, string newType, string? workPlace, int? travelTime, string? personalType, string? description)
     {
         SqlConnection con;
@@ -824,6 +859,7 @@ public class DBservices
         finally { if (con != null) con.Close(); }
     }
 
+    // Counts task-event blocks overlapping the time window (excluding one event).
     public int CountConflictingTaskEvents(string email, DateTime from, DateTime to, int excludeEventId)
     {
         SqlConnection con;
@@ -848,6 +884,7 @@ public class DBservices
         finally { if (con != null) con.Close(); }
     }
 
+    // Returns events overlapping the given time window.
     public List<TypedEvent> GetConflictingEvents(string email, DateTime from, DateTime to, int? excludeEventId)
     {
         SqlConnection con;
@@ -875,6 +912,7 @@ public class DBservices
         finally { if (con != null) con.Close(); }
     }
 
+    // Marks a task as manually pinned so the auto-scheduler won't move it.
     public void PinTask(int taskId)
     {
         SqlConnection con;
@@ -892,6 +930,7 @@ public class DBservices
         finally { if (con != null) con.Close(); }
     }
 
+    // Returns true if the SqlDataReader has a column with the given name.
     private static bool HasColumn(SqlDataReader r, string name)
     {
         for (int i = 0; i < r.FieldCount; i++)
@@ -900,6 +939,7 @@ public class DBservices
         return false;
     }
 
+    // Reads a SqlDataReader row into a TypedEvent (subtype-aware) record.
     private static TypedEvent MapTypedEvent(SqlDataReader r)
     {
         return new TypedEvent
@@ -940,6 +980,7 @@ public class DBservices
     // COURSES
     // =====================================================
 
+    // Returns the user's enrolled courses with task/exam counts.
     public List<CourseWithEnrollment> GetCoursesByUser(string email)
     {
         SqlConnection con;
@@ -983,6 +1024,7 @@ public class DBservices
         finally { if (con != null) con.Close(); }
     }
 
+    // Loads a course by ID from the global table, or null.
     public Course? GetCourseById(int courseId)
     {
         SqlConnection con;
@@ -1006,6 +1048,7 @@ public class DBservices
         finally { if (con != null) con.Close(); }
     }
 
+    // Returns the highest existing course ID for allocating the next manual course.
     public int GetMaxCourseId()
     {
         SqlConnection con;
@@ -1024,6 +1067,7 @@ public class DBservices
         finally { if (con != null) con.Close(); }
     }
 
+    // Inserts a new course row with optional credits/hours/semester/instructor.
     public void CreateCourse(int courseId, string courseName, decimal? weeklyHours, decimal? credits, string? semester, int? instructorId)
     {
         SqlConnection con;
@@ -1046,6 +1090,7 @@ public class DBservices
         finally { if (con != null) con.Close(); }
     }
 
+    // Updates any subset of a course's fields.
     public void UpdateCourse(int courseId, string? courseName = null, decimal? weeklyHours = null, decimal? credits = null,
         string? semester = null, int? instructorId = null, double? defaultTaskEstimatedHours = null, double? examPrepHoursPerDay = null, int? examPrepDays = null)
     {
@@ -1072,6 +1117,7 @@ public class DBservices
         finally { if (con != null) con.Close(); }
     }
 
+    // Reads a SqlDataReader row into a Course entity.
     private static Course MapCourse(SqlDataReader r)
     {
         return new Course
@@ -1092,6 +1138,7 @@ public class DBservices
     // USER COURSES
     // =====================================================
 
+    // Returns true when the user is enrolled in the course.
     public bool UserCourseExists(string email, int courseId)
     {
         SqlConnection con;
@@ -1114,6 +1161,7 @@ public class DBservices
         finally { if (con != null) con.Close(); }
     }
 
+    // Inserts a row into the UserCourses junction enrolling the user.
     public void CreateUserCourse(string email, int courseId)
     {
         SqlConnection con;
@@ -1132,6 +1180,7 @@ public class DBservices
         finally { if (con != null) con.Close(); }
     }
 
+    // Removes the user's enrollment in a course.
     public void DeleteUserCourse(string email, int courseId)
     {
         SqlConnection con;
@@ -1150,6 +1199,7 @@ public class DBservices
         finally { if (con != null) con.Close(); }
     }
 
+    // Sets or clears the study partner on the user's enrollment.
     public void UpdateStudyPartner(string email, int courseId, string? partnerEmail)
     {
         SqlConnection con;
@@ -1169,6 +1219,7 @@ public class DBservices
         finally { if (con != null) con.Close(); }
     }
 
+    // Sets whether the user's tasks for this course are auto-shared.
     public void UpdateSharedByDefault(string email, int courseId, bool sharedByDefault)
     {
         SqlConnection con;
@@ -1188,6 +1239,7 @@ public class DBservices
         finally { if (con != null) con.Close(); }
     }
 
+    // Returns the IDs of every course the user is enrolled in.
     public List<int> GetCourseIdsByEmail(string email)
     {
         SqlConnection con;
@@ -1216,6 +1268,7 @@ public class DBservices
     // EXAMS
     // =====================================================
 
+    // Returns all exams for the user's enrolled courses.
     public List<ExamWithCourse> GetExamsByUser(string email)
     {
         SqlConnection con;
@@ -1240,6 +1293,7 @@ public class DBservices
         finally { if (con != null) con.Close(); }
     }
 
+    // Loads one exam by ID if it belongs to a course the user is enrolled in.
     public ExamWithCourse? GetExamById(int examId, string email)
     {
         SqlConnection con;
@@ -1264,6 +1318,7 @@ public class DBservices
         finally { if (con != null) con.Close(); }
     }
 
+    // Inserts a new exam row and returns its ID.
     public int CreateExam(int courseId, DateTime date, TimeSpan time, string session, int? duration, bool isTakingExam)
     {
         SqlConnection con;
@@ -1290,6 +1345,7 @@ public class DBservices
         finally { if (con != null) con.Close(); }
     }
 
+    // Updates any subset of an exam's fields.
     public void UpdateExam(int examId, int? courseId = null, DateTime? date = null, TimeSpan? time = null, string? session = null, int? duration = null)
     {
         SqlConnection con;
@@ -1312,6 +1368,7 @@ public class DBservices
         finally { if (con != null) con.Close(); }
     }
 
+    // Flips the IsTakingExam flag on an exam.
     public void ToggleExamTaking(int examId)
     {
         SqlConnection con;
@@ -1329,6 +1386,7 @@ public class DBservices
         finally { if (con != null) con.Close(); }
     }
 
+    // Deletes an exam row.
     public void DeleteExam(int examId)
     {
         SqlConnection con;
@@ -1346,6 +1404,7 @@ public class DBservices
         finally { if (con != null) con.Close(); }
     }
 
+    // Removes auto-generated exam-prep tasks when the user opts out.
     public void DeleteStudyTasksForExam(string email, int courseId, DateTime examDate)
     {
         SqlConnection con;
@@ -1365,6 +1424,7 @@ public class DBservices
         finally { if (con != null) con.Close(); }
     }
 
+    // Reads a SqlDataReader row into an ExamWithCourse record.
     private static ExamWithCourse MapExamWithCourse(SqlDataReader r)
     {
         return new ExamWithCourse
@@ -1386,6 +1446,7 @@ public class DBservices
     // TASKS
     // =====================================================
 
+    // Returns the user's tasks (joined with course name) with optional filters.
     public List<TaskWithCourse> GetTasksByUser(string email, int? courseId = null, bool? completed = null)
     {
         SqlConnection con;
@@ -1412,6 +1473,7 @@ public class DBservices
         finally { if (con != null) con.Close(); }
     }
 
+    // Returns immediate child subtasks of a parent task.
     public List<TaskWithCourse> GetSubTasks(int parentTaskId)
     {
         SqlConnection con;
@@ -1436,6 +1498,7 @@ public class DBservices
         finally { if (con != null) con.Close(); }
     }
 
+    // Loads a single task by ID joined with its course, or null.
     public TaskWithCourse? GetTaskById(int taskId)
     {
         SqlConnection con;
@@ -1459,6 +1522,7 @@ public class DBservices
         finally { if (con != null) con.Close(); }
     }
 
+    // Inserts a new task and returns its generated ID.
     public int CreateTask(int courseId, string email, string title, string type,
         decimal? estimatedHours, DateTime? dueDate, int? parentTaskId, bool allowSplitting,
         string? priority, bool isManualPriority, bool isManuallyPinned = false)
@@ -1492,6 +1556,7 @@ public class DBservices
         finally { if (con != null) con.Close(); }
     }
 
+    // Updates any subset of a task's fields.
     public void UpdateTask(int taskId, int? courseId = null, string? title = null, string? type = null,
         decimal? estimatedHours = null, DateTime? dueDate = null, bool? isCompleted = null,
         bool? allowSplitting = null, bool? isManuallyPinned = null, string? priority = null,
@@ -1523,6 +1588,7 @@ public class DBservices
         finally { if (con != null) con.Close(); }
     }
 
+    // Deletes a task and its subtasks/task-events.
     public void DeleteTask(int taskId)
     {
         SqlConnection con;
@@ -1540,6 +1606,7 @@ public class DBservices
         finally { if (con != null) con.Close(); }
     }
 
+    // Toggles task completion and optionally records actualHours.
     public void CompleteTask(int taskId, bool isCompleted, decimal? actualHours = null)
     {
         SqlConnection con;
@@ -1559,6 +1626,7 @@ public class DBservices
         finally { if (con != null) con.Close(); }
     }
 
+    // Returns the scheduled study-block events for a task.
     public List<TaskEventInfo> GetTaskEvents(int taskId)
     {
         SqlConnection con;
@@ -1593,6 +1661,7 @@ public class DBservices
         finally { if (con != null) con.Close(); }
     }
 
+    // Returns sharing info if the task is shared, else null.
     public SharedTaskInfo? GetSharedInfo(int taskId)
     {
         SqlConnection con;
@@ -1641,6 +1710,7 @@ public class DBservices
         finally { if (con != null) con.Close(); }
     }
 
+    // Returns true if every subtask of the parent is completed.
     public bool CheckAllSiblingsComplete(int parentTaskId)
     {
         SqlConnection con;
@@ -1662,6 +1732,7 @@ public class DBservices
         finally { if (con != null) con.Close(); }
     }
 
+    // Returns completed-task estimated/actual pairs for one course.
     public List<MLDataRow> GetMLData(string email, int courseId)
     {
         SqlConnection con;
@@ -1693,6 +1764,7 @@ public class DBservices
         finally { if (con != null) con.Close(); }
     }
 
+    // Returns per-course estimation accuracy stats from completed tasks.
     public List<MLInsightRow> GetMLInsights(string email)
     {
         SqlConnection con;
@@ -1727,6 +1799,7 @@ public class DBservices
         finally { if (con != null) con.Close(); }
     }
 
+    // Inserts the SharedTask row that turns a task into a shared one.
     public void CreateSharedTask(int taskId, string createdByEmail, string sharedStatus = "Pending")
     {
         SqlConnection con;
@@ -1746,6 +1819,7 @@ public class DBservices
         finally { if (con != null) con.Close(); }
     }
 
+    // Updates a shared task's status (Pending/Confirmed/Cancelled).
     public void UpdateSharedTaskStatus(int taskId, string status)
     {
         SqlConnection con;
@@ -1764,6 +1838,7 @@ public class DBservices
         finally { if (con != null) con.Close(); }
     }
 
+    // Inserts a member into a shared task with their initial response.
     public void CreateSharedTaskMember(int taskId, string email, string responseStatus = "Pending", DateTime? respondedAt = null)
     {
         SqlConnection con;
@@ -1784,6 +1859,7 @@ public class DBservices
         finally { if (con != null) con.Close(); }
     }
 
+    // Returns the user's enrollment row for a course, or null.
     public UserCourse? GetUserCourse(string email, int courseId)
     {
         SqlConnection con;
@@ -1817,6 +1893,7 @@ public class DBservices
         finally { if (con != null) con.Close(); }
     }
 
+    // Reads a SqlDataReader row into a TaskWithCourse record.
     private static TaskWithCourse MapTaskWithCourse(SqlDataReader r)
     {
         return new TaskWithCourse
@@ -1843,6 +1920,7 @@ public class DBservices
     // FRIEND REQUESTS
     // =====================================================
 
+    // Returns pending friend requests sent to or by the user.
     public List<FriendRequestRow> GetFriendRequestsByUser(string email)
     {
         SqlConnection con;
@@ -1880,6 +1958,7 @@ public class DBservices
         finally { if (con != null) con.Close(); }
     }
 
+    // Inserts a new pending friend request and returns its ID.
     public int CreateFriendRequest(string requesterEmail, string addresseeEmail)
     {
         SqlConnection con;
@@ -1902,6 +1981,7 @@ public class DBservices
         finally { if (con != null) con.Close(); }
     }
 
+    // Updates a friend request's status if the addressee owns it.
     public FriendRequestBasic? UpdateFriendRequestStatus(int requestId, string addresseeEmail, string newStatus)
     {
         SqlConnection con;
@@ -1941,6 +2021,7 @@ public class DBservices
     // FRIENDSHIPS
     // =====================================================
 
+    // Returns true if there's an active friendship between the two emails.
     public bool FriendshipExists(string email1, string email2)
     {
         var (e1, e2) = NormalizePair(email1, email2);
@@ -1965,6 +2046,7 @@ public class DBservices
         finally { if (con != null) con.Close(); }
     }
 
+    // Returns the user's accepted friendships with friend names.
     public List<FriendshipRow> GetFriendshipsByUser(string email)
     {
         SqlConnection con;
@@ -2001,6 +2083,7 @@ public class DBservices
         finally { if (con != null) con.Close(); }
     }
 
+    // Inserts a Friendship row after both sides accept; returns its ID.
     public int CreateFriendship(string email1, string email2)
     {
         SqlConnection con;
@@ -2023,6 +2106,7 @@ public class DBservices
         finally { if (con != null) con.Close(); }
     }
 
+    // Soft-deletes a friendship if the user is one of the two parties.
     public bool DeactivateFriendship(int friendshipId, string email)
     {
         SqlConnection con;
@@ -2045,6 +2129,7 @@ public class DBservices
         finally { if (con != null) con.Close(); }
     }
 
+    // Returns a friendship by ID only if the user is one of the two parties.
     public FriendshipBasic? GetFriendshipForUser(int friendshipId, string email)
     {
         SqlConnection con;
@@ -2078,6 +2163,7 @@ public class DBservices
         finally { if (con != null) con.Close(); }
     }
 
+    // Returns the two emails ordered alphabetically (Email1 < Email2).
     public static (string, string) NormalizePair(string a, string b) =>
         string.Compare(a, b, StringComparison.OrdinalIgnoreCase) < 0 ? (a, b) : (b, a);
 
@@ -2085,6 +2171,7 @@ public class DBservices
     // SHARED TASKS (full CRUD)
     // =====================================================
 
+    // Returns flat join rows for every shared task the user is a member of.
     public List<SharedTaskFullRow> GetSharedTasksByUser(string email)
     {
         SqlConnection con;
@@ -2109,6 +2196,7 @@ public class DBservices
         finally { if (con != null) con.Close(); }
     }
 
+    // Returns flat join rows for one shared task (one row per member).
     public List<SharedTaskFullRow> GetSharedTaskByTaskId(int taskId)
     {
         SqlConnection con;
@@ -2133,6 +2221,7 @@ public class DBservices
         finally { if (con != null) con.Close(); }
     }
 
+    // Returns true if the task is already shared.
     public bool SharedTaskExists(int taskId)
     {
         SqlConnection con;
@@ -2154,6 +2243,7 @@ public class DBservices
         finally { if (con != null) con.Close(); }
     }
 
+    // Updates a single member's response status; returns true if a row changed.
     public bool UpdateSharedTaskMemberStatus(int taskId, string email, string responseStatus)
     {
         SqlConnection con;
@@ -2177,6 +2267,7 @@ public class DBservices
         finally { if (con != null) con.Close(); }
     }
 
+    // Returns true when every member's status is Accepted.
     public bool AllSharedTaskMembersAccepted(int taskId)
     {
         SqlConnection con;
@@ -2198,6 +2289,7 @@ public class DBservices
         finally { if (con != null) con.Close(); }
     }
 
+    // Returns the list of every member's email for a shared task.
     public List<string> GetSharedTaskMemberEmails(int taskId)
     {
         SqlConnection con;
@@ -2222,6 +2314,7 @@ public class DBservices
         finally { if (con != null) con.Close(); }
     }
 
+    // Stores the partner's copy-task ID on a shared-task member row.
     public void UpdateSharedTaskMemberCopyTaskId(int taskId, string email, int copyTaskId)
     {
         SqlConnection con;
@@ -2241,6 +2334,7 @@ public class DBservices
         finally { if (con != null) con.Close(); }
     }
 
+    // Returns the partner's copy-task ID for a shared-task member.
     public int? GetSharedTaskMemberCopyTaskId(int taskId, string email)
     {
         SqlConnection con;
@@ -2264,6 +2358,7 @@ public class DBservices
         finally { if (con != null) con.Close(); }
     }
 
+    // Removes the partner-side task copies after a shared task is cancelled.
     public int CleanupSharedTaskPartnerCopies(int taskId)
     {
         SqlConnection con;
@@ -2286,6 +2381,7 @@ public class DBservices
         finally { if (con != null) con.Close(); }
     }
 
+    // Reads a SqlDataReader row into a SharedTaskFullRow record.
     private static SharedTaskFullRow MapSharedTaskFullRow(SqlDataReader r)
     {
         return new SharedTaskFullRow
@@ -2311,6 +2407,7 @@ public class DBservices
     // COLLABORATION
     // =====================================================
 
+    // Marks the user's enrollment as approved for course-level task sharing.
     public bool SetCourseShareApproved(string email, int courseId)
     {
         SqlConnection con;
@@ -2333,6 +2430,7 @@ public class DBservices
         finally { if (con != null) con.Close(); }
     }
 
+    // Lists pending shared-task memberships for this course.
     public List<PendingMemberForCourseRow> GetPendingMembersForCourse(string email, int courseId)
     {
         SqlConnection con;
@@ -2372,6 +2470,7 @@ public class DBservices
     // NOTIFICATIONS
     // =====================================================
 
+    // Inserts a generic notification row and returns its ID.
     public int CreateNotification(string email, string type, string title, string message, int? relatedEntityId = null, string? relatedEntityType = null)
     {
         SqlConnection con;
@@ -2432,6 +2531,7 @@ public class DBservices
         finally { if (con != null) con.Close(); }
     }
 
+    // Returns just the unread notification count for badge polling.
     public int GetUnreadNotificationCount(string email)
     {
         SqlConnection con;
@@ -2453,6 +2553,7 @@ public class DBservices
         finally { if (con != null) con.Close(); }
     }
 
+    // Marks the specified notifications as read.
     public void MarkNotificationsRead(string email, List<int> notificationIds)
     {
         var ids = string.Join(",", notificationIds);
@@ -2473,6 +2574,7 @@ public class DBservices
         finally { if (con != null) con.Close(); }
     }
 
+    // Marks every one of the user's notifications as read.
     public void MarkAllNotificationsRead(string email)
     {
         SqlConnection con;
@@ -2490,6 +2592,7 @@ public class DBservices
         finally { if (con != null) con.Close(); }
     }
 
+    // Returns true when a similar notification already exists for the user today.
     public bool IsNotificationDuplicate(string email, string type, int? relatedEntityId = null, string? relatedEntityType = null, int sinceHours = 24)
     {
         SqlConnection con;
@@ -2515,6 +2618,30 @@ public class DBservices
         finally { if (con != null) con.Close(); }
     }
 
+    // Returns true if the user has any unread notification of the given type.
+    public bool HasUnreadNotificationOfType(string email, string type)
+    {
+        SqlConnection con;
+        SqlCommand cmd;
+        try { con = connect("SmartStudyDb"); }
+        catch (Exception) { throw; }
+
+        Dictionary<string, object> paramDic = new Dictionary<string, object>();
+        paramDic.Add("@Email", email);
+        paramDic.Add("@Type", type);
+
+        cmd = CreateCommandWithStoredProcedureGeneral("SS_Notifications_HasUnreadByType", con, paramDic);
+
+        try
+        {
+            object result = cmd.ExecuteScalar();
+            return Convert.ToInt32(result) == 1;
+        }
+        catch (Exception) { throw; }
+        finally { if (con != null) con.Close(); }
+    }
+
+    // Returns tasks whose due date falls inside the next 24 hours.
     public List<UpcomingDeadlineTask> GetUpcomingDeadlineTasks(string email)
     {
         SqlConnection con;
@@ -2546,6 +2673,7 @@ public class DBservices
         finally { if (con != null) con.Close(); }
     }
 
+    // Returns today's tasks for the daily morning summary notification.
     public List<DailySummaryTask> GetDailySummaryData(string email)
     {
         SqlConnection con;
@@ -2606,6 +2734,7 @@ public class DBservices
         finally { if (con != null) con.Close(); }
     }
 
+    // Returns true if a weekly reminder was already sent in the last 6 days.
     public bool HasRecentWeeklyReminder(string email)
     {
         SqlConnection con;
@@ -2627,6 +2756,7 @@ public class DBservices
         finally { if (con != null) con.Close(); }
     }
 
+    // Reads a SqlDataReader row into a NotificationRow record.
     private static NotificationRow MapNotificationRow(SqlDataReader r)
     {
         return new NotificationRow
@@ -2647,6 +2777,7 @@ public class DBservices
     // RECOVERED METHODS (HW3 inline sync)
     // =====================================================
 
+    // Reads a SqlDataReader row into a SchedulingTaskRow record.
     private static SchedulingTaskRow MapSchedulingTaskRow(SqlDataReader r)
     {
         return new SchedulingTaskRow
@@ -2672,6 +2803,7 @@ public class DBservices
         };
     }
 
+    // Reads a SqlDataReader row into a TaskEventRow record.
     private static TaskEventRow MapTaskEventRow(SqlDataReader r)
     {
         return new TaskEventRow
@@ -2690,6 +2822,7 @@ public class DBservices
         };
     }
 
+    // Reads a SqlDataReader row into a SimpleTaskRow record.
     private static SimpleTaskRow MapSimpleTaskRow(SqlDataReader r)
     {
         return new SimpleTaskRow
@@ -4147,6 +4280,7 @@ public class MoodleTaskMatch
     public DateTime? DueDate { get; set; }
     public bool IsCompleted { get; set; }
 }
+// Course row joined with the user's enrollment metadata.
 public class CourseWithEnrollment
 {
     public int CourseId { get; set; }
@@ -4166,6 +4300,7 @@ public class CourseWithEnrollment
     public int ExamCount { get; set; }
 }
 
+// Exam row joined with course name and prep-config fields.
 public class ExamWithCourse
 {
     public int ExamId { get; set; }
@@ -4180,6 +4315,7 @@ public class ExamWithCourse
     public int? ExamPrepDays { get; set; }
 }
 
+// Task row joined with course name and per-course prep config.
 public class TaskWithCourse
 {
     public int TaskId { get; set; }
@@ -4199,6 +4335,7 @@ public class TaskWithCourse
     public string Email { get; set; } = null!;
 }
 
+// Compact task-event projection used for scheduling/sharing logic.
 public class TaskEventInfo
 {
     public int EventId { get; set; }
@@ -4209,6 +4346,7 @@ public class TaskEventInfo
     public string? Status { get; set; }
 }
 
+// Aggregate sharing record returned alongside a shared task.
 public class SharedTaskInfo
 {
     public int TaskId { get; set; }
@@ -4217,6 +4355,7 @@ public class SharedTaskInfo
     public List<SharedTaskMemberInfo> Members { get; set; } = new();
 }
 
+// Single member entry inside a SharedTaskInfo.
 public class SharedTaskMemberInfo
 {
     public string Email { get; set; } = null!;
@@ -4224,12 +4363,14 @@ public class SharedTaskMemberInfo
     public string FullName { get; set; } = null!;
 }
 
+// Estimated/actual hour pair for one completed task.
 public class MLDataRow
 {
     public decimal ActualHours { get; set; }
     public decimal EstimatedHours { get; set; }
 }
 
+// Per-course estimation-accuracy summary.
 public class MLInsightRow
 {
     public int CourseId { get; set; }
@@ -4254,6 +4395,7 @@ public class FriendRequestRow
     public string LastName { get; set; } = null!;
 }
 
+// Minimal friend-request row used after status updates.
 public class FriendRequestBasic
 {
     public int RequestId { get; set; }
@@ -4277,6 +4419,7 @@ public class FriendshipRow
     public string LastName { get; set; } = null!;
 }
 
+// Minimal friendship row used to authorize collaboration actions.
 public class FriendshipBasic
 {
     public int FriendshipId { get; set; }
@@ -4306,6 +4449,7 @@ public class SharedTaskFullRow
 }
 
 
+// Pending shared-task membership awaiting course-share approval.
 public class PendingMemberForCourseRow
 {
     public int TaskId { get; set; }
@@ -4316,6 +4460,7 @@ public class PendingMemberForCourseRow
     public string SharedStatus { get; set; } = null!;
 }
 
+// Subtype-aware projection of an event with all subtype fields flattened.
 public class TypedEvent
 {
     public int EventId { get; set; }
@@ -4365,6 +4510,7 @@ public class NotificationRow
     public string? RelatedEntityType { get; set; }
 }
 
+// Task projection for deadline-notification generation.
 public class UpcomingDeadlineTask
 {
     public int TaskId { get; set; }
@@ -4372,6 +4518,7 @@ public class UpcomingDeadlineTask
     public string CourseName { get; set; } = null!;
 }
 
+// Task projection for the daily morning summary notification.
 public class DailySummaryTask
 {
     public int TaskId { get; set; }
@@ -4406,6 +4553,7 @@ public class SchedulingTaskRow
     public bool HasNeedReview { get; set; }
 }
 
+// Task-event projection consumed by the auto-scheduling engine.
 public class TaskEventRow
 {
     public int EventId { get; set; }
@@ -4419,12 +4567,14 @@ public class TaskEventRow
     public string? Status { get; set; }
 }
 
+// Simple (From, To) pair returned by GetEventTimeRange.
 public class EventTimeRange
 {
     public DateTime From { get; set; }
     public DateTime To { get; set; }
 }
 
+// Compact task row used by sync helpers.
 public class SimpleTaskRow
 {
     public int TaskId { get; set; }
@@ -4439,6 +4589,7 @@ public class SimpleTaskRow
     public string Email { get; set; } = null!;
 }
 
+// Exam projection consumed by the auto-scheduling engine.
 public class SchedulingExamRow
 {
     public int ExamId { get; set; }
@@ -4453,6 +4604,7 @@ public class SchedulingExamRow
     public int? CourseExamPrepDays { get; set; }
 }
 
+// Completed-task projection used to learn per-course time bias.
 public class MLCompletedTaskRow
 {
     public int CourseId { get; set; }
@@ -4460,6 +4612,7 @@ public class MLCompletedTaskRow
     public double EstimatedHours { get; set; }
 }
 
+// Work event row with workplace and travel time.
 public class WorkEventRow
 {
     public int EventId { get; set; }
@@ -4470,6 +4623,7 @@ public class WorkEventRow
     public int? TravelTime { get; set; }
 }
 
+// Personal event row with type and description.
 public class PersonalEventRow
 {
     public int EventId { get; set; }
@@ -4480,6 +4634,7 @@ public class PersonalEventRow
     public string? Description { get; set; }
 }
 
+// Minimal exam row used by sync upsert logic.
 public class ExamBasicRow
 {
     public int ExamId { get; set; }
@@ -4491,6 +4646,7 @@ public class ExamBasicRow
     public bool IsTakingExam { get; set; }
 }
 
+// Task projection consumed by the dashboard aggregator.
 public class DashboardTaskRow
 {
     public int TaskId { get; set; }
@@ -4512,6 +4668,7 @@ public class DashboardTaskRow
     public string? SharedStatus { get; set; }
 }
 
+// Task-event projection consumed by the dashboard aggregator.
 public class DashboardTaskEventRow
 {
     public int TaskId { get; set; }

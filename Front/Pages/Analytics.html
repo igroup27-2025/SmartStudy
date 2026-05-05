@@ -59,6 +59,7 @@
         var allTasks = [];
         var allCourses = [];
 
+        // Escapes a string for safe HTML insertion.
         function escapeHtml(s) {
             if (s == null) return "";
             return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
@@ -84,6 +85,7 @@
             }, function () { /* silent */ });
         });
 
+        // Handles render weekly chart.
         function RenderWeeklyChart(weekly) {
             weekly = weekly || [];
             if (!weekly.length) { $("#weeklyChart").html('<p class="text-muted">No data yet.</p>'); return; }
@@ -100,6 +102,7 @@
             $("#weeklyChart").html(html);
         }
 
+        // Handles render workload by course.
         function RenderWorkloadByCourse() {
             var totalHours = allTasks.reduce(function (s, t) { return s + (t.estimatedHours || 0); }, 0) || 1;
             var html = allCourses.map(function (c, i) {
@@ -115,6 +118,7 @@
             $("#workloadByCourse").html(html || '<p class="text-muted">No courses yet.</p>');
         }
 
+        // Handles render task stats.
         function RenderTaskStats() {
             var total = allTasks.length;
             var completed = allTasks.filter(function (t) { return t.isCompleted || t.completed; }).length;
@@ -136,6 +140,7 @@
             $("#taskStats").html(html);
         }
 
+        // Handles render est vs actual.
         function RenderEstVsActual() {
             var $el = $("#estVsActual");
             var completedWithHours = allTasks.filter(function (t) {
@@ -185,12 +190,14 @@
             $el.html(html);
         }
 
+        // Handles load learning insights.
         function LoadLearningInsights() {
             ajaxCall("GET", InsightsApi, null, RenderLearningInsights, function () {
                 $("#learningInsights").html('<p class="text-muted">Failed to load learning insights.</p>');
             });
         }
 
+        // Handles render learning insights.
         function RenderLearningInsights(insights) {
             insights = insights || [];
             if (!insights.length) {

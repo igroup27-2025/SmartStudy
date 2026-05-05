@@ -1,5 +1,6 @@
 namespace SmartStudy.Models;
 
+// Pending/Accepted/Rejected friend invite from one user to another.
 public class FriendRequest
 {
     public int RequestId { get; set; }

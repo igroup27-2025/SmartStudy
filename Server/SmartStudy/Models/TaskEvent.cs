@@ -1,5 +1,6 @@
 namespace SmartStudy.Models;
 
+// Calendar event subtype representing a scheduled study block for a task.
 public class TaskEvent : Event
 {
     public int TaskId { get; set; }

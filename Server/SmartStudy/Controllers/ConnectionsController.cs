@@ -6,16 +6,16 @@ using SmartStudy.Models;
 
 namespace SmartStudy.Controllers;
 
+// API endpoints for managing peer connections (friend requests and friendships).
 [ApiController]
 [Route("api/connections")]
 [Authorize]
 public class ConnectionsController : ControllerBase
 {
+    // Reads the authenticated user's email from JWT claims.
     private string GetEmail() => User.FindFirst(ClaimTypes.Email)!.Value;
 
-    /// <summary>
-    /// Get all connections (accepted friends + pending incoming requests) for the current user.
-    /// </summary>
+    // Get all connections (accepted friends + pending incoming requests) for the current user.
     [HttpGet]
     public IActionResult GetAll()
     {
@@ -54,9 +54,7 @@ public class ConnectionsController : ControllerBase
         return Ok(result);
     }
 
-    /// <summary>
-    /// Send a connection invitation to another user by email.
-    /// </summary>
+    // Send a connection invitation to another user by email.
     [HttpPost("invite")]
     public IActionResult Invite([FromBody] InviteConnectionDto dto)
     {
@@ -82,6 +80,7 @@ public class ConnectionsController : ControllerBase
         }
     }
 
+    // Accepts a pending friend request and creates the friendship record.
     [HttpPost("{id}/accept")]
     public IActionResult Accept(int id)
     {
@@ -96,6 +95,7 @@ public class ConnectionsController : ControllerBase
         return Ok(new { friendshipId, status = "accepted" });
     }
 
+    // Marks a pending friend request as Rejected.
     [HttpPost("{id}/decline")]
     public IActionResult Decline(int id)
     {
@@ -108,6 +108,7 @@ public class ConnectionsController : ControllerBase
         return NoContent();
     }
 
+    // Deactivates an existing friendship, making it no longer active.
     [HttpDelete("{id}")]
     public IActionResult Remove(int id)
     {

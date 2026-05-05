@@ -2,6 +2,7 @@ using SmartStudy.DAL;
 
 namespace SmartStudy.Models;
 
+// Active friendship between two users plus collaboration helpers (safe-zone calculation).
 public class Friendship
 {
     public int FriendshipId { get; set; }
@@ -16,42 +17,49 @@ public class Friendship
 
     // ───── ConnectionsBLL methods folded in ───────────────────────────
 
+    // Returns pending friend requests sent to or by the user.
     public static List<FriendRequestRow> GetFriendRequestsByUser(string email)
     {
         DBservices db = new DBservices();
         return db.GetFriendRequestsByUser(email);
     }
 
+    // Returns the user's accepted friendships with friend names and emails.
     public static List<FriendshipRow> GetByUser(string email)
     {
         DBservices db = new DBservices();
         return db.GetFriendshipsByUser(email);
     }
 
+    // Inserts a new pending friend request and returns its generated ID.
     public static int CreateFriendRequest(string requesterEmail, string addresseeEmail)
     {
         DBservices db = new DBservices();
         return db.CreateFriendRequest(requesterEmail, addresseeEmail);
     }
 
+    // Updates a friend request's status if the addressee owns it; returns the basic row.
     public static FriendRequestBasic? UpdateFriendRequestStatus(int requestId, string addresseeEmail, string newStatus)
     {
         DBservices db = new DBservices();
         return db.UpdateFriendRequestStatus(requestId, addresseeEmail, newStatus);
     }
 
+    // Materializes a Friendship row after both sides accept and returns its ID.
     public static int Create(string email1, string email2)
     {
         DBservices db = new DBservices();
         return db.CreateFriendship(email1, email2);
     }
 
+    // Soft-deletes a friendship (IsActive=false) only if the user is one of the two parties.
     public static bool Deactivate(int friendshipId, string email)
     {
         DBservices db = new DBservices();
         return db.DeactivateFriendship(friendshipId, email);
     }
 
+    // Returns true if there's an active friendship between the two emails.
     public static bool ExistsBetween(string email1, string email2)
     {
         DBservices db = new DBservices();
@@ -60,6 +68,7 @@ public class Friendship
 
     // ───── From CollaborationBLL ──────────────────────────────────────
 
+    // Returns a friendship by ID only if the user is one of the two parties.
     public static FriendshipBasic? GetForUser(int friendshipId, string email)
     {
         DBservices db = new DBservices();
@@ -68,6 +77,7 @@ public class Friendship
 
     // ───── From SafeZoneService ───────────────────────────────────────
 
+    // Computes shared low-stress availability slots for the next 7 days between two friends.
     public static List<SafeZoneDto> GetSafeZones(string myEmail, string friendEmail)
     {
         var db = new DBservices();
@@ -125,6 +135,7 @@ public class Friendship
         return safeZones;
     }
 
+    // Clamps events to the day window and merges overlapping busy intervals.
     private static List<(DateTime from, DateTime to)> GetBusyIntervals(
         List<Event> events, DateTime dayStart, DateTime dayEnd)
     {
@@ -156,6 +167,7 @@ public class Friendship
         return merged;
     }
 
+    // Computes the gaps left after subtracting the union of both users' busy intervals.
     private static List<(DateTime from, DateTime to)> FindMutualFreeSlots(
         DateTime dayStart, DateTime dayEnd,
         List<(DateTime from, DateTime to)> myBusy,
@@ -188,6 +200,7 @@ public class Friendship
         return free;
     }
 
+    // Drops free slots shorter than 30 minutes and tags each remaining slot with its duration.
     private static List<(DateTime from, DateTime to, TimeSpan duration)> MergeSlots(
         List<(DateTime from, DateTime to)> slots)
     {
@@ -207,6 +220,7 @@ public class Friendship
 
 // ───── Connection / Safe zone DTOs (from ConnectionDtos.cs) ────────
 
+// Wire-format payload for one connection (friend or pending request).
 public class ConnectionDto
 {
     public int ConnectionId { get; set; }
@@ -216,11 +230,13 @@ public class ConnectionDto
     public DateTime? ConnectedDate { get; set; }
 }
 
+// Request body for POST /api/connections/invite.
 public class InviteConnectionDto
 {
     public string Email { get; set; } = null!;
 }
 
+// Wire-format mutual-availability slot returned by GET /api/collaboration/safe-zones.
 public class SafeZoneDto
 {
     public string Date { get; set; } = null!;

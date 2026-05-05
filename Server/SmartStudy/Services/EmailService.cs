@@ -3,15 +3,18 @@ using System.Net.Mail;
 
 namespace SmartStudy.Services;
 
+// Sends transactional emails via SMTP — used for password-reset codes and similar.
 public class EmailService
 {
     private readonly IConfiguration _config;
 
+    // Injects configuration to read SMTP settings.
     public EmailService(IConfiguration config)
     {
         _config = config;
     }
 
+    // True when host and username are both set in appsettings.
     public bool IsConfigured
     {
         get
@@ -21,6 +24,7 @@ public class EmailService
         }
     }
 
+    // Sends an email or, if SMTP is not configured, logs a masked summary to console.
     public async Task SendAsync(string to, string subject, string body)
     {
         var smtp = _config.GetSection("Smtp");

@@ -21,6 +21,7 @@ var SERVER = window.location.origin + __apiBasePath + "/";
 var API_BASE = SERVER + "api";
 
 // ---- Auth storage helpers --------------------------------------------------
+// Returns the headers (Content-Type + Bearer token if logged in) for fetch-style calls.
 function getAuthHeaders() {
     var token = localStorage.getItem("smartstudy_token");
     var headers = { "Content-Type": "application/json" };
@@ -28,15 +29,18 @@ function getAuthHeaders() {
     return headers;
 }
 
+// True if a JWT is in localStorage.
 function isLoggedIn() {
     return !!localStorage.getItem("smartstudy_token");
 }
 
+// Returns the cached user profile (email/firstName/lastName) from localStorage, or null.
 function getUser() {
     var data = localStorage.getItem("smartstudy_user");
     return data ? JSON.parse(data) : null;
 }
 
+// Persists JWT and user profile to localStorage after login/register.
 function saveAuth(res) {
     localStorage.setItem("smartstudy_token", res.token);
     localStorage.setItem("smartstudy_user", JSON.stringify({
@@ -47,12 +51,14 @@ function saveAuth(res) {
     }));
 }
 
+// Clears auth from localStorage and redirects to the login page.
 function logout() {
     localStorage.removeItem("smartstudy_token");
     localStorage.removeItem("smartstudy_user");
     window.location.href = BASE_PATH + "/Pages/Login.html";
 }
 
+// Page-guard helper — redirects to login if no JWT, returns boolean for caller to early-exit.
 function requireAuth() {
     if (!isLoggedIn()) {
         window.location.href = BASE_PATH + "/Pages/Login.html";
@@ -62,6 +68,7 @@ function requireAuth() {
 }
 
 // ---- HTML escape helper (used across pages) -------------------------------
+// Returns the input HTML-escaped so it can be safely inlined into innerHTML.
 function escapeHtmlGlobal(s) {
     if (s == null) return "";
     return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
@@ -115,6 +122,7 @@ var SmartStudy = (function () {
         settings: "Settings"
     };
 
+    // Builds the sidebar+topbar shell around #pageRoot, wires nav, logout, and notifications.
     function initShell(currentPage) {
         var body = document.body;
         var pageRoot = document.getElementById("pageRoot");
@@ -234,6 +242,7 @@ var SmartStudy = (function () {
         pollingTimer = setInterval(fetchUnreadCount, 60000);
     }
 
+    // Triggers server-side notification generation, then loads them into the dropdown.
     function fetchAndRenderNotifications() {
         // Trigger generation then fetch
         ajaxCall("POST", API_BASE + "/notifications/generate", null,
@@ -242,6 +251,7 @@ var SmartStudy = (function () {
         );
     }
 
+    // GETs /notifications, updates state and re-renders the dropdown + badge.
     function loadNotifications() {
         ajaxCall("GET", API_BASE + "/notifications", null,
             function (data) {
@@ -254,6 +264,7 @@ var SmartStudy = (function () {
         );
     }
 
+    // Light poll endpoint — refreshes only the bell badge count.
     function fetchUnreadCount() {
         ajaxCall("GET", API_BASE + "/notifications/unread-count", null,
             function (data) {
@@ -264,6 +275,7 @@ var SmartStudy = (function () {
         );
     }
 
+    // Shows/hides the notification badge and renders the count (capped at 99+).
     function updateNotifBadge() {
         var $badge = $("#ssNotifBadge");
         if (!$badge.length) return;
@@ -275,6 +287,7 @@ var SmartStudy = (function () {
         }
     }
 
+    // Renders the list of notifications with icons and wires per-item mark-read clicks.
     function renderNotifDropdown() {
         var $list = $("#ssNotifList");
         if (!$list.length) return;
@@ -321,6 +334,7 @@ var SmartStudy = (function () {
         });
     }
 
+    // Returns a short relative-time string ("just now", "5m ago", "2d ago") for the given date.
     function getTimeAgo(date) {
         var seconds = Math.floor((new Date() - date) / 1000);
         if (seconds < 60) return "just now";

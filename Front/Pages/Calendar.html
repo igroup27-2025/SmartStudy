@@ -171,14 +171,19 @@
     <script>
         // ---- API endpoints -----------------------------------------------
         var EventsApi           = API_BASE + "/events";
+        // Handles event by id api.
         var EventByIdApi        = function (id) { return API_BASE + "/events/" + id; };
         var ClassEventsApi      = API_BASE + "/events/class";
         var TaskEventsApi       = API_BASE + "/events/task";
         var WorkEventsApi       = API_BASE + "/events/work";
         var PersonalEventsApi   = API_BASE + "/events/personal";
+        // Handles class event api.
         var ClassEventApi       = function (id) { return API_BASE + "/events/class/" + id; };
+        // Handles task event api.
         var TaskEventApi        = function (id) { return API_BASE + "/events/task/" + id; };
+        // Handles work event api.
         var WorkEventApi        = function (id) { return API_BASE + "/events/work/" + id; };
+        // Handles personal event api.
         var PersonalEventApi    = function (id) { return API_BASE + "/events/personal/" + id; };
         var ConflictCheckApi    = API_BASE + "/events/check-conflicts";
 
@@ -186,6 +191,7 @@
         var TasksApi            = API_BASE + "/tasks";
         var TasksOpenApi        = API_BASE + "/tasks?completed=false";
         var ExamsApi            = API_BASE + "/exams";
+        // Handles exam api.
         var ExamApi             = function (id) { return API_BASE + "/exams/" + id; };
         var RuppinetSyncApi     = API_BASE + "/settings/ruppinet/sync";
         var MoodleSyncApi       = API_BASE + "/settings/moodle/sync";
@@ -213,22 +219,28 @@
         var conflictsConfirmed = false;
         var highlightTaskId = null;
 
+        // Escapes a string for safe HTML insertion.
         function escapeHtml(s) {
             if (s == null) return "";
             return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
         }
 
+        // Handles to local i s o.
         function toLocalISO(d) {
+            // Handles pad.
             function pad(n) { return String(n).padStart(2, "0"); }
             return d.getFullYear() + "-" + pad(d.getMonth() + 1) + "-" + pad(d.getDate()) + "T" +
                    pad(d.getHours()) + ":" + pad(d.getMinutes()) + ":" + pad(d.getSeconds());
         }
 
+        // Formats a Date as a HH:MM time string.
         function formatTime(date) {
+            // Handles pad.
             function pad(n) { return String(n).padStart(2, "0"); }
             return pad(date.getHours()) + ":" + pad(date.getMinutes());
         }
 
+        // Returns sunday.
         function getSunday(date) {
             var d = new Date(date);
             d.setDate(d.getDate() - d.getDay());
@@ -292,10 +304,12 @@
             }
         });
 
+        // Handles load courses cache.
         function LoadCoursesCache() {
             ajaxCall("GET", CoursesApi, null, function (data) { cachedCourses = data || []; PopulateCourseSelects(); }, function () { });
         }
 
+        // Handles populate course selects.
         function PopulateCourseSelects() {
             var opts = '<option value="">Select course...</option>' +
                 cachedCourses.map(function (c) { return '<option value="' + c.courseId + '">' + escapeHtml(c.courseName) + '</option>'; }).join("");
@@ -304,6 +318,7 @@
             $("#eventTaskCourseId").html(opts);
         }
 
+        // Handles load tasks cache.
         function LoadTasksCache() {
             ajaxCall("GET", TasksOpenApi, null, function (data) {
                 cachedTasks = data || [];
@@ -313,6 +328,7 @@
             }, function () { });
         }
 
+        // Handles shift date.
         function ShiftDate(direction) {
             if (currentView === "monthly") {
                 currentDate.setMonth(currentDate.getMonth() + direction);
@@ -323,6 +339,7 @@
             }
         }
 
+        // Handles get date range.
         function GetDateRange() {
             if (currentView === "monthly") {
                 var first = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1);
@@ -344,6 +361,7 @@
             }
         }
 
+        // Handles navigate.
         function Navigate() {
             RenderHeader();
             var range = GetDateRange();
@@ -353,6 +371,7 @@
             var eventsLoaded = false, examsLoaded = false, statusLoaded = false;
             var rawEvents = [], rawExams = [], schedStatus = null;
 
+            // Handles finish.
             function finish() {
                 if (!(eventsLoaded && examsLoaded && statusLoaded)) return;
                 var examEvents = (rawExams || []).filter(function (ex) {
@@ -393,17 +412,20 @@
                 function () { statusLoaded = true; finish(); });
         }
 
+        // Handles render header.
         function RenderHeader() {
             if (currentView === "monthly") {
                 $("#calendarHeader").text(currentDate.toLocaleDateString("en", { month: "long", year: "numeric" }));
             } else {
                 var r = GetDateRange();
                 var end = new Date(r.to); end.setDate(end.getDate() - 1);
+                // Handles fmt.
                 var fmt = function (d) { return d.toLocaleDateString("en", { month: "short", day: "numeric" }); };
                 $("#calendarHeader").text(fmt(r.from) + " - " + fmt(end) + ", " + end.getFullYear());
             }
         }
 
+        // Handles render grid.
         function RenderGrid(range) {
             if (currentView === "monthly") {
                 RenderMonthlyGrid(range.from, range.to);
@@ -414,6 +436,7 @@
             }
         }
 
+        // Handles render time grid.
         function RenderTimeGrid(startDate, dayCount) {
             var $grid = $("#calendarGrid");
             $grid.attr("class", "calendar-grid" + (dayCount === 3 ? " cal-grid--3day" : ""));
@@ -514,6 +537,7 @@
             });
         }
 
+        // Handles render monthly grid.
         function RenderMonthlyGrid(gridStart, gridEnd) {
             var $grid = $("#calendarGrid");
             $grid.attr("class", "calendar-grid cal-grid--month");
@@ -576,6 +600,7 @@
             });
         }
 
+        // Handles highlight task events.
         function HighlightTaskEvents(taskId) {
             setTimeout(function () {
                 var $matches = $(".cal-event").filter(function () {
@@ -591,6 +616,7 @@
         }
 
         // ---- Event modal (create/edit) ----------------------------------
+        // Handles open event modal.
         function OpenEventModal(dateStr, hour, endHour) {
             editingEventId = null;
             editingEventType = null;
@@ -623,6 +649,7 @@
             $("#eventModal").addClass("open");
         }
 
+        // Handles open event modal for edit.
         function OpenEventModalForEdit(eventId) {
             var event = cachedEvents.find(function (e) { return e.eventId === eventId; });
             if (!event) return;
@@ -642,8 +669,11 @@
             $("#eventTypeSelect").prop("disabled", !canChangeType);
 
             var from = new Date(event.from), to = new Date(event.to);
+            // Handles pad.
             function pad(n) { return String(n).padStart(2, "0"); }
+            // Handles date str.
             var dateStr = function (d) { return d.getFullYear() + "-" + pad(d.getMonth() + 1) + "-" + pad(d.getDate()); };
+            // Handles time str.
             var timeStr = function (d) { return pad(d.getHours()) + ":" + pad(d.getMinutes()); };
             $("#eventFromDate").val(dateStr(from));
             $("#eventFromTime").val(timeStr(from));
@@ -680,6 +710,7 @@
             $("#eventModal").addClass("open");
         }
 
+        // Handles close event modal.
         function CloseEventModal() {
             $("#eventModal").removeClass("open");
             editingEventId = null;
@@ -688,6 +719,7 @@
             $("#conflictWarning").hide();
         }
 
+        // Handles update event form fields.
         function UpdateEventFormFields(type) {
             $("#eventClassFields").toggleClass("hidden", type !== "class");
             $("#eventWorkFields").toggleClass("hidden", type !== "work");
@@ -700,6 +732,7 @@
             $("#eventToTime").prop("required", type !== "exam");
         }
 
+        // Handles show conflict warning.
         function ShowConflictWarning(conflicts) {
             var listHtml = conflicts.map(function (c) {
                 var from = new Date(c.from), to = new Date(c.to);
@@ -727,6 +760,7 @@
             $("#conflictCancel").on("click", function () { $("#conflictWarning").hide(); });
         }
 
+        // Submits the event.
         function SubmitEvent(ev) {
             ev.preventDefault();
             var type = $("#eventTypeSelect").val();
@@ -772,6 +806,7 @@
             SaveEvent(type, from, to, fromDate, fromTime, recurring);
         }
 
+        // Handles save event.
         function SaveEvent(type, from, to, fromDate, fromTime, recurring) {
             var isEdit = editingEventId !== null;
 
@@ -856,9 +891,12 @@
             }
         }
 
+        // Success callback for Event Save.
         function EventSaveSC() { CloseEventModal(); Navigate(); }
+        // Error callback for Event Save.
         function EventSaveEC(xhr) { alert((xhr.responseJSON && xhr.responseJSON.message) || "Failed to save event"); }
 
+        // Handles delete current event.
         function DeleteCurrentEvent() {
             if (editingEventId === null) return;
             if (!confirm("Delete this event?")) return;
@@ -871,6 +909,7 @@
         }
 
         // ---- Sync buttons -----------------------------------------------
+        // Handles sync ruppinet.
         function SyncRuppinet() {
             var $btn = $("#calSyncRuppinet");
             $btn.prop("disabled", true).text("Syncing...");
@@ -889,6 +928,7 @@
             });
         }
 
+        // Handles sync moodle.
         function SyncMoodle() {
             var $btn = $("#calSyncMoodle");
             $btn.prop("disabled", true).text("Syncing...");
@@ -906,6 +946,7 @@
             });
         }
 
+        // Handles sync google calendar.
         function SyncGoogleCalendar() {
             var $btn = $("#calSyncGoogle");
             $btn.prop("disabled", true).text("Checking...");

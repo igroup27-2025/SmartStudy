@@ -2,6 +2,7 @@ using SmartStudy.DAL;
 
 namespace SmartStudy.Models;
 
+// Base entity for all calendar events; subclassed by Class/Task/Work/Personal events.
 public class Event
 {
     public int EventId { get; set; }
@@ -16,108 +17,126 @@ public class Event
 
     // ───── EventsBLL methods folded in ──────────────────────────────────
 
+    // Returns every event in the user's calendar within an optional date window, with subtype data flattened.
     public static List<TypedEvent> GetAllTypedEventsInRange(string email, DateTime? from, DateTime? to)
     {
         DBservices db = new DBservices();
         return db.GetAllTypedEventsInRange(email, from, to);
     }
 
+    // Inserts a class event tied to a course and returns the new event ID.
     public static int CreateClass(string email, DateTime from, DateTime to, bool recurring, DateTime? recurrenceEndDate, int courseId, string? location, decimal? duration)
     {
         DBservices db = new DBservices();
         return db.CreateClassEvent(email, from, to, recurring, recurrenceEndDate, courseId, location, duration);
     }
 
+    // Inserts a task study-block event linking back to a task, returning the new event ID.
     public static int CreateTaskEvent(string email, DateTime from, DateTime to, bool recurring, DateTime? recurrenceEndDate, int taskId, string? priority, string? status)
     {
         DBservices db = new DBservices();
         return db.CreateTaskEvent(email, from, to, recurring, recurrenceEndDate, taskId, priority, status);
     }
 
+    // Inserts a work-shift event and returns the new event ID.
     public static int CreateWork(string email, DateTime from, DateTime to, bool recurring, DateTime? recurrenceEndDate, string? workPlace, int? travelTime = null)
     {
         DBservices db = new DBservices();
         return db.CreateWorkEvent(email, from, to, recurring, recurrenceEndDate, workPlace, travelTime);
     }
 
+    // Inserts a personal event (sleep/meal/etc.) and returns the new event ID.
     public static int CreatePersonal(string email, DateTime from, DateTime to, bool recurring, DateTime? recurrenceEndDate, string? type, string? description)
     {
         DBservices db = new DBservices();
         return db.CreatePersonalEvent(email, from, to, recurring, recurrenceEndDate, type, description);
     }
 
+    // Updates a class event's fields.
     public static void UpdateClass(int eventId, DateTime from, DateTime to, bool recurring, DateTime? recurrenceEndDate, int courseId, string? location, decimal? duration)
     {
         DBservices db = new DBservices();
         db.UpdateClassEvent(eventId, from, to, recurring, recurrenceEndDate, courseId, location, duration);
     }
 
+    // Updates a task-event's fields (used when the user drags a study block).
     public static void UpdateTaskEvent(int eventId, DateTime from, DateTime to, bool recurring, DateTime? recurrenceEndDate, int taskId, string? priority, string? status)
     {
         DBservices db = new DBservices();
         db.UpdateTaskEvent(eventId, from, to, recurring, recurrenceEndDate, taskId, priority, status);
     }
 
+    // Updates a work-event's fields.
     public static void UpdateWork(int eventId, DateTime from, DateTime to, bool recurring, DateTime? recurrenceEndDate, string? workPlace, int? travelTime)
     {
         DBservices db = new DBservices();
         db.UpdateWorkEvent(eventId, from, to, recurring, recurrenceEndDate, workPlace, travelTime);
     }
 
+    // Updates a personal-event's fields.
     public static void UpdatePersonal(int eventId, DateTime from, DateTime to, bool recurring, DateTime? recurrenceEndDate, string? type, string? description)
     {
         DBservices db = new DBservices();
         db.UpdatePersonalEvent(eventId, from, to, recurring, recurrenceEndDate, type, description);
     }
 
+    // Deletes the event row (cascades to subtype rows).
     public static void Delete(int eventId)
     {
         DBservices db = new DBservices();
         db.DeleteEvent(eventId);
     }
 
+    // Returns the email of the event's owner (used to authorize updates/deletes).
     public static string? GetOwnerEmail(int eventId)
     {
         DBservices db = new DBservices();
         return db.GetEventOwnerEmail(eventId);
     }
 
+    // Returns the event's subtype string ("class", "task", "work", "personal").
     public static string GetSubtype(int eventId)
     {
         DBservices db = new DBservices();
         return db.GetEventSubtype(eventId);
     }
 
+    // Converts an event between Work and Personal subtypes by swapping subtype rows.
     public static void ChangeType(int eventId, string oldType, string newType, string? workPlace, int? travelTime, string? personalType, string? description)
     {
         DBservices db = new DBservices();
         db.ChangeEventType(eventId, oldType, newType, workPlace, travelTime, personalType, description);
     }
 
+    // Counts task-event blocks that overlap the given time window (excluding one event).
     public static int CountConflictingTaskEvents(string email, DateTime from, DateTime to, int excludeEventId)
     {
         DBservices db = new DBservices();
         return db.CountConflictingTaskEvents(email, from, to, excludeEventId);
     }
 
+    // Returns all events in the user's calendar that overlap the given time window.
     public static List<TypedEvent> GetConflicting(string email, DateTime from, DateTime to, int? excludeEventId)
     {
         DBservices db = new DBservices();
         return db.GetConflictingEvents(email, from, to, excludeEventId);
     }
 
+    // Returns the (From, To) time range of the event, or null if not found.
     public static (DateTime From, DateTime To)? GetEventTimeRange(int eventId)
     {
         DBservices db = new DBservices();
         return db.GetEventTimeRange(eventId);
     }
 
+    // Returns the partner's copy-task ID for a shared task, or null if not shared.
     public static int? GetSharedPartnerTaskId(int taskId)
     {
         DBservices db = new DBservices();
         return db.GetSharedPartnerTaskId(taskId);
     }
 
+    // Mirrors a moved task-event onto the partner's calendar (returns the partner event ID).
     public static int? SyncSharedTaskEventMove(int movedEventId, int partnerTaskId,
         DateTime oldFrom, DateTime oldTo, DateTime newFrom, DateTime newTo)
     {
@@ -125,6 +144,7 @@ public class Event
         return db.SyncSharedTaskEventMove(movedEventId, partnerTaskId, oldFrom, oldTo, newFrom, newTo);
     }
 
+    // Marks a task as manually pinned so the auto-scheduler won't move it.
     public static void PinTask(int taskId)
     {
         DBservices db = new DBservices();
@@ -134,6 +154,7 @@ public class Event
 
 // ───── Event DTOs (from EventDtos.cs) ──────────────────────────────
 
+// Wire-format event payload — superset of all subtypes' fields.
 public class EventDto
 {
     public int EventId { get; set; }
@@ -168,6 +189,7 @@ public class EventDto
     public string? Description { get; set; }
 }
 
+// Request body for POST /api/events/class.
 public class CreateClassEventDto
 {
     public DateTime From { get; set; }
@@ -179,6 +201,7 @@ public class CreateClassEventDto
     public decimal? Duration { get; set; }
 }
 
+// Request body for POST /api/events/task.
 public class CreateTaskEventDto
 {
     public DateTime From { get; set; }
@@ -190,6 +213,7 @@ public class CreateTaskEventDto
     public string? Status { get; set; }
 }
 
+// Request body for POST /api/events/work.
 public class CreateWorkEventDto
 {
     public DateTime From { get; set; }
@@ -200,6 +224,7 @@ public class CreateWorkEventDto
     public string? WorkPlace { get; set; }
 }
 
+// Request body for POST /api/events/personal.
 public class CreatePersonalEventDto
 {
     public DateTime From { get; set; }
@@ -210,6 +235,7 @@ public class CreatePersonalEventDto
     public string? Description { get; set; }
 }
 
+// Request body for POST /api/events/check-conflicts.
 public class CheckConflictDto
 {
     public DateTime From { get; set; }
@@ -217,6 +243,7 @@ public class CheckConflictDto
     public int? ExcludeEventId { get; set; }
 }
 
+// Request body for PUT /api/events/{id}/change-type (Work ↔ Personal swap).
 public class ChangeEventTypeDto
 {
     public string NewType { get; set; } = null!;

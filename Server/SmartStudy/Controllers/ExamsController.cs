@@ -6,13 +6,16 @@ using SmartStudy.Models;
 
 namespace SmartStudy.Controllers;
 
+// API endpoints for exam CRUD with auto-prep scheduling.
 [ApiController]
 [Route("api/exams")]
 [Authorize]
 public class ExamsController : ControllerBase
 {
+    // Reads the authenticated user's email from JWT claims.
     private string GetEmail() => User.FindFirst(ClaimTypes.Email)!.Value;
 
+    // Maps an exam-with-course row to the wire-format ExamDto.
     private static ExamDto ToDto(ExamWithCourse e) => new()
     {
         ExamId = e.ExamId,
@@ -28,6 +31,7 @@ public class ExamsController : ControllerBase
         ExamPrepDays = e.ExamPrepDays
     };
 
+    // Returns all exams for the user's enrolled courses.
     [HttpGet]
     public IActionResult GetAll()
     {
@@ -36,6 +40,7 @@ public class ExamsController : ControllerBase
         return Ok(exams.Select(ToDto));
     }
 
+    // Returns one exam by ID if it belongs to a course the user is enrolled in.
     [HttpGet("{id}")]
     public IActionResult Get(int id)
     {
@@ -45,6 +50,7 @@ public class ExamsController : ControllerBase
         return Ok(ToDto(exam));
     }
 
+    // Creates an exam, optionally updates course prep settings, and re-runs scheduling.
     [HttpPost]
     public IActionResult Create([FromBody] CreateExamDto dto)
     {
@@ -66,6 +72,7 @@ public class ExamsController : ControllerBase
         return CreatedAtAction(nameof(Get), new { id = examId }, ToDto(created));
     }
 
+    // Updates an exam (and its course's prep config) and re-runs scheduling.
     [HttpPut("{id}")]
     public IActionResult Update(int id, [FromBody] UpdateExamDto dto)
     {
@@ -90,6 +97,7 @@ public class ExamsController : ControllerBase
         return Ok(updated == null ? ToDto(exam) : ToDto(updated));
     }
 
+    // Toggles whether the user is taking the exam, removing prep tasks if opted out.
     [HttpPut("{id}/toggle-taking")]
     public IActionResult ToggleTaking(int id)
     {
@@ -111,6 +119,7 @@ public class ExamsController : ControllerBase
         return Ok(ToDto(exam));
     }
 
+    // Deletes an exam and re-runs scheduling.
     [HttpDelete("{id}")]
     public IActionResult Delete(int id)
     {

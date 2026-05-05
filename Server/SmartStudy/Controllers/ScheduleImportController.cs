@@ -7,13 +7,16 @@ using SmartStudy.Models;
 
 namespace SmartStudy.Controllers;
 
+// API endpoints for importing course schedules from PDF, CSV, XLSX, or JSON files.
 [ApiController]
 [Route("api/schedule")]
 [Authorize]
 public class ScheduleImportController : ControllerBase
 {
+    // Reads the authenticated user's email from JWT claims.
     private string GetEmail() => User.FindFirst(ClaimTypes.Email)!.Value;
 
+    // Routes the uploaded schedule file to the appropriate parser by extension.
     [HttpPost("import")]
     public IActionResult ImportSchedule(IFormFile file)
     {
@@ -51,6 +54,7 @@ public class ScheduleImportController : ControllerBase
         }
     }
 
+    // Parses a CSV schedule file and persists each row as a course/class event.
     private ScheduleImportResultDto ImportFromCsv(Stream stream, string email)
     {
         var result = new ScheduleImportResultDto();
@@ -88,6 +92,7 @@ public class ScheduleImportController : ControllerBase
         return result;
     }
 
+    // Parses an Excel schedule file via EPPlus and persists each row.
     private ScheduleImportResultDto ImportFromExcel(Stream stream, string email)
     {
         var result = new ScheduleImportResultDto();
@@ -133,6 +138,7 @@ public class ScheduleImportController : ControllerBase
         return result;
     }
 
+    // Parses a JSON schedule file as a list of import entries and persists each.
     private ScheduleImportResultDto ImportFromJson(Stream stream, string email)
     {
         var result = new ScheduleImportResultDto();
@@ -159,6 +165,7 @@ public class ScheduleImportController : ControllerBase
         return result;
     }
 
+    // Upserts a course/instructor/enrollment and creates the matching weekly class event.
     private void SaveImportEntry(ImportEntry entry, string email, ScheduleImportResultDto result)
     {
         if (string.IsNullOrEmpty(entry.CourseName) && string.IsNullOrEmpty(entry.CourseCode)) return;
@@ -226,12 +233,14 @@ public class ScheduleImportController : ControllerBase
         else result.Courses.Add(new ImportedCourseDto { CourseId = courseId, CourseName = courseName, EventCount = 1 });
     }
 
+    // Looks up a column value by header name, returning empty string if missing.
     private static string GetCol(List<string> headers, List<string> values, string name)
     {
         var idx = headers.IndexOf(name);
         return idx >= 0 && idx < values.Count ? values[idx].Trim() : "";
     }
 
+    // Splits a CSV row into fields, handling quoted commas.
     private static List<string> ParseCsvLine(string line)
     {
         var result = new List<string>();
@@ -247,6 +256,7 @@ public class ScheduleImportController : ControllerBase
         return result;
     }
 
+    // Computes the current academic semester code (e.g. "2025A" or "2025B").
     private static string GetCurrentSemester()
     {
         var now = DateTime.Now;
@@ -255,6 +265,7 @@ public class ScheduleImportController : ControllerBase
         return $"{year}{suffix}";
     }
 
+    // Internal row shape produced by the CSV/Excel/JSON parsers.
     private class ImportEntry
     {
         public string? CourseName { get; set; }

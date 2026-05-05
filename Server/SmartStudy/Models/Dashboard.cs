@@ -2,30 +2,31 @@ using SmartStudy.DAL;
 
 namespace SmartStudy.Models;
 
-/// <summary>
-/// Aggregates dashboard queries that don't fit naturally onto a single domain
-/// entity. Folded in from DashboardBLL.
-/// </summary>
+// Aggregates dashboard queries that don't fit naturally onto a single domain entity.
 public static class Dashboard
 {
+    // Returns the IDs of every course the user is enrolled in.
     public static List<int> GetCourseIdsByEmail(string email)
     {
         DBservices db = new DBservices();
         return db.GetCourseIdsByEmail(email);
     }
 
+    // Returns exams for the user's courses on or after the given date.
     public static List<SchedulingExamRow> GetUpcomingExams(string email, DateTime fromDate)
     {
         DBservices db = new DBservices();
         return db.GetUpcomingExams(email, fromDate);
     }
 
+    // Returns the user's incomplete tasks alongside their scheduled task-event slots.
     public static (List<DashboardTaskRow> Tasks, List<DashboardTaskEventRow> TaskEvents) GetIncompleteTasksWithEvents(string email)
     {
         DBservices db = new DBservices();
         return db.GetIncompleteTasksWithEvents(email);
     }
 
+    // Returns completed tasks with estimated/actual hours used to learn per-course time bias.
     public static List<MLCompletedTaskRow> GetCompletedTasksForML(string email)
     {
         DBservices db = new DBservices();
@@ -35,6 +36,7 @@ public static class Dashboard
 
 // ───── Dashboard aggregate DTO (from DashboardDtos.cs) ─────────────
 
+// Wire-format payload returned by GET /api/dashboard.
 public class DashboardDto
 {
     public StressScoreDto Stress { get; set; } = null!;

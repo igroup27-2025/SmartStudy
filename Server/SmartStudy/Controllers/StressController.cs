@@ -5,13 +5,16 @@ using UserModel = SmartStudy.Models.User;
 
 namespace SmartStudy.Controllers;
 
+// API endpoints for the workload-based stress score.
 [ApiController]
 [Route("api/stress")]
 [Authorize]
 public class StressController : ControllerBase
 {
+    // Reads the authenticated user's email from JWT claims.
     private string GetEmail() => User.FindFirst(ClaimTypes.Email)!.Value;
 
+    // Returns the user's current stress score (0-100) and zone.
     [HttpGet("score")]
     public IActionResult GetScore()
     {
@@ -19,6 +22,7 @@ public class StressController : ControllerBase
         return Ok(score);
     }
 
+    // Returns the user's per-day stress score for the current week.
     [HttpGet("weekly")]
     public IActionResult GetWeekly()
     {

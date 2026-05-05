@@ -1,5 +1,6 @@
 namespace SmartStudy.Models;
 
+// Junction row linking a SharedTask to a participating user with their response status.
 public class SharedTaskMember
 {
     public int TaskId { get; set; }   // PK part 1, FK → SharedTask

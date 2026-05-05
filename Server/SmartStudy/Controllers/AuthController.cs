@@ -10,6 +10,7 @@ using NotifSettingsModel = SmartStudy.Models.NotificationSettings;
 
 namespace SmartStudy.Controllers;
 
+// API endpoints for user login, registration, password reset, and Google sign-in.
 [ApiController]
 [Route("api/auth")]
 public class AuthController : ControllerBase
@@ -19,6 +20,7 @@ public class AuthController : ControllerBase
     private readonly RuppinetSyncService _ruppinetSync;
     private readonly ILogger<AuthController> _logger;
 
+    // Injects configuration, email service, Ruppinet sync, and logger.
     public AuthController(IConfiguration config, EmailService emailService,
         RuppinetSyncService ruppinetSync, ILogger<AuthController> logger)
     {
@@ -28,6 +30,7 @@ public class AuthController : ControllerBase
         _logger = logger;
     }
 
+    // Authenticates by email/password, issues JWT, and triggers Ruppinet background sync.
     [HttpPost("login")]
     public IActionResult Login([FromBody] LoginDto dto)
     {
@@ -59,6 +62,7 @@ public class AuthController : ControllerBase
         });
     }
 
+    // Creates a new account with default notification settings and returns a JWT.
     [HttpPost("register")]
     public IActionResult Register([FromBody] RegisterDto dto)
     {
@@ -87,12 +91,14 @@ public class AuthController : ControllerBase
         });
     }
 
+    // Stateless logout endpoint — JWT is discarded client-side.
     [HttpPost("logout")]
     public IActionResult Logout()
     {
         return Ok(new { message = "Logged out successfully" });
     }
 
+    // Generates a one-hour reset token and emails it to the user (does not reveal account existence).
     [HttpPost("forgot-password")]
     public IActionResult ForgotPassword([FromBody] ForgotPasswordDto dto)
     {
@@ -115,6 +121,7 @@ public class AuthController : ControllerBase
         return Ok(new { message = "If the email exists, a reset link has been sent." });
     }
 
+    // Validates the reset token and updates the user's password hash.
     [HttpPost("reset-password")]
     public IActionResult ResetPassword([FromBody] ResetPasswordDto dto)
     {
@@ -130,6 +137,7 @@ public class AuthController : ControllerBase
         return Ok(new { message = "Password reset successfully" });
     }
 
+    // Validates a Google ID token, auto-creates the user if new, and returns a JWT.
     [HttpPost("google")]
     public IActionResult GoogleLogin([FromBody] GoogleLoginDto dto)
     {
@@ -183,6 +191,7 @@ public class AuthController : ControllerBase
         }
     }
 
+    // Returns public client config (Google OAuth client ID) for the frontend.
     [HttpGet("config")]
     public IActionResult GetConfig()
     {
@@ -192,6 +201,7 @@ public class AuthController : ControllerBase
         });
     }
 
+    // Builds a 7-day HS256-signed JWT containing the user's email and full name.
     private string GenerateToken(UserModel user)
     {
         var jwtKey = _config["Jwt:Key"] ?? "SmartStudySuperSecretKey2026ForJwtTokenGeneration!";
@@ -213,6 +223,7 @@ public class AuthController : ControllerBase
         return new JwtSecurityTokenHandler().WriteToken(token);
     }
 
+    // SHA-256 password hash with a static salt suffix.
     private static string HashPassword(string password)
     {
         using var sha = System.Security.Cryptography.SHA256.Create();

@@ -7,6 +7,7 @@ using UserModel = SmartStudy.Models.User;
 
 namespace SmartStudy.Controllers;
 
+// API endpoints for sharing tasks with peers: invite, respond, cancel.
 [ApiController]
 [Route("api/shared-tasks")]
 [Authorize]
@@ -14,13 +15,16 @@ public class SharedTaskController : ControllerBase
 {
     private readonly ILogger<SharedTaskController> _logger;
 
+    // Injects the logger.
     public SharedTaskController(ILogger<SharedTaskController> logger)
     {
         _logger = logger;
     }
 
+    // Reads the authenticated user's email from JWT claims.
     private string GetEmail() => User.FindFirst(ClaimTypes.Email)!.Value;
 
+    // Returns all shared tasks the user is a member of.
     [HttpGet]
     public IActionResult GetAll()
     {
@@ -30,6 +34,7 @@ public class SharedTaskController : ControllerBase
         return Ok(dtos);
     }
 
+    // Returns one shared task with all its members if the caller is a member.
     [HttpGet("{taskId}")]
     public IActionResult GetById(int taskId)
     {
@@ -46,6 +51,7 @@ public class SharedTaskController : ControllerBase
         return Ok(dtos.First());
     }
 
+    // Invites a friend to share an owned task and notifies them.
     [HttpPost]
     public IActionResult Create([FromBody] CreateSharedTaskDto dto)
     {
@@ -74,6 +80,7 @@ public class SharedTaskController : ControllerBase
         return CreatedAtAction(nameof(GetById), new { taskId = dto.TaskId }, new { taskId = dto.TaskId, status = "Pending" });
     }
 
+    // Accepts or declines a shared-task invite, then re-schedules both partners on accept.
     [HttpPost("{taskId}/respond")]
     public IActionResult Respond(int taskId, [FromBody] RespondSharedTaskDto dto)
     {
@@ -139,6 +146,7 @@ public class SharedTaskController : ControllerBase
         return Ok(new { taskId, status = sharedStatus });
     }
 
+    // Cancels an owned shared task, cleans up partner copies, and notifies them.
     [HttpPost("{taskId}/cancel")]
     public IActionResult Cancel(int taskId)
     {
@@ -174,6 +182,7 @@ public class SharedTaskController : ControllerBase
         return Ok(new { taskId, status = "Cancelled" });
     }
 
+    // Folds the flat join rows into one SharedTaskDto per task with member sub-list.
     private static List<SharedTaskDto> GroupRowsIntoDtos(List<SharedTaskFullRow> rows)
     {
         return rows

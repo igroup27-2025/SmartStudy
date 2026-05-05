@@ -4,22 +4,28 @@ using System.Text.Json;
 
 namespace SmartStudy.Services;
 
+// HTTP client wrapper for the Composio.dev hosted-OAuth + tool-execution API.
 public class ComposioService
 {
     private const string BaseUrl = "https://backend.composio.dev/api/v3";
     private readonly IConfiguration _config;
     private readonly IHttpClientFactory _httpClientFactory;
 
+    // Injects configuration and the HTTP client factory.
     public ComposioService(IConfiguration config, IHttpClientFactory httpClientFactory)
     {
         _config = config;
         _httpClientFactory = httpClientFactory;
     }
 
+    // True when the Composio integration is turned on in appsettings.
     public bool IsEnabled => _config.GetValue<bool>("Composio:Enabled");
+    // The Composio API key from configuration.
     private string ApiKey => _config["Composio:ApiKey"] ?? "";
+    // The Composio auth-config ID identifying this app's OAuth profile.
     private string AuthConfigId => _config["Composio:AuthConfigId"] ?? "";
 
+    // Creates an HttpClient pre-loaded with the Composio API key header.
     private HttpClient CreateClient()
     {
         var client = _httpClientFactory.CreateClient("Composio");
@@ -28,12 +34,11 @@ public class ComposioService
         return client;
     }
 
+    // Builds an absolute Composio API URL from a relative path.
     private static string Url(string path) => $"{BaseUrl}{path}";
 
-    /// <summary>
-    /// Initiates a Google Calendar OAuth connection via Composio hosted auth.
+    // Initiates a Google Calendar OAuth connection via Composio hosted auth.
     /// Returns the redirect URL the user should visit to authenticate.
-    /// </summary>
     public async Task<ComposioConnectionResult> InitiateConnectionAsync(string userId, string callbackUrl)
     {
         using var client = CreateClient();
@@ -92,9 +97,7 @@ public class ComposioService
         };
     }
 
-    /// <summary>
-    /// Lists connected accounts for a user, optionally filtered by status.
-    /// </summary>
+    // Lists connected accounts for a user, optionally filtered by status.
     public async Task<List<ComposioAccount>> GetConnectedAccountsAsync(string userId, string? status = null)
     {
         using var client = CreateClient();
@@ -131,9 +134,7 @@ public class ComposioService
         return accounts;
     }
 
-    /// <summary>
-    /// Gets a specific connected account by ID.
-    /// </summary>
+    // Gets a specific connected account by ID.
     public async Task<ComposioAccount?> GetConnectedAccountAsync(string connectedAccountId)
     {
         using var client = CreateClient();
@@ -146,9 +147,7 @@ public class ComposioService
         return ParseAccount(doc.RootElement);
     }
 
-    /// <summary>
-    /// Executes a Composio tool (e.g. GOOGLECALENDAR_LIST_EVENTS).
-    /// </summary>
+    // Executes a Composio tool (e.g. GOOGLECALENDAR_LIST_EVENTS).
     public async Task<ComposioToolResult> ExecuteToolAsync(string toolSlug, string userId,
         string? connectedAccountId, Dictionary<string, object> arguments)
     {
@@ -175,9 +174,7 @@ public class ComposioService
         };
     }
 
-    /// <summary>
-    /// Deletes (disconnects) a connected account.
-    /// </summary>
+    // Deletes (disconnects) a connected account.
     public async Task<bool> DeleteConnectedAccountAsync(string connectedAccountId)
     {
         using var client = CreateClient();
@@ -185,6 +182,7 @@ public class ComposioService
         return response.IsSuccessStatusCode;
     }
 
+    // Parses a connected_account JSON element into a ComposioAccount.
     private static ComposioAccount ParseAccount(JsonElement el)
     {
         var account = new ComposioAccount
@@ -205,6 +203,7 @@ public class ComposioService
     }
 }
 
+// Result of starting a Composio OAuth connection — carries the redirect URL.
 public class ComposioConnectionResult
 {
     public bool Success { get; set; }
@@ -213,6 +212,7 @@ public class ComposioConnectionResult
     public string Message { get; set; } = "";
 }
 
+// Represents a single Composio connected account (e.g. one user's Google Calendar link).
 public class ComposioAccount
 {
     public string Id { get; set; } = "";
@@ -221,6 +221,7 @@ public class ComposioAccount
     public string? CreatedAt { get; set; }
 }
 
+// Raw response envelope from a Composio tool execution call.
 public class ComposioToolResult
 {
     public bool Success { get; set; }

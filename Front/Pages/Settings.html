@@ -259,6 +259,7 @@
         });
 
         // ---- Profile & Notifications ------------------------------------
+        // Handles load profile.
         function LoadProfile() {
             ajaxCall("GET", ProfileApi, null, function (p) {
                 $("#profileEmail").text(p.email || "");
@@ -274,6 +275,7 @@
             }, function () { alert("Failed to load profile"); });
         }
 
+        // Handles save profile.
         function SaveProfile(e) {
             e.preventDefault();
             var data = { firstName: $("#profileFirstName").val(), lastName: $("#profileLastName").val() };
@@ -284,6 +286,7 @@
             }, function () { alert("Failed to update profile"); });
         }
 
+        // Handles save notifications.
         function SaveNotifications(e) {
             e.preventDefault();
             var data = {
@@ -300,6 +303,7 @@
         }
 
         // ---- Scheduling Preferences -------------------------------------
+        // Handles load scheduling prefs.
         function LoadSchedulingPrefs() {
             ajaxCall("GET", SchedulingPrefsApi, null, function (p) {
                 $("#settMaxDaily").val(p.maxDailyStudyHours || 6);
@@ -323,6 +327,7 @@
             }, function () { /* silent */ });
         }
 
+        // Handles save scheduling.
         function SaveScheduling(e) {
             e.preventDefault();
             var lunchEnabled = $("#settLunchEnabled").is(":checked");
@@ -348,6 +353,7 @@
         }
 
         // ---- Ruppinet Integration ---------------------------------------
+        // Handles load ruppinet status.
         function LoadRuppinetStatus() {
             ajaxCall("GET", RuppinetStatusApi, null, function (s) {
                 if (s && s.isConnected) {
@@ -368,6 +374,7 @@
             });
         }
 
+        // Handles connect ruppinet.
         function ConnectRuppinet() {
             var idVal = $.trim($("#ruppinetIdInput").val());
             var passVal = $("#ruppinetPassInput").val();
@@ -387,6 +394,7 @@
                 });
         }
 
+        // Handles sync ruppinet.
         function SyncRuppinet() {
             var btn = $("#ruppinetSyncBtn");
             btn.prop("disabled", true).text("Syncing...");
@@ -406,6 +414,7 @@
                 function () { btn.prop("disabled", false).text("Sync Now"); alert("Sync failed"); });
         }
 
+        // Handles disconnect ruppinet.
         function DisconnectRuppinet() {
             if (!confirm("Disconnect Ruppinet? Your imported data will remain.")) return;
             ajaxCall("DELETE", RuppinetStatusApi, null,
@@ -414,6 +423,7 @@
         }
 
         // ---- Moodle Integration -----------------------------------------
+        // Handles load moodle status.
         function LoadMoodleStatus() {
             ajaxCall("GET", MoodleStatusApi, null, function (s) {
                 if (s && s.isAvailable) {
@@ -430,6 +440,7 @@
             });
         }
 
+        // Handles sync moodle.
         function SyncMoodle() {
             var btn = $("#moodleSyncBtn");
             btn.prop("disabled", true).text("Syncing...");
@@ -446,6 +457,7 @@
             }, function () { btn.prop("disabled", false).text("Sync Assignments"); alert("Moodle sync failed"); });
         }
 
+        // Handles disconnect moodle.
         function DisconnectMoodle() {
             if (!confirm("Disconnect Moodle? Your synced tasks will remain.")) return;
             ajaxCall("DELETE", MoodleStatusApi, null,
@@ -454,6 +466,7 @@
         }
 
         // ---- Google Calendar Integration --------------------------------
+        // Handles load gcal status.
         function LoadGcalStatus() {
             ajaxCall("GET", GcalStatusApi, null, function (s) {
                 if (s && s.isConnected) {
@@ -477,6 +490,7 @@
             });
         }
 
+        // Handles connect gcal.
         function ConnectGcal() {
             var callbackUrl = window.location.origin + "/api/calendar-sync/callback";
             ajaxCall("POST", GcalConnectApi, JSON.stringify({ callbackUrl: callbackUrl }),
@@ -487,6 +501,7 @@
                 function (xhr) { alert((xhr.responseJSON && xhr.responseJSON.message) || "Failed to connect"); });
         }
 
+        // Handles sync gcal.
         function SyncGcal() {
             var btn = $("#gcalSyncBtn");
             btn.prop("disabled", true).text("Syncing...");
@@ -495,6 +510,7 @@
                 function () { btn.prop("disabled", false).text("Sync Now"); alert("Sync failed"); });
         }
 
+        // Handles disconnect gcal.
         function DisconnectGcal() {
             if (!confirm("Disconnect Google Calendar? Synced events will be removed.")) return;
             ajaxCall("DELETE", GcalDisconnectApi, null,

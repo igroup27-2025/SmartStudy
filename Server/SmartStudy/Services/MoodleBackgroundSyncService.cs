@@ -2,6 +2,7 @@ using SmartStudy.DAL;
 
 namespace SmartStudy.Services;
 
+// Hosted service that periodically runs Moodle sync for all users with stale data.
 public class MoodleBackgroundSyncService : BackgroundService
 {
     private readonly IServiceScopeFactory _scopeFactory;
@@ -9,6 +10,7 @@ public class MoodleBackgroundSyncService : BackgroundService
     private readonly ILogger<MoodleBackgroundSyncService> _logger;
     private readonly TimeSpan _interval;
 
+    // Injects DI scope factory, logger, and reads sync interval from configuration.
     public MoodleBackgroundSyncService(IServiceScopeFactory scopeFactory,
         ILogger<MoodleBackgroundSyncService> logger, IConfiguration config)
     {
@@ -19,6 +21,7 @@ public class MoodleBackgroundSyncService : BackgroundService
         _interval = TimeSpan.FromHours(hours);
     }
 
+    // Background loop — waits 3 minutes, then runs SyncAllUsers on each interval tick.
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         try
@@ -52,6 +55,7 @@ public class MoodleBackgroundSyncService : BackgroundService
         }
     }
 
+    // Picks users whose last Moodle sync is older than the cutoff and syncs each in its own scope.
     private async Task SyncAllUsersAsync()
     {
         var dal = new DBservices();

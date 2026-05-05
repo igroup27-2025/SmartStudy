@@ -6,13 +6,16 @@ using UserModel = SmartStudy.Models.User;
 
 namespace SmartStudy.Controllers;
 
+// API endpoints for course CRUD, study-partner pairing, and per-course settings.
 [ApiController]
 [Route("api/courses")]
 [Authorize]
 public class CoursesController : ControllerBase
 {
+    // Reads the authenticated user's email from JWT claims.
     private string GetEmail() => User.FindFirst(ClaimTypes.Email)!.Value;
 
+    // Returns all courses the user is enrolled in, with task/exam counts and partner names.
     [HttpGet]
     public IActionResult GetAll()
     {
@@ -50,6 +53,7 @@ public class CoursesController : ControllerBase
         return Ok(result);
     }
 
+    // Returns one course by ID if the user is enrolled in it.
     [HttpGet("{id}")]
     public IActionResult Get(int id)
     {
@@ -77,6 +81,7 @@ public class CoursesController : ControllerBase
         });
     }
 
+    // Creates a new course and enrolls the current user in it.
     [HttpPost]
     public IActionResult Create([FromBody] CreateCourseDto dto)
     {
@@ -100,6 +105,7 @@ public class CoursesController : ControllerBase
         });
     }
 
+    // Updates course fields and re-runs auto-scheduling if estimation settings changed.
     [HttpPut("{id}")]
     public IActionResult Update(int id, [FromBody] UpdateCourseDto dto)
     {
@@ -134,6 +140,7 @@ public class CoursesController : ControllerBase
         });
     }
 
+    // Sets or clears a study partner for the course (must be a friend) and notifies them.
     [HttpPut("{id}/partner")]
     public IActionResult SetStudyPartner(int id, [FromBody] SetStudyPartnerDto dto)
     {
@@ -164,6 +171,7 @@ public class CoursesController : ControllerBase
         return Ok(new { courseId = id, studyPartnerEmail = partnerEmail });
     }
 
+    // Removes the user's enrollment in the course (unenroll, not global delete).
     [HttpDelete("{id}")]
     public IActionResult Delete(int id)
     {

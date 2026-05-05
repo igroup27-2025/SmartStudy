@@ -153,6 +153,7 @@
         });
 
         // ---- Google Sign-In ----------------------------------------------
+        // Loads Google Sign-In client config and renders the GSI button.
         function AuthConfigSC(cfg) {
             if (!cfg || !cfg.googleClientId) return;
             var tries = 0;
@@ -171,17 +172,20 @@
                 if (++tries > 50) clearInterval(t);
             }, 100);
         }
+        // Receives a Google ID token and calls the Google login API.
         function GoogleCredentialCB(resp) {
             if (!resp || !resp.credential) return;
             ajaxCall("POST", GoogleLoginApi, JSON.stringify({ idToken: resp.credential }), LoginSC, LoginEC);
         }
 
+        // Hides all auth panels and shows the one with the given ID.
         function showSection(id) {
             $("#loginSection, #registerSection, #forgotSection, #resetSection").hide();
             $("#" + id).show();
         }
 
         // ---- Login --------------------------------------------------------
+        // Validates the login form and POSTs credentials.
         function SubmitLogin(e) {
             e.preventDefault();
             var data = {
@@ -192,16 +196,19 @@
             btn.prop("disabled", true).text("Signing in...");
             ajaxCall("POST", LoginApi, JSON.stringify(data), LoginSC, LoginEC);
         }
+        // Saves the JWT and routes to Dashboard or Onboarding based on completion.
         function LoginSC(res) {
             saveAuth(res);
             window.location.href = BASE_PATH + (res.onboardingCompleted ? "/Pages/Dashboard.html" : "/Pages/Onboarding1.html");
         }
+        // Shows the error message returned from the login API.
         function LoginEC(xhr) {
             alert((xhr.responseJSON && xhr.responseJSON.message) || "Login failed");
             $("#loginForm button[type=submit]").prop("disabled", false).text("Sign In");
         }
 
         // ---- Register -----------------------------------------------------
+        // Validates the register form and POSTs new-account fields.
         function SubmitRegister(e) {
             e.preventDefault();
             var data = {
@@ -214,16 +221,19 @@
             btn.prop("disabled", true).text("Creating account...");
             ajaxCall("POST", RegisterApi, JSON.stringify(data), RegisterSC, RegisterEC);
         }
+        // Saves the JWT and routes to Onboarding step 1.
         function RegisterSC(res) {
             saveAuth(res);
             window.location.href = BASE_PATH + "/Pages/Onboarding1.html";
         }
+        // Shows the error message returned from the register API.
         function RegisterEC(xhr) {
             alert((xhr.responseJSON && xhr.responseJSON.message) || "Registration failed");
             $("#registerForm button[type=submit]").prop("disabled", false).text("Create Account");
         }
 
         // ---- Forgot password ---------------------------------------------
+        // POSTs the email to request a password-reset token.
         function SubmitForgot(e) {
             e.preventDefault();
             var data = { email: $("#forgotEmail").val() };
@@ -231,6 +241,7 @@
             btn.prop("disabled", true).text("Sending...");
             ajaxCall("POST", ForgotApi, JSON.stringify(data), ForgotSC, ForgotEC);
         }
+        // Reveals the reset code panel and pre-fills the reset form.
         function ForgotSC(res) {
             $("#forgotForm button[type=submit]").prop("disabled", false).text("Send Reset Token");
             if (res && res.resetToken) {
@@ -241,12 +252,14 @@
                 setTimeout(function () { showSection("resetSection"); }, 2000);
             }
         }
+        // Shows the error message returned from the forgot-password API.
         function ForgotEC(xhr) {
             alert((xhr.responseJSON && xhr.responseJSON.message) || "Failed to send reset token");
             $("#forgotForm button[type=submit]").prop("disabled", false).text("Send Reset Token");
         }
 
         // ---- Reset password ----------------------------------------------
+        // POSTs the new password with its reset token.
         function SubmitReset(e) {
             e.preventDefault();
             var data = {
@@ -258,11 +271,13 @@
             btn.prop("disabled", true).text("Resetting...");
             ajaxCall("POST", ResetApi, JSON.stringify(data), ResetSC, ResetEC);
         }
+        // Notifies the user and returns to the login section.
         function ResetSC() {
             alert("Password reset successfully! Please sign in.");
             $("#resetForm button[type=submit]").prop("disabled", false).text("Reset Password");
             showSection("loginSection");
         }
+        // Shows the error message returned from the reset-password API.
         function ResetEC(xhr) {
             alert((xhr.responseJSON && xhr.responseJSON.message) || "Failed to reset password");
             $("#resetForm button[type=submit]").prop("disabled", false).text("Reset Password");

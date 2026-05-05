@@ -2,6 +2,7 @@ using SmartStudy.DAL;
 
 namespace SmartStudy.Models;
 
+// Core user entity (PK is Email) plus auth, profile, integrations, and stress-score helpers.
 public class User
 {
     public string Email { get; set; } = null!;
@@ -46,60 +47,70 @@ public class User
 
     // ───── Auth / profile (BLL methods folded in as static) ──────────────
 
+    // Loads the full user row by email, or null if not found.
     public static User? GetByEmail(string email)
     {
         DBservices db = new DBservices();
         return db.GetUserByEmail(email);
     }
 
+    // Returns true when an account exists for the email (used during registration).
     public static bool Exists(string email)
     {
         DBservices db = new DBservices();
         return db.UserExists(email);
     }
 
+    // Inserts a new user row (with hashed password and optional auth provider).
     public static void Create(string email, string firstName, string lastName, string password, string? authProvider = null)
     {
         DBservices db = new DBservices();
         db.CreateUser(email, firstName, lastName, password, authProvider);
     }
 
+    // Stores the password-reset token and its expiry on the user.
     public static void UpdateResetToken(string email, string token, DateTime expiry)
     {
         DBservices db = new DBservices();
         db.UpdateResetToken(email, token, expiry);
     }
 
+    // Replaces the user's password hash and clears the reset token.
     public static void ResetPassword(string email, string newPassword)
     {
         DBservices db = new DBservices();
         db.ResetPassword(email, newPassword);
     }
 
+    // Flips OnboardingCompleted to true for the user.
     public static void SetOnboardingComplete(string email)
     {
         DBservices db = new DBservices();
         db.SetOnboardingComplete(email);
     }
 
+    // Updates first/last name (each parameter optional).
     public static void UpdateProfile(string email, string? firstName, string? lastName)
     {
         DBservices db = new DBservices();
         db.UpdateUserProfile(email, firstName, lastName);
     }
 
+    // Stores or updates the user's encrypted Ruppinet credentials and last-sync time.
     public static void UpdateRuppinetFields(string email, string? ruppinetId, string? ruppinetPassword, DateTime? lastSync = null)
     {
         DBservices db = new DBservices();
         db.UpdateRuppinetFields(email, ruppinetId, ruppinetPassword, lastSync);
     }
 
+    // Clears the user's Ruppinet credentials.
     public static void ClearRuppinet(string email)
     {
         DBservices db = new DBservices();
         db.ClearRuppinet(email);
     }
 
+    // Clears the user's Moodle linkage data.
     public static void ClearMoodle(string email)
     {
         DBservices db = new DBservices();
@@ -108,42 +119,49 @@ public class User
 
     // ───── Calendar sync (from CalendarSyncBLL) ───────────────────────────
 
+    // Stores the Composio connected-account ID linking the user to Google Calendar.
     public static void UpdateComposioId(string email, string? composioId)
     {
         DBservices db = new DBservices();
         db.UpdateComposioId(email, composioId);
     }
 
+    // Reverse-lookup — returns every user linked to the given Composio account.
     public static List<string> GetUsersByComposioId(string composioId)
     {
         DBservices db = new DBservices();
         return db.GetUsersByComposioId(composioId);
     }
 
+    // Resets LastCalendarSync to NULL so the next sync re-imports everything.
     public static void ClearLastCalendarSync(string email)
     {
         DBservices db = new DBservices();
         db.ClearLastCalendarSync(email);
     }
 
+    // Returns the number of personal events that came from Google Calendar.
     public static int CountGcalEvents(string email)
     {
         DBservices db = new DBservices();
         return db.CountGcalEvents(email);
     }
 
+    // Returns the IDs of personal events that originated from Google Calendar.
     public static List<int> GetGcalPersonalEventIds(string email)
     {
         DBservices db = new DBservices();
         return db.GetGcalPersonalEventIds(email);
     }
 
+    // Deletes any event row by ID (used to remove gcal-imported events on disconnect).
     public static void DeleteEventById(int eventId)
     {
         DBservices db = new DBservices();
         db.DeleteEventById(eventId);
     }
 
+    // Clears all Google Calendar tokens and the Composio link from the user.
     public static void DisconnectGoogleCalendar(string email)
     {
         DBservices db = new DBservices();
@@ -152,6 +170,7 @@ public class User
 
     // ───── Stress scoring (from StressService) ────────────────────────────
 
+    // Computes the user's current stress score (0-100) from required vs available study hours.
     public static StressScoreDto GetStressScore(string email)
     {
         var db = new DBservices();
@@ -249,6 +268,7 @@ public class User
         };
     }
 
+    // Computes a per-day stress score for each of the next 7 days for the analytics chart.
     public static List<WeeklyStressDto> GetWeeklyStress(string email)
     {
         var db = new DBservices();
@@ -308,6 +328,7 @@ public class User
         return result;
     }
 
+    // Maps a numeric stress score to its label ("Low", "Moderate", "High").
     private static string GetStressLevel(double score) => score switch
     {
         <= 40 => "Low",
@@ -315,6 +336,7 @@ public class User
         _ => "High"
     };
 
+    // Maps a numeric stress score to a hex color for the UI badge (green/orange/red).
     private static string GetStressColor(double score) => score switch
     {
         <= 40 => "#27AE60",
@@ -325,12 +347,14 @@ public class User
 
 // ───── Auth DTOs (from AuthDtos.cs) ─────────────────────────────────
 
+// Request body for POST /api/auth/login.
 public class LoginDto
 {
     public string Email { get; set; } = null!;
     public string Password { get; set; } = null!;
 }
 
+// Request body for POST /api/auth/register.
 public class RegisterDto
 {
     public string Email { get; set; } = null!;
@@ -339,6 +363,7 @@ public class RegisterDto
     public string Password { get; set; } = null!;
 }
 
+// Response payload for login/register/google endpoints — JWT plus user profile.
 public class AuthResponseDto
 {
     public string Token { get; set; } = null!;
@@ -350,16 +375,19 @@ public class AuthResponseDto
     public bool RuppinetSynced { get; set; }
 }
 
+// Public auth config returned by GET /api/auth/config (Google OAuth client ID).
 public class AuthConfigDto
 {
     public string? GoogleClientId { get; set; }
 }
 
+// Request body for POST /api/auth/forgot-password.
 public class ForgotPasswordDto
 {
     public string Email { get; set; } = null!;
 }
 
+// Request body for POST /api/auth/reset-password.
 public class ResetPasswordDto
 {
     public string Email { get; set; } = null!;
@@ -367,6 +395,7 @@ public class ResetPasswordDto
     public string NewPassword { get; set; } = null!;
 }
 
+// Request body for POST /api/auth/google — carries the Google ID token.
 public class GoogleLoginDto
 {
     public string IdToken { get; set; } = null!;
@@ -374,6 +403,7 @@ public class GoogleLoginDto
 
 // ───── User profile DTOs (from DashboardDtos.cs) ────────────────────
 
+// Wire-format payload for GET /api/settings/profile.
 public class UserProfileDto
 {
     public string Email { get; set; } = null!;
@@ -382,6 +412,7 @@ public class UserProfileDto
     public NotificationSettingsDto? NotificationSettings { get; set; }
 }
 
+// Request body for PUT /api/settings/profile.
 public class UpdateProfileDto
 {
     public string? FirstName { get; set; }
@@ -390,6 +421,7 @@ public class UpdateProfileDto
 
 // ───── Stress score DTOs (from DashboardDtos.cs / SchedulingDtos.cs) ─
 
+// Wire-format payload returned by GET /api/stress/score.
 public class StressScoreDto
 {
     public double Score { get; set; }
@@ -402,6 +434,7 @@ public class StressScoreDto
     public double TotalScheduledHours { get; set; }
 }
 
+// Single-day data point for the weekly stress chart.
 public class WeeklyStressDto
 {
     public string DayName { get; set; } = null!;
@@ -415,6 +448,7 @@ public class WeeklyStressDto
 
 // ───── Moodle DTOs (from MoodleDtos.cs) ─────────────────────────────
 
+// Result payload returned by Moodle sync endpoints (counts and warnings).
 public class MoodleSyncResultDto
 {
     public bool Success { get; set; }
@@ -428,6 +462,7 @@ public class MoodleSyncResultDto
     public List<string> Warnings { get; set; } = new();
 }
 
+// Wire-format response for GET /api/settings/moodle.
 public class MoodleStatusDto
 {
     public bool IsAvailable { get; set; }
@@ -436,12 +471,14 @@ public class MoodleStatusDto
 
 // ───── Ruppinet DTOs (from RuppinetDtos.cs) ─────────────────────────
 
+// Request body for POST /api/settings/ruppinet/connect — Ruppinet ID + password.
 public class RuppinetConnectDto
 {
     public string RuppinetId { get; set; } = null!;
     public string RuppinetPassword { get; set; } = null!;
 }
 
+// Result payload returned by Ruppinet sync endpoints (counts and warnings).
 public class RuppinetSyncResultDto
 {
     public bool Success { get; set; }
@@ -456,6 +493,7 @@ public class RuppinetSyncResultDto
     public List<string> Warnings { get; set; } = new();
 }
 
+// Wire-format response for GET /api/settings/ruppinet.
 public class RuppinetStatusDto
 {
     public bool IsConnected { get; set; }

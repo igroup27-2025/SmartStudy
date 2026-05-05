@@ -5,13 +5,16 @@ using SmartStudy.Models;
 
 namespace SmartStudy.Controllers;
 
+// API endpoints for peer collaboration: shared safe-zones and course-sharing approval.
 [ApiController]
 [Route("api/collaboration")]
 [Authorize]
 public class CollaborationController : ControllerBase
 {
+    // Reads the authenticated user's email from JWT claims.
     private string GetEmail() => User.FindFirst(ClaimTypes.Email)!.Value;
 
+    // Returns intersected low-stress availability slots between the two friends.
     [HttpGet("safe-zones")]
     public IActionResult GetSafeZones([FromQuery] int connectionId)
     {
@@ -29,6 +32,7 @@ public class CollaborationController : ControllerBase
         return Ok(zones);
     }
 
+    // Marks a course as shareable, auto-accepts pending shared tasks, and re-schedules.
     [HttpPost("approve-course-sharing/{courseId}")]
     public IActionResult ApproveCourseSharing(int courseId)
     {

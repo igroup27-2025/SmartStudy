@@ -69,12 +69,14 @@
             });
         });
 
+        // Handles go to dashboard.
         function GoToDashboard() {
             var user = getUser();
             if (user) { user.onboardingCompleted = true; localStorage.setItem("smartstudy_user", JSON.stringify(user)); }
             window.location.href = BASE_PATH + "/Pages/Dashboard.html";
         }
 
+        // Handles build default payload.
         function BuildDefaultPayload() {
             return {
                 schedulingPreferences: {

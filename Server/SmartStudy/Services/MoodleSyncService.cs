@@ -6,6 +6,7 @@ using SmartStudy.Models;
 
 namespace SmartStudy.Services;
 
+// Top-level orchestrator for Moodle sync — pulls assignments and quizzes into SmartStudy as tasks.
 public class MoodleSyncService
 {
     private readonly DBservices _dal = new DBservices();
@@ -16,6 +17,7 @@ public class MoodleSyncService
     private readonly decimal _defaultAssignmentHours;
     private readonly decimal _defaultQuizHours;
 
+    // Injects the API client, configuration, and logger; reads default task hours.
     public MoodleSyncService(MoodleApiClient api,
         IConfiguration config, ILogger<MoodleSyncService> logger)
     {
@@ -27,6 +29,7 @@ public class MoodleSyncService
         _defaultQuizHours = decimal.TryParse(config["Moodle:DefaultQuizHours"], out var qh) ? qh : 2m;
     }
 
+    // Fetches the raw Moodle payloads (courses, assignments, quizzes) for diagnostics.
     public async Task<object> DebugFetchAsync(string email)
     {
         var user = _dal.GetUserByEmail(email);
@@ -53,6 +56,7 @@ public class MoodleSyncService
         };
     }
 
+    // Logs into Moodle, fetches courses/assignments/quizzes, persists tasks, and re-runs scheduling.
     public async Task<MoodleSyncResultDto> SyncAllAsync(string email)
     {
         var result = new MoodleSyncResultDto();
@@ -177,6 +181,7 @@ public class MoodleSyncService
         return result;
     }
 
+    // Maps Moodle courses to SmartStudy courses and upserts assignments/quizzes as tasks.
     private void ProcessMoodleItems(string email, List<MoodleCourse> moodleCourses,
         List<MoodleAssignment> assignments, List<MoodleQuiz> quizzes, MoodleSyncResultDto result)
     {
@@ -300,6 +305,7 @@ public class MoodleSyncService
         }
     }
 
+    // Matches a Moodle course to a SmartStudy course by code first, then fuzzy name.
     private int? MatchCourse(MoodleCourse moodleCourse, Dictionary<string, int> courseMap)
     {
         // Tier 1: Extract course code from shortname (e.g., "129485-1-2026a")
@@ -325,6 +331,7 @@ public class MoodleSyncService
         return null;
     }
 
+    // Creates a SmartStudy course from an unmatched Moodle course and enrolls the user.
     private int? CreateCourseFromMoodle(string email, MoodleCourse mc)
     {
         var name = mc.FullName.Trim();
@@ -346,6 +353,7 @@ public class MoodleSyncService
 
     // Reuse same patterns from RuppinetSyncService
 
+    // Loads the user's enrolled courses keyed by normalized course name.
     private Dictionary<string, int> BuildCourseMap(string email)
     {
         var userCourses = _dal.GetUserCoursesWithName(email);
@@ -358,6 +366,7 @@ public class MoodleSyncService
         return map;
     }
 
+    // Lowercases and normalizes punctuation so course names compare reliably.
     private static string NormalizeName(string name)
     {
         return name.ToLower().Trim()
@@ -367,6 +376,7 @@ public class MoodleSyncService
             .Replace('\u201D', '"');
     }
 
+    // Fuzzy-matches a Moodle title against the user's course map (exact, substring, then prefix).
     private static int? FindCourseId(string title, Dictionary<string, int> courseMap)
     {
         var normalized = NormalizeName(title);
@@ -417,6 +427,7 @@ public class MoodleSyncService
         return null;
     }
 
+    // Computes a deterministic 8-digit course ID from a name (with collision walk).
     private int GenerateStableId(string input, int offset)
     {
         using var sha = System.Security.Cryptography.SHA256.Create();
@@ -433,6 +444,7 @@ public class MoodleSyncService
         return value;
     }
 
+    // AES-256 decrypts an IV-prefixed base64 ciphertext (matches RuppinetSyncService format).
     private string DecryptPassword(string cipherText)
     {
         var key = GetEncryptionKey();
@@ -448,6 +460,7 @@ public class MoodleSyncService
         return Encoding.UTF8.GetString(decryptor.TransformFinalBlock(cipher, 0, cipher.Length));
     }
 
+    // Derives the 32-byte AES key from the configured encryption secret via SHA-256.
     private byte[] GetEncryptionKey()
     {
         var configKey = _config["Ruppinet:EncryptionKey"] ?? "SmartStudyRuppinetEncKey2026!aa";

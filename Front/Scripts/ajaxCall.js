@@ -9,6 +9,7 @@
 // appShell.js (via $.ajaxSetup and $(document).ajaxError), so this wrapper
 // stays bare.
 
+// Universal jQuery $.ajax wrapper used by every page for JSON API calls.
 function ajaxCall(method, api, data, successCB, errorCB) {
     $.ajax({
         type: method,

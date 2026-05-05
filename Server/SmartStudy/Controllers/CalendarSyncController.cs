@@ -7,6 +7,7 @@ using UserModel = SmartStudy.Models.User;
 
 namespace SmartStudy.Controllers;
 
+// API endpoints for connecting and syncing Google Calendar via Composio or direct OAuth.
 [ApiController]
 [Route("api/calendar-sync")]
 [Authorize]
@@ -15,6 +16,7 @@ public class CalendarSyncController : ControllerBase
     private readonly GoogleCalendarService _googleCalendar;
     private readonly ComposioService _composio;
 
+    // Injects the Google Calendar and Composio integration services.
     public CalendarSyncController(
         GoogleCalendarService googleCalendar,
         ComposioService composio)
@@ -23,8 +25,10 @@ public class CalendarSyncController : ControllerBase
         _composio = composio;
     }
 
+    // Reads the authenticated user's email from JWT claims.
     private string GetEmail() => User.FindFirst(ClaimTypes.Email)!.Value;
 
+    // Initiates a Composio OAuth flow and returns the redirect URL for the user.
     [HttpPost("connect")]
     public IActionResult Connect([FromBody] ConnectDto? dto)
     {
@@ -49,6 +53,7 @@ public class CalendarSyncController : ControllerBase
         return Ok(new { redirectUrl = result.RedirectUrl, connectionId = result.ConnectedAccountId });
     }
 
+    // OAuth callback — clears LastCalendarSync on success and redirects back to Settings.
     [HttpGet("callback")]
     [AllowAnonymous]
     public IActionResult Callback(
@@ -77,6 +82,7 @@ public class CalendarSyncController : ControllerBase
         return Redirect(redirectPath);
     }
 
+    // Syncs Google Calendar events into the user's calendar and re-runs auto-scheduling.
     [HttpPost("google")]
     public IActionResult SyncGoogle([FromBody] GoogleSyncDto? dto)
     {
@@ -122,6 +128,7 @@ public class CalendarSyncController : ControllerBase
         return legacyResult.Success ? Ok(legacyResult) : BadRequest(legacyResult);
     }
 
+    // Returns Google Calendar connection state, last-sync time, and synced event count.
     [HttpGet("status")]
     public IActionResult GetStatus()
     {
@@ -159,6 +166,7 @@ public class CalendarSyncController : ControllerBase
         });
     }
 
+    // Disconnects Google Calendar, removes the Composio link, and deletes synced events.
     [HttpDelete("disconnect")]
     public IActionResult Disconnect()
     {
@@ -183,11 +191,13 @@ public class CalendarSyncController : ControllerBase
     }
 }
 
+// Body for legacy direct Google Calendar sync — carries the OAuth access token.
 public class GoogleSyncDto
 {
     public string? AccessToken { get; set; }
 }
 
+// Body for initiating a Composio connection — overrides the default callback URL.
 public class ConnectDto
 {
     public string? CallbackUrl { get; set; }

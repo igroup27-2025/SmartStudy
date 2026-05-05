@@ -2217,6 +2217,24 @@ BEGIN
 END
 GO
 
+IF OBJECT_ID('SS_Notifications_HasUnreadByType','P') IS NOT NULL DROP PROCEDURE SS_Notifications_HasUnreadByType;
+GO
+CREATE PROCEDURE SS_Notifications_HasUnreadByType
+    @Email NVARCHAR(255),
+    @Type NVARCHAR(50)
+AS
+BEGIN
+    SET NOCOUNT ON;
+    IF EXISTS (
+        SELECT 1 FROM SmartStudy_Notifications
+        WHERE Email = @Email AND [Type] = @Type AND IsRead = 0
+    )
+        SELECT 1;
+    ELSE
+        SELECT 0;
+END
+GO
+
 IF OBJECT_ID('SS_Notifications_GetUpcomingDeadlineTasks','P') IS NOT NULL DROP PROCEDURE SS_Notifications_GetUpcomingDeadlineTasks;
 GO
 CREATE PROCEDURE SS_Notifications_GetUpcomingDeadlineTasks

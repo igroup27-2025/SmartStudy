@@ -3,6 +3,7 @@ using SmartStudy.Services;
 
 namespace SmartStudy.Models;
 
+// Task entity plus the auto-scheduling engine and ML/insights helpers folded in as static methods.
 public class StudentTask
 {
     public int TaskId { get; set; }
@@ -31,24 +32,28 @@ public class StudentTask
 
     // ───── TasksBLL methods folded in ──────────────────────────────────
 
+    // Returns the user's tasks (joined with course name), optionally filtered by course/completion.
     public static List<TaskWithCourse> GetByUser(string email, int? courseId = null, bool? completed = null)
     {
         DBservices db = new DBservices();
         return db.GetTasksByUser(email, courseId, completed);
     }
 
+    // Loads a single task by ID joined with its course, or null if not found.
     public static TaskWithCourse? GetById(int taskId)
     {
         DBservices db = new DBservices();
         return db.GetTaskById(taskId);
     }
 
+    // Returns the immediate child subtasks of a parent task.
     public static List<TaskWithCourse> GetSubTasks(int parentTaskId)
     {
         DBservices db = new DBservices();
         return db.GetSubTasks(parentTaskId);
     }
 
+    // Inserts a new task and returns its generated ID.
     public static int Create(int courseId, string email, string title, string type,
         decimal? estimatedHours, DateTime? dueDate, int? parentTaskId, bool allowSplitting,
         string? priority, bool isManualPriority, bool isManuallyPinned = false)
@@ -58,6 +63,7 @@ public class StudentTask
             allowSplitting, priority, isManualPriority, isManuallyPinned);
     }
 
+    // Updates any subset of a task's fields (each parameter optional).
     public static void Update(int taskId, int? courseId = null, string? title = null, string? type = null,
         decimal? estimatedHours = null, DateTime? dueDate = null, bool? isCompleted = null,
         bool? allowSplitting = null, bool? isManuallyPinned = null, string? priority = null,
@@ -68,42 +74,49 @@ public class StudentTask
             allowSplitting, isManuallyPinned, priority, isManualPriority, actualHours);
     }
 
+    // Deletes a task and any subtasks/task-events that reference it.
     public static void Delete(int taskId)
     {
         DBservices db = new DBservices();
         db.DeleteTask(taskId);
     }
 
+    // Toggles completion state and optionally records actualHours for ML estimation tuning.
     public static void Complete(int taskId, bool isCompleted, decimal? actualHours = null)
     {
         DBservices db = new DBservices();
         db.CompleteTask(taskId, isCompleted, actualHours);
     }
 
+    // Returns the scheduled study-block events for a task.
     public static List<TaskEventInfo> GetTaskEvents(int taskId)
     {
         DBservices db = new DBservices();
         return db.GetTaskEvents(taskId);
     }
 
+    // Returns sharing info (creator, members, status) if the task is shared, else null.
     public static SharedTaskInfo? GetSharedInfo(int taskId)
     {
         DBservices db = new DBservices();
         return db.GetSharedInfo(taskId);
     }
 
+    // Returns true if every subtask of the parent is completed (used to auto-complete the parent).
     public static bool CheckAllSiblingsComplete(int parentTaskId)
     {
         DBservices db = new DBservices();
         return db.CheckAllSiblingsComplete(parentTaskId);
     }
 
+    // Returns completed-task estimated/actual pairs for one course (used to suggest hour adjustments).
     public static List<MLDataRow> GetMLData(string email, int courseId)
     {
         DBservices db = new DBservices();
         return db.GetMLData(email, courseId);
     }
 
+    // Returns per-course estimation accuracy stats from completed tasks.
     public static List<MLInsightRow> GetMLInsights(string email)
     {
         DBservices db = new DBservices();
@@ -112,6 +125,7 @@ public class StudentTask
 
     // ───── SchedulingBLL methods ──────────────────────────────────
 
+    // Approves a task's scheduled events and prunes any whose end-time is already in the past.
     public static (int ApprovedCount, int RemovedPast) ApproveTaskEvents(int taskId, string email, DateTime now)
     {
         DBservices db = new DBservices();
@@ -122,6 +136,7 @@ public class StudentTask
 
     private const int SlotMinutes = 30;
 
+    // Greedy auto-scheduler: places study blocks for incomplete tasks into free 30-min calendar slots.
     public static SchedulingResultDto ScheduleAll(string email)
     {
         var db = new DBservices();
@@ -650,6 +665,7 @@ public class StudentTask
         return result;
     }
 
+    // Returns daily-workload, overloaded-day, and relocation-suggestion data for the dashboard.
     public static SchedulingStatusDto GetSchedulingStatus(string email)
     {
         var db = new DBservices();
@@ -775,6 +791,7 @@ public class StudentTask
         return resultDto;
     }
 
+    // After a shared task is confirmed, creates the partner's copy and tries to schedule both at a common time.
     public static bool EnsurePartnerCopyAndSchedule(int originalTaskId, string creatorEmail, string partnerEmail)
     {
         var db = new DBservices();
@@ -798,6 +815,7 @@ public class StudentTask
         return ScheduleSharedTaskAtCommonTime(originalTaskId, creatorEmail, partnerEmail);
     }
 
+    // Finds an overlapping free slot for both users and pins matching task events on each calendar.
     public static bool ScheduleSharedTaskAtCommonTime(int originalTaskId, string creatorEmail, string partnerEmail)
     {
         var db = new DBservices();
@@ -982,6 +1000,7 @@ public class StudentTask
 
     // ───── WeeklySuggestionService (moved here as task-related logic) ────
 
+    // Returns per-day "what to focus on" suggestions for the next 7 days.
     public static WeeklySuggestionsDto GetWeeklySuggestions(string email)
     {
         var db = new DBservices();
@@ -1088,6 +1107,7 @@ public class StudentTask
 
     // ───── Private scheduling helpers ─────────────────────────────
 
+    // Returns the user-specific estimated hours for a task, applying ML adjustment ratio if available.
     private static double GetEffectiveHours(SchedulingTaskRow task, Dictionary<int, double> courseRatios, SchedulingPreferences? prefs)
     {
         double baseHours;
@@ -1105,6 +1125,7 @@ public class StudentTask
         return baseHours;
     }
 
+    // Breaks a long study block into sub-sessions separated by short breaks per user prefs.
     private static List<(DateTime From, DateTime To)> SplitIntoSessionsWithBreaks(
         DateTime start, double totalHours, int maxContinuousMinutes, int breakMinutes)
     {
@@ -1126,6 +1147,7 @@ public class StudentTask
         return sessions;
     }
 
+    // Builds suggestions to move events off overloaded days into free slots elsewhere.
     private static void GenerateRelocationSuggestions(
         SchedulingResultDto result, int taskId, string taskTitle,
         DateTime scheduleStart, DateTime dueDate,
@@ -1171,6 +1193,7 @@ public class StudentTask
         }
     }
 
+    // Builds a human-readable title for an event based on its subtype and linked entities.
     private static string GetEventTitle(int eventId, string eventType,
         Dictionary<int, WorkEventRow> workLookup, Dictionary<int, PersonalEventRow> personalLookup)
     {
@@ -1185,6 +1208,7 @@ public class StudentTask
         return eventType;
     }
 
+    // Returns 30-minute free slots in the user's calendar within the day window, respecting fixed events.
     private static List<(DateTime From, DateTime To)> GetFreeSlots(
         DateTime day, List<Event> fixedEvents, List<TaskEvent> newTaskEvents,
         int dayStartHour, int dayEndHour)
@@ -1254,6 +1278,7 @@ public class StudentTask
         return free;
     }
 
+    // Sums the hours blocked by class/work/personal events on a single day.
     private static double GetBlockedHours(DateTime day, List<Event> fixedEvents, int dayStartHour, int dayEndHour)
     {
         var dayStartDt = day.Date.AddHours(dayStartHour);
@@ -1269,6 +1294,7 @@ public class StudentTask
             });
     }
 
+    // Returns events in a date range with weekly-recurring instances expanded into concrete dates.
     internal static List<Event> GetExpandedEvents(DBservices db, string email, DateTime rangeStart, DateTime rangeEnd)
     {
         var events = db.GetBaseEventsInRangeOrRecurring(email, rangeStart, rangeEnd);
@@ -1306,6 +1332,7 @@ public class StudentTask
         return expanded;
     }
 
+    // Returns sorted, merged busy intervals for one user on one day.
     private static List<(DateTime From, DateTime To)> GetDayBusyIntervals(
         List<Event> events, DateTime dayStart, DateTime dayEnd)
     {
@@ -1337,6 +1364,7 @@ public class StudentTask
         return merged;
     }
 
+    // Subtracts the union of two users' busy intervals from a day window to find common free time.
     private static List<(DateTime From, DateTime To)> FindMutualFreeSlots(
         DateTime dayStart, DateTime dayEnd,
         List<(DateTime From, DateTime To)> busyA,
@@ -1372,6 +1400,7 @@ public class StudentTask
 
 // ───── Task DTOs (from TaskDtos.cs) ────────────────────────────────
 
+// Wire-format payload for the Tasks API including subtasks and scheduling info.
 public class TaskDto
 {
     public int TaskId { get; set; }
@@ -1407,12 +1436,14 @@ public class TaskDto
     public bool IsManualPriority { get; set; }
 }
 
+// One scheduled study slot inside a TaskDto.
 public class TaskSlotDto
 {
     public DateTime From { get; set; }
     public DateTime To { get; set; }
 }
 
+// Request body for POST /api/tasks.
 public class CreateTaskDto
 {
     public int CourseId { get; set; }
@@ -1425,16 +1456,19 @@ public class CreateTaskDto
     public string? Priority { get; set; }
 }
 
+// Request body for POST /api/tasks/{id}/complete (carries actualHours).
 public class CompleteTaskDto
 {
     public decimal? ActualHours { get; set; }
 }
 
+// Request body for POST /api/tasks/{id}/split — list of new subtasks to create.
 public class SplitTaskDto
 {
     public List<SubTaskDefinition> SubTasks { get; set; } = new();
 }
 
+// One new subtask description inside a SplitTaskDto.
 public class SubTaskDefinition
 {
     public string Title { get; set; } = null!;
@@ -1442,6 +1476,7 @@ public class SubTaskDefinition
     public DateTime? DueDate { get; set; }
 }
 
+// Request body for PUT /api/tasks/{id} — all fields optional.
 public class UpdateTaskDto
 {
     public int? CourseId { get; set; }
@@ -1457,6 +1492,7 @@ public class UpdateTaskDto
 
 // ───── Scheduling DTOs (from SchedulingDtos.cs) ────────────────────
 
+// Result returned by POST /api/scheduling/run — counts and per-task scheduling outcome.
 public class SchedulingResultDto
 {
     public int ScheduledCount { get; set; }
@@ -1468,6 +1504,7 @@ public class SchedulingResultDto
     public List<RelocationSuggestionDto> RelocationSuggestions { get; set; } = new();
 }
 
+// One successfully scheduled task in a SchedulingResultDto.
 public class ScheduledTaskDto
 {
     public int TaskId { get; set; }
@@ -1475,6 +1512,7 @@ public class ScheduledTaskDto
     public List<ScheduledSlotDto> Slots { get; set; } = new();
 }
 
+// One task the scheduler couldn't fit, with the reason recorded.
 public class UnscheduledTaskDto
 {
     public int TaskId { get; set; }
@@ -1482,12 +1520,14 @@ public class UnscheduledTaskDto
     public string Reason { get; set; } = null!;
 }
 
+// One scheduled slot within a ScheduledTaskDto.
 public class ScheduledSlotDto
 {
     public DateTime From { get; set; }
     public DateTime To { get; set; }
 }
 
+// One day's workload bucket (study + total hours) for the dashboard chart.
 public class DailyWorkloadDto
 {
     public DateTime Date { get; set; }
@@ -1501,6 +1541,7 @@ public class DailyWorkloadDto
     public double TotalHours { get; set; }
 }
 
+// One "move event X to free slot Y" suggestion shown to relieve an overloaded day.
 public class RelocationSuggestionDto
 {
     public int EventId { get; set; }
@@ -1512,6 +1553,7 @@ public class RelocationSuggestionDto
     public string Message { get; set; } = null!;
 }
 
+// Aggregated scheduling-engine status returned by GET /api/scheduling/status.
 public class SchedulingStatusDto
 {
     public int ScheduledCount { get; set; }
@@ -1523,6 +1565,7 @@ public class SchedulingStatusDto
 
 // ───── Weekly suggestion DTOs (from WeeklySuggestionDtos.cs) ───────
 
+// Weekly suggestions payload returned by GET /api/dashboard/weekly-suggestions.
 public class WeeklySuggestionsDto
 {
     public List<SuggestionDto> Suggestions { get; set; } = new();
@@ -1531,6 +1574,7 @@ public class WeeklySuggestionsDto
     public double AvailableStudyHours { get; set; }
 }
 
+// One per-day suggestion item inside a WeeklySuggestionsDto.
 public class SuggestionDto
 {
     public string Type { get; set; } = null!;
@@ -1539,6 +1583,7 @@ public class SuggestionDto
     public string Icon { get; set; } = null!;
 }
 
+// "Top focus task" recommendation inside a SuggestionDto.
 public class FocusTaskDto
 {
     public int TaskId { get; set; }

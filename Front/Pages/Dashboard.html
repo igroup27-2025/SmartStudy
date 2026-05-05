@@ -32,10 +32,13 @@
         // ---- API endpoints -----------------------------------------------
         var DashboardApi       = API_BASE + "/dashboard";
         var WeeklySuggestApi   = API_BASE + "/dashboard/weekly-suggestions";
+        // Handles approve api.
         var ApproveApi         = function (taskId) { return API_BASE + "/scheduling/approve/" + taskId; };
         var SharedTasksApi     = API_BASE + "/shared-tasks";
+        // Handles shared task respond api.
         var SharedTaskRespondApi = function (taskId) { return API_BASE + "/shared-tasks/" + taskId + "/respond"; };
         var EventsApi          = API_BASE + "/events";
+        // Handles task complete api.
         var TaskCompleteApi    = function (id) { return API_BASE + "/tasks/" + id + "/complete"; };
         var SchedulingRunApi   = API_BASE + "/scheduling/run";
 
@@ -56,17 +59,21 @@
             LoadDashboard();
         });
 
+        // Escapes a string for safe HTML insertion.
         function escapeHtml(s) {
             if (s == null) return "";
             return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
         }
 
+        // Handles to local i s o.
         function toLocalISO(d) {
+            // Handles pad.
             function pad(n) { return String(n).padStart(2, "0"); }
             return d.getFullYear() + "-" + pad(d.getMonth() + 1) + "-" + pad(d.getDate()) + "T" +
                    pad(d.getHours()) + ":" + pad(d.getMinutes()) + ":" + pad(d.getSeconds());
         }
 
+        // Handles load dashboard.
         function LoadDashboard() {
             ajaxCall("GET", DashboardApi, null, function (data) {
                 cachedDashboard = data;
@@ -87,6 +94,7 @@
         }
 
         // ---- Hero ---------------------------------------------------------
+        // Handles render hero.
         function RenderHero(data) {
             var user = getUser() || {};
             var firstName = user.firstName || "Student";
@@ -109,6 +117,7 @@
             );
         }
 
+        // Handles render progress.
         function RenderProgress(data) {
             var completed = data.completedTasks || 0;
             var total = data.totalTasks || 0;
@@ -122,6 +131,7 @@
             );
         }
 
+        // Handles render alerts.
         function RenderAlerts(data) {
             var pills = [];
             var pending = data.pendingTasks || 0;
@@ -149,6 +159,7 @@
             $("#dashAlerts").html(pills.join(""));
         }
 
+        // Handles render stats.
         function RenderStats(data) {
             var today = new Date(); today.setHours(0, 0, 0, 0);
             var tomorrow = new Date(today); tomorrow.setDate(tomorrow.getDate() + 1);
@@ -168,6 +179,7 @@
             );
         }
 
+        // Handles render workload.
         function RenderWorkload(data) {
             var workload = data.dailyWorkload || [];
             if (!workload.length) { $("#dashWorkload").empty(); return; }
@@ -202,6 +214,7 @@
         }
 
         // ---- Relocation suggestions --------------------------------------
+        // Handles render relocation suggestions.
         function RenderRelocationSuggestions(data) {
             var $el = $("#dashRelocationSuggestions");
             var suggestions = data.relocationSuggestions || [];
@@ -239,6 +252,7 @@
         }
 
         // ---- Shared Tasks -------------------------------------------------
+        // Handles load shared tasks.
         function LoadSharedTasks(dashboardData) {
             ajaxCall("GET", SharedTasksApi, null, function (sharedTasks) {
                 RenderSharedTasks(dashboardData, sharedTasks || []);
@@ -247,13 +261,16 @@
             });
         }
 
+        // Formats slot range for display.
         function formatSlotRange(from, to) {
             var f = new Date(from), t = new Date(to);
             var dateStr = f.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
+            // Handles pad.
             function pad(n) { return String(n).padStart(2, "0"); }
             return dateStr + " " + pad(f.getHours()) + ":" + pad(f.getMinutes()) + "-" + pad(t.getHours()) + ":" + pad(t.getMinutes());
         }
 
+        // Handles render shared tasks.
         function RenderSharedTasks(dashboardData, sharedTasks) {
             var $el = $("#dashSharedTasks");
             var user = getUser() || {};
@@ -341,6 +358,7 @@
             });
         }
 
+        // Handles respond shared task.
         function RespondSharedTask(taskId, accept) {
             ajaxCall("POST", SharedTaskRespondApi(taskId), JSON.stringify({ accept: accept }),
                 function () { LoadDashboard(); },
@@ -348,6 +366,7 @@
         }
 
         // ---- Suggestion --------------------------------------------------
+        // Handles render suggestion.
         function RenderSuggestion(data) {
             var task = data.nextSuggestedTask;
             if (!task) { $("#dashSuggestion").empty(); return; }
@@ -373,6 +392,7 @@
         }
 
         // ---- Review list --------------------------------------------------
+        // Handles render review.
         function RenderReview(data) {
             var tasks = (data.needsReviewTasks || []).slice(0, 20);
             var header = '<div class="dash-review__header"><h2 class="dash-review__title">Needs Review</h2><span class="dash-review__badge">' + tasks.length + '</span></div>';
@@ -382,7 +402,9 @@
                 return;
             }
 
+            // Formats slot time for display.
             function formatSlotTime(d) { return String(d.getHours()).padStart(2, "0") + ":" + String(d.getMinutes()).padStart(2, "0"); }
+            // Formats slot date for display.
             function formatSlotDate(d) { return d.toLocaleDateString("en-US", { month: "short", day: "numeric" }); }
 
             var cards = tasks.map(function (t) {
@@ -495,6 +517,7 @@
         }
 
         // ---- Overdue completion modal ------------------------------------
+        // Handles show completion modal.
         function ShowCompletionModal(taskId, taskTitle, estHours) {
             $("#dashCompleteModal").remove();
             var estDisplay = estHours ? (estHours + "h estimated") : "No estimate";
@@ -544,10 +567,12 @@
         }
 
         // ---- Weekly suggestions ------------------------------------------
+        // Handles load weekly suggestions.
         function LoadWeeklySuggestions() {
             ajaxCall("GET", WeeklySuggestApi, null, RenderWeeklySuggestions, function () { $("#dashWeeklyInsights").empty(); });
         }
 
+        // Handles render weekly suggestions.
         function RenderWeeklySuggestions(data) {
             var $el = $("#dashWeeklyInsights");
             if (!data || (!(data.suggestions || []).length && !(data.focusTasks || []).length)) { $el.empty(); return; }
@@ -596,6 +621,7 @@
         }
 
         // ---- Mini 3-day calendar -----------------------------------------
+        // Handles render mini calendar.
         function RenderMiniCalendar() {
             var $el = $("#dashCalendar");
 
@@ -610,6 +636,7 @@
             });
         }
 
+        // Handles draw mini calendar.
         function DrawMiniCalendar($el, from, events) {
             var today = new Date(); today.setHours(0, 0, 0, 0);
             var days = [];

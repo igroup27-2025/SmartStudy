@@ -5,13 +5,17 @@ using Microsoft.Extensions.Logging;
 
 namespace SmartStudy.Services;
 
+// Exception thrown when a call to the Ruppinet API fails (auth, captcha, transport).
 public class RuppinetApiException : Exception
 {
+    // Machine-readable error code (e.g. AUTH_FAILED, CAPTCHA_REQUIRED).
     public string ErrorCode { get; }
+    // Creates a new exception with a message and an optional error code.
     public RuppinetApiException(string message, string errorCode = "API_ERROR")
         : base(message) => ErrorCode = errorCode;
 }
 
+// HTTP client for the Ruppin College Ruppinet portal API (login, schedule, exams, courses).
 public class RuppinetApiClient
 {
     private readonly IHttpClientFactory _httpClientFactory;
@@ -19,6 +23,7 @@ public class RuppinetApiClient
     private readonly string _baseUrl;
     private readonly int _maxRetries;
 
+    // Injects HTTP client factory, logger, and reads base URL/retry config.
     public RuppinetApiClient(IHttpClientFactory httpClientFactory, ILogger<RuppinetApiClient> logger, IConfiguration config)
     {
         _httpClientFactory = httpClientFactory;
@@ -27,6 +32,7 @@ public class RuppinetApiClient
         _maxRetries = int.TryParse(config["Ruppinet:MaxRetries"], out var r) ? r : 2;
     }
 
+    // Authenticates with Ruppinet and returns a session token (throws if CAPTCHA is required).
     public async Task<string?> LoginAsync(string zht, string password)
     {
         var client = _httpClientFactory.CreateClient();
@@ -69,6 +75,7 @@ public class RuppinetApiClient
         return null;
     }
 
+    // Fetches the user's class schedule between the two dates.
     public async Task<List<RuppinetScheduleEvent>> GetScheduleAsync(string token, DateTime from, DateTime to)
     {
         var client = CreateAuthClient(token);
@@ -135,6 +142,7 @@ public class RuppinetApiClient
         return events;
     }
 
+    // Fetches the user's upcoming (non-expired) exams from Ruppinet.
     public async Task<List<RuppinetExam>> GetExamsAsync(string token)
     {
         var client = CreateAuthClient(token);
@@ -226,6 +234,7 @@ public class RuppinetApiClient
         return exams;
     }
 
+    // Fetches the user's enrolled courses for the current Hebrew semester.
     public async Task<List<RuppinetCourse>> GetCoursesAsync(string token)
     {
         var client = CreateAuthClient(token);
@@ -268,6 +277,7 @@ public class RuppinetApiClient
         return courses;
     }
 
+    // Sends an HTTP request with exponential-backoff retry on transient 5xx/408/429 failures.
     private async Task<HttpResponseMessage> SendWithRetryAsync(
         HttpClient client, HttpMethod method, string url, string body)
     {
@@ -297,6 +307,7 @@ public class RuppinetApiClient
         return response!;
     }
 
+    // Creates an HttpClient pre-loaded with a Bearer token header.
     private HttpClient CreateAuthClient(string token)
     {
         var client = _httpClientFactory.CreateClient();
@@ -305,6 +316,7 @@ public class RuppinetApiClient
         return client;
     }
 
+    // Parses a Ruppinet time string into a TimeSpan, returning Zero on failure.
     private static TimeSpan ParseTimeFromRuppinet(string? timeStr)
     {
         if (string.IsNullOrEmpty(timeStr)) return TimeSpan.Zero;
@@ -313,6 +325,7 @@ public class RuppinetApiClient
         return TimeSpan.Zero;
     }
 
+    // Splits a "HH:mm-HH:mm" exam time-range string into start time and duration.
     private static (TimeSpan startTime, int durationHours, bool estimated) ParseExamTimeRange(string? range)
     {
         if (string.IsNullOrEmpty(range)) return (TimeSpan.Zero, 3, true);
@@ -326,6 +339,7 @@ public class RuppinetApiClient
         return (start, duration, false);
     }
 
+    // Returns the Hebrew academic-year code (e.g. "תשפו") for the current semester.
     internal static string GetCurrentHebrewSemester()
     {
         var now = DateTime.Now;
@@ -354,6 +368,7 @@ public class RuppinetApiClient
     }
 }
 
+// Single class-event row parsed from the Ruppinet schedule response.
 public class RuppinetScheduleEvent
 {
     public DateTime Date { get; set; }
@@ -364,6 +379,7 @@ public class RuppinetScheduleEvent
     public TimeSpan EndTime { get; set; }
 }
 
+// Single exam row parsed from the Ruppinet exams response.
 public class RuppinetExam
 {
     public string CourseCode { get; set; } = "";
@@ -380,6 +396,7 @@ public class RuppinetExam
     public string? Semester { get; set; }
 }
 
+// Single course row parsed from the Ruppinet courses response.
 public class RuppinetCourse
 {
     public int Nmrtr { get; set; }

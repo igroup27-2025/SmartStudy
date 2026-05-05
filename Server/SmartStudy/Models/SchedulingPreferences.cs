@@ -2,6 +2,7 @@ using SmartStudy.DAL;
 
 namespace SmartStudy.Models;
 
+// Per-user tunable parameters that drive the auto-scheduling engine.
 public class SchedulingPreferences
 {
     public string Email { get; set; } = null!;
@@ -23,12 +24,14 @@ public class SchedulingPreferences
 
     // ───── Static BLL methods ──────────────────────────────────
 
+    // Loads the user's scheduling preferences row, or null if none saved yet.
     public static SchedulingPreferences? GetByEmail(string email)
     {
         DBservices db = new DBservices();
         return db.GetSchedPrefsByEmail(email);
     }
 
+    // Inserts or updates the user's scheduling preferences row.
     public static void Upsert(SchedulingPreferences prefs)
     {
         DBservices db = new DBservices();
@@ -38,6 +41,7 @@ public class SchedulingPreferences
 
 // ───── DTOs (from DashboardDtos.cs) ────────────────────────────────
 
+// Wire-format mirror of SchedulingPreferences with string time fields.
 public class SchedulingPreferencesDto
 {
     public double MaxDailyStudyHours { get; set; }
@@ -54,6 +58,7 @@ public class SchedulingPreferencesDto
     public int ExamPrepDays { get; set; } = 3;
 }
 
+// Onboarding wizard payload — bundles prefs, notifications and weekly recurring constraints.
 public class OnboardingDto
 {
     public SchedulingPreferencesDto? SchedulingPreferences { get; set; }
@@ -61,6 +66,7 @@ public class OnboardingDto
     public List<OnboardingConstraintDto>? Constraints { get; set; }
 }
 
+// Single weekly recurring constraint (e.g. work shift, gym) collected during onboarding.
 public class OnboardingConstraintDto
 {
     public string Type { get; set; } = "work";

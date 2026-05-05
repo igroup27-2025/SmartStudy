@@ -2,6 +2,7 @@ using SmartStudy.DAL;
 
 namespace SmartStudy.Models;
 
+// In-app notification entity plus the static helpers that generate per-user notifications.
 public class Notification
 {
     public int NotificationId { get; set; }
@@ -19,30 +20,35 @@ public class Notification
 
     // ───── NotificationsBLL methods folded in ──────────────────────────
 
+    // Returns the user's notifications and the unread count.
     public static (List<NotificationRow> Notifications, int UnreadCount) GetByUser(string email)
     {
         DBservices db = new DBservices();
         return db.GetNotificationsByUser(email);
     }
 
+    // Returns just the unread notification count for badge polling.
     public static int GetUnreadCount(string email)
     {
         DBservices db = new DBservices();
         return db.GetUnreadNotificationCount(email);
     }
 
+    // Marks the specified notifications as read for the user.
     public static void MarkRead(string email, List<int> notificationIds)
     {
         DBservices db = new DBservices();
         db.MarkNotificationsRead(email, notificationIds);
     }
 
+    // Marks every one of the user's notifications as read.
     public static void MarkAllRead(string email)
     {
         DBservices db = new DBservices();
         db.MarkAllNotificationsRead(email);
     }
 
+    // Inserts a generic notification row; returns its ID.
     public static int Create(string email, string type, string title, string message, int? relatedEntityId = null, string? relatedEntityType = null)
     {
         DBservices db = new DBservices();
@@ -51,6 +57,7 @@ public class Notification
 
     // ───── NotificationService methods folded in ───────────────────────
 
+    // Creates "due in 24h" alerts for each urgent task, respecting user prefs and quiet hours.
     public static void GenerateDeadline(string email)
     {
         var db = new DBservices();
@@ -75,6 +82,8 @@ public class Notification
         }
     }
 
+    // Creates a "high stress" alert when the score crosses 70%.
+    // Suppresses new alerts while a prior overload notification is still unread, so they don't pile up.
     public static void GenerateOverload(string email, double stressScore)
     {
         if (stressScore <= 70) return;
@@ -84,7 +93,7 @@ public class Notification
         if (settings == null) return;
         if (IsInQuietHours(settings)) return;
 
-        if (db.IsNotificationDuplicate(email, "overload", null, null))
+        if (db.HasUnreadNotificationOfType(email, "overload"))
             return;
 
         db.CreateNotification(
@@ -96,6 +105,7 @@ public class Notification
             "Stress");
     }
 
+    // Notifies the recipient that a friend invited them to share a task.
     public static void CreateSharedTaskInvite(string recipientEmail, string senderName, int taskId, string taskTitle)
     {
         var db = new DBservices();
@@ -112,6 +122,7 @@ public class Notification
             "SharedTask");
     }
 
+    // Notifies the task creator that a partner accepted or declined the shared task.
     public static void CreateSharedTaskResponse(string recipientEmail, string responderName, int taskId, string taskTitle, bool accepted)
     {
         var db = new DBservices();
@@ -128,6 +139,7 @@ public class Notification
             "SharedTask");
     }
 
+    // Creates a morning-summary notification listing today's upcoming tasks.
     public static void GenerateDailySummary(string email)
     {
         var db = new DBservices();
@@ -161,6 +173,7 @@ public class Notification
         }
     }
 
+    // Creates a weekly plan reminder summarizing this week's tasks and exams.
     public static void GenerateWeeklyPlanReminder(string email)
     {
         var db = new DBservices();
@@ -180,6 +193,7 @@ public class Notification
             $"This week: {weekTasks} task(s) due{(weekExams > 0 ? $" and {weekExams} exam(s)" : "")}. Review your schedule and plan ahead!");
     }
 
+    // Notifies a partner when no overlapping free slot was found for a shared task.
     public static void CreateNoCommonTime(string recipientEmail, int taskId, string taskTitle)
     {
         var db = new DBservices();
@@ -196,6 +210,7 @@ public class Notification
             "SharedTask");
     }
 
+    // Returns true if the current time falls inside the user's configured quiet-hours window.
     private static bool IsInQuietHours(NotificationSettings? settings)
     {
         if (settings == null) return false;
@@ -214,6 +229,7 @@ public class Notification
 
 // ───── DTOs (from NotificationDtos.cs) ─────────────────────────────
 
+// Wire-format payload for a single notification.
 public class NotificationDto
 {
     public int NotificationId { get; set; }
@@ -226,12 +242,14 @@ public class NotificationDto
     public string? RelatedEntityType { get; set; }
 }
 
+// Wrapper returned by GET /api/notifications: list plus unread count.
 public class NotificationListDto
 {
     public List<NotificationDto> Notifications { get; set; } = new();
     public int UnreadCount { get; set; }
 }
 
+// Request body for POST /api/notifications/mark-read.
 public class MarkReadDto
 {
     public List<int> NotificationIds { get; set; } = new();

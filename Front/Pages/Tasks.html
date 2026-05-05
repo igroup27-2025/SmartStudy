@@ -165,14 +165,20 @@
         // ---- API endpoints -----------------------------------------------
         var TasksApi         = API_BASE + "/tasks";
         var CoursesApi       = API_BASE + "/courses";
+        // Handles task api.
         var TaskApi          = function (id) { return API_BASE + "/tasks/" + id; };
+        // Handles complete api.
         var CompleteApi      = function (id) { return API_BASE + "/tasks/" + id + "/complete"; };
         var SchedulingRunApi = API_BASE + "/scheduling/run";
         var ConnectionsApi   = API_BASE + "/connections";
         var SharedTasksApi   = API_BASE + "/shared-tasks";
+        // Handles shared task api.
         var SharedTaskApi    = function (id) { return API_BASE + "/shared-tasks/" + id; };
+        // Handles shared task respond api.
         var SharedTaskRespondApi = function (id) { return API_BASE + "/shared-tasks/" + id + "/respond"; };
+        // Handles shared task cancel api.
         var SharedTaskCancelApi  = function (id) { return API_BASE + "/shared-tasks/" + id + "/cancel"; };
+        // Handles split task api.
         var SplitTaskApi     = function (id) { return API_BASE + "/tasks/" + id + "/split"; };
         var SuggestHoursApi  = API_BASE + "/tasks/suggest-hours";
 
@@ -183,6 +189,7 @@
         var editingId = null;
         var completingTaskId = null;
 
+        // Escapes a string for safe HTML insertion.
         function escapeHtml(s) {
             if (s == null) return "";
             return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
@@ -225,16 +232,19 @@
             LoadAll();
         });
 
+        // Handles toggle filter panel.
         function ToggleFilterPanel() {
             var $panel = $("#filterPanel");
             $panel.css("display", $panel.css("display") === "none" ? "flex" : "none");
         }
 
+        // Handles update filter badge.
         function UpdateFilterBadge() {
             var checked = $("#filterPanel input:checked").length;
             $("#filterToggle").text(checked > 0 ? "Filter (" + checked + ")" : "Filter");
         }
 
+        // Handles load all.
         function LoadAll() {
             ajaxCall("GET", CoursesApi, null, function (data) {
                 courses = data || [];
@@ -245,6 +255,7 @@
             }, function () { alert("Failed to load courses"); });
         }
 
+        // Handles load connections.
         function LoadConnections() {
             ajaxCall("GET", ConnectionsApi, null, function (data) {
                 friends = ((data || []).filter(function (c) { return c.status === "accepted"; }))
@@ -257,6 +268,7 @@
             }, function () { friends = []; });
         }
 
+        // Handles load shared tasks.
         function LoadSharedTasks() {
             ajaxCall("GET", SharedTasksApi, null, function (data) {
                 sharedTasks = data || [];
@@ -264,6 +276,7 @@
             }, function () { sharedTasks = []; });
         }
 
+        // Handles load tasks.
         function LoadTasks() {
             ajaxCall("GET", TasksApi, null, function (data) {
                 allTasks = data || [];
@@ -271,6 +284,7 @@
             }, function () { $("#taskList").html('<p>Failed to load tasks.</p>'); });
         }
 
+        // Handles populate course select.
         function PopulateCourseSelect() {
             var $sel = $("#taskCourseId");
             $sel.find("option:not(:first)").remove();
@@ -283,6 +297,7 @@
             }).join(""));
         }
 
+        // Handles apply filters.
         function ApplyFilters() {
             var filtered = allTasks.slice();
             var statuses = $('input[name="filterStatus"]:checked').map(function () { return $(this).val(); }).get();
@@ -304,6 +319,7 @@
             return filtered;
         }
 
+        // Handles render shared invitations.
         function RenderSharedInvitations() {
             var user = getUser() || {};
             var myEmail = (user.email || "").toLowerCase();
@@ -336,12 +352,14 @@
             $el.find(".decline-shared").on("click", function () { RespondSharedTask(parseInt($(this).data("id")), false); });
         }
 
+        // Handles respond shared task.
         function RespondSharedTask(taskId, accept) {
             ajaxCall("POST", SharedTaskRespondApi(taskId), JSON.stringify({ accept: accept }),
                 function () { LoadSharedTasks(); LoadTasks(); },
                 function () { alert("Failed to respond"); });
         }
 
+        // Handles render tasks.
         function RenderTasks(tasks) {
             if (!tasks.length) {
                 $("#taskList").html('<div class="empty-state"><h3>No tasks found</h3><p>Click "+ Add Task" to create one.</p></div>');
@@ -400,6 +418,7 @@
         }
 
         // ---- Add / Edit modal --------------------------------------------
+        // Handles open add task.
         function OpenAddTask() {
             editingId = null;
             $("#taskModalTitle").text("Add Task");
@@ -411,6 +430,7 @@
             $("#taskModal").addClass("open");
         }
 
+        // Handles open edit task.
         function OpenEditTask(id) {
             var t = allTasks.find(function (x) { return x.taskId === id; });
             if (!t) return;
@@ -438,8 +458,10 @@
             $("#taskModal").addClass("open");
         }
 
+        // Handles close task modal.
         function CloseTaskModal() { $("#taskModal").removeClass("open"); }
 
+        // Submits the task.
         function SubmitTask(e) {
             e.preventDefault();
             var data = {
@@ -484,9 +506,11 @@
                 }, TaskSaveEC);
             }
         }
+        // Error callback for Task Save.
         function TaskSaveEC(xhr) { alert((xhr.responseJSON && xhr.responseJSON.message) || "Failed to save task"); }
 
         // ---- Complete modal ----------------------------------------------
+        // Handles show complete modal.
         function ShowCompleteModal(taskId) {
             var t = allTasks.find(function (x) { return x.taskId === taskId; });
             if (!t) return;
@@ -497,6 +521,7 @@
             $("#completeModal").addClass("open");
         }
 
+        // Handles confirm complete.
         function ConfirmComplete() {
             var actual = parseFloat($("#actualHours").val()) || null;
             var task = allTasks.find(function (x) { return x.taskId === completingTaskId; });
@@ -528,6 +553,7 @@
         }
 
         // ---- Delete -------------------------------------------------------
+        // Handles delete task.
         function DeleteTask(id) {
             if (!confirm("Delete this task?")) return;
             ajaxCall("DELETE", TaskApi(id), null,
@@ -536,6 +562,7 @@
         }
 
         // ---- Reschedule ---------------------------------------------------
+        // Handles reschedule.
         function Reschedule() {
             var $btn = $("#rescheduleBtn");
             $btn.prop("disabled", true).text("Rescheduling...");
@@ -545,6 +572,7 @@
         }
 
         // ---- Split Task Modal --------------------------------------------
+        // Handles show split modal.
         function ShowSplitModal(taskId) {
             var task = allTasks.find(function (x) { return x.taskId === taskId; });
             if (!task) return;
@@ -556,6 +584,7 @@
             $("#splitTaskModal").addClass("open");
         }
 
+        // Handles add subtask row.
         function AddSubtaskRow() {
             var rowHtml =
                 '<div class="subtask-row form-row">' +
@@ -572,6 +601,7 @@
             $row.find(".subtask-remove").on("click", function () { $row.remove(); });
         }
 
+        // Handles confirm split.
         function ConfirmSplit() {
             var taskId = $("#splitConfirm").data("task-id");
             var subTasks = [];
@@ -587,6 +617,7 @@
         }
 
         // ---- Suggested hours ---------------------------------------------
+        // Handles fetch hours suggestion.
         function FetchHoursSuggestion() {
             var courseId = $("#taskCourseId").val();
             var hours = $("#taskHours").val();

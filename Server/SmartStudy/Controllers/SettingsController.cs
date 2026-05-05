@@ -9,6 +9,7 @@ using SchedPrefsModel = SmartStudy.Models.SchedulingPreferences;
 
 namespace SmartStudy.Controllers;
 
+// API endpoints for user profile, notifications, scheduling preferences, onboarding, and integrations.
 [ApiController]
 [Route("api/settings")]
 [Authorize]
@@ -17,18 +18,22 @@ public class SettingsController : ControllerBase
     private readonly RuppinetSyncService _ruppinetSync;
     private readonly MoodleSyncService _moodleSync;
 
+    // Injects the Ruppinet and Moodle sync services.
     public SettingsController(RuppinetSyncService ruppinetSync, MoodleSyncService moodleSync)
     {
         _ruppinetSync = ruppinetSync;
         _moodleSync = moodleSync;
     }
 
+    // Reads the authenticated user's email from JWT claims.
     private string GetEmail() => User.FindFirst(ClaimTypes.Email)!.Value;
 
+    // Returns the deployed app version — anonymous health/version probe.
     [AllowAnonymous]
     [HttpGet("version")]
     public IActionResult GetVersion() => Ok(new { version = "2.1-moodle", timestamp = "2026-04-06T18:00:00" });
 
+    // Returns the user's profile and notification settings.
     [HttpGet("profile")]
     public IActionResult GetProfile()
     {
@@ -55,6 +60,7 @@ public class SettingsController : ControllerBase
         });
     }
 
+    // Updates the user's first/last name.
     [HttpPut("profile")]
     public IActionResult UpdateProfile([FromBody] UpdateProfileDto dto)
     {
@@ -72,6 +78,7 @@ public class SettingsController : ControllerBase
         });
     }
 
+    // Upserts notification toggles and quiet-hours window for the user.
     [HttpPut("notifications")]
     public IActionResult UpdateNotifications([FromBody] NotificationSettingsDto dto)
     {
@@ -87,6 +94,7 @@ public class SettingsController : ControllerBase
         return Ok(dto);
     }
 
+    // Returns the user's auto-scheduler preferences (study caps, sleep, lunch, exam prep).
     [HttpGet("scheduling")]
     public IActionResult GetSchedulingPrefs()
     {
@@ -110,6 +118,7 @@ public class SettingsController : ControllerBase
         });
     }
 
+    // Validates and upserts the user's auto-scheduler preferences (each value clamped).
     [HttpPut("scheduling")]
     public IActionResult UpdateSchedulingPrefs([FromBody] SchedulingPreferencesDto dto)
     {
@@ -139,6 +148,7 @@ public class SettingsController : ControllerBase
         return Ok(dto);
     }
 
+    // Persists onboarding answers (prefs, notifs, weekly constraints) and marks onboarding complete.
     [HttpPut("onboarding")]
     public IActionResult SaveOnboarding([FromBody] OnboardingDto dto)
     {
@@ -212,6 +222,7 @@ public class SettingsController : ControllerBase
         return Ok(new { message = "Onboarding completed" });
     }
 
+    // Returns the user's Ruppinet connection status and last-sync time.
     [HttpGet("ruppinet")]
     public IActionResult GetRuppinetStatus()
     {
@@ -227,6 +238,7 @@ public class SettingsController : ControllerBase
         });
     }
 
+    // Validates Ruppinet credentials, stores them encrypted, and runs an initial sync.
     [HttpPost("ruppinet/connect")]
     public IActionResult ConnectRuppinet([FromBody] RuppinetConnectDto dto)
     {
@@ -249,6 +261,7 @@ public class SettingsController : ControllerBase
         });
     }
 
+    // Triggers an on-demand Ruppinet sync for the user.
     [HttpPost("ruppinet/sync")]
     public IActionResult SyncRuppinet()
     {
@@ -259,6 +272,7 @@ public class SettingsController : ControllerBase
         return Ok(result);
     }
 
+    // Clears the user's stored Ruppinet credentials.
     [HttpDelete("ruppinet")]
     public IActionResult DisconnectRuppinet()
     {
@@ -273,6 +287,7 @@ public class SettingsController : ControllerBase
 
     // ── Moodle Integration ─────────────────────────────────
 
+    // Reports whether Moodle sync is available (requires Ruppinet credentials).
     [HttpGet("moodle")]
     public IActionResult GetMoodleStatus()
     {
@@ -287,6 +302,7 @@ public class SettingsController : ControllerBase
         });
     }
 
+    // Diagnostic endpoint that returns the raw Moodle fetch payload for the user.
     [HttpGet("moodle/debug")]
     public IActionResult DebugMoodle()
     {
@@ -295,6 +311,7 @@ public class SettingsController : ControllerBase
         return Ok(result);
     }
 
+    // Triggers an on-demand Moodle assignment/quiz sync for the user.
     [HttpPost("moodle/sync")]
     public IActionResult SyncMoodle()
     {
@@ -305,6 +322,7 @@ public class SettingsController : ControllerBase
         return Ok(result);
     }
 
+    // Clears the user's Moodle linkage data.
     [HttpDelete("moodle")]
     public IActionResult DisconnectMoodle()
     {
@@ -317,6 +335,7 @@ public class SettingsController : ControllerBase
         return Ok(new { message = "Moodle disconnected" });
     }
 
+    // Returns the global list of instructors for course-creation dropdowns.
     [HttpGet("instructors")]
     public IActionResult GetInstructors()
     {
