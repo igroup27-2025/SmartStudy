@@ -5,18 +5,21 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>SmartStudy - Ready!</title>
     <link rel="stylesheet" href="../CSS/app.css">
+    <script src="https://code.jquery.com/jquery-3.7.1.min.js" integrity="sha256-/JqT3SQfawRcv/BIHPThkBvs0OEvtFFmqPF/lYI/Cxo=" crossorigin="anonymous"></script>
+    <script src="../Scripts/ajaxCall.js"></script>
+    <script src="../Scripts/appShell.js"></script>
 </head>
 <body data-page="onboarding" data-layout="onboarding" data-step="4">
     <div class="onboarding-container">
         <div class="onboarding-logo"><img src="../Images/logo.png" alt="SmartStudy" class="onboarding-logo-img"></div>
         <div class="onboarding-dots">
-            <span class="onboarding-dot"></span>
-            <span class="onboarding-dot"></span>
-            <span class="onboarding-dot"></span>
-            <span class="onboarding-dot"></span>
+            <span class="onboarding-dot active"></span>
+            <span class="onboarding-dot active"></span>
+            <span class="onboarding-dot active"></span>
+            <span class="onboarding-dot active current"></span>
         </div>
         <div class="onboarding-progress-bar">
-            <div class="onboarding-progress" id="onboardingProgress"></div>
+            <div class="onboarding-progress" id="onboardingProgress" style="width:100%"></div>
         </div>
         <div class="onboarding-card">
             <h1 class="onboarding-title">You're All Set!</h1>
@@ -30,7 +33,6 @@
                 <div class="onboarding-summary-item" id="summaryNotif"></div>
                 <div class="onboarding-summary-item" id="summaryExamPrep"></div>
                 <div class="onboarding-summary-item" id="summaryConstraints"></div>
-                <div class="onboarding-summary-item" id="summaryExternal"></div>
             </div>
         </div>
         <div class="onboarding-actions">
@@ -38,7 +40,103 @@
             <button class="btn btn-primary btn-lg" id="onboardingNext">Go to Dashboard</button>
         </div>
     </div>
-    <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
-    <script type="module" src="../Script/main.js"></script>
+
+    <script>
+        var STORE_KEY = "smartstudy_onboarding";
+        var OnboardingApi = API_BASE + "/settings/onboarding";
+
+        function LoadDraft() {
+            try { return JSON.parse(sessionStorage.getItem(STORE_KEY)) || {}; }
+            catch (e) { return {}; }
+        }
+
+        function formatHour(h) {
+            if (h === 0) return "12:00 AM";
+            if (h < 12)  return h + ":00 AM";
+            if (h === 12) return "12:00 PM";
+            return (h - 12) + ":00 PM";
+        }
+
+        $(document).ready(function () {
+            var data = LoadDraft();
+            RenderSummary(data);
+
+            $("#onboardingBack").on("click", function () {
+                window.location.href = BASE_PATH + "/Pages/Onboarding3.html";
+            });
+            $("#onboardingNext").on("click", function () {
+                var btn = $("#onboardingNext");
+                btn.prop("disabled", true).text("Saving...");
+                var payload = BuildPayload(data);
+                ajaxCall("PUT", OnboardingApi, JSON.stringify(payload),
+                    FinishSC,
+                    FinishEC
+                );
+            });
+        });
+
+        function RenderSummary(data) {
+            $("#summaryStudy").text("Max " + (data.maxDailyStudyHours || 6) + "h study/day, " + (data.maxDailyTotalHours || 14) + "h total/day, " + (data.maxContinuousMinutes || 90) + "min continuous, " + (data.breakDurationMinutes || 15) + "min breaks");
+            $("#summaryWindow").text("Study window: " + formatHour(data.dayStartHour || 8) + " - " + formatHour(data.dayEndHour || 22));
+            $("#summarySleep").text("Sleep: " + (data.sleepHoursPerDay || 8) + "h per day");
+            if (data.lunchEnabled !== false) {
+                $("#summaryLunch").text("Lunch break: " + (data.lunchStart || "12:00") + " - " + (data.lunchEnd || "13:00"));
+            } else {
+                $("#summaryLunch").text("Lunch break: Off");
+            }
+            var notifs = [];
+            if (data.notifyDeadline !== false) notifs.push("Deadlines");
+            if (data.notifyMorning) notifs.push("Morning summary");
+            if (data.notifyWeekly) notifs.push("Weekly plan");
+            $("#summaryNotif").text("Notifications: " + (notifs.length ? notifs.join(", ") : "None"));
+            $("#summaryExamPrep").text("Exam prep: " + (data.examPrepHoursPerDay || 5) + "h/day, " + (data.examPrepDays || 3) + " days before exam");
+            var cCount = (data.constraints || []).length;
+            $("#summaryConstraints").text("Recurring constraints: " + (cCount || "None"));
+        }
+
+        function BuildPayload(data) {
+            return {
+                schedulingPreferences: {
+                    maxDailyStudyHours: data.maxDailyStudyHours || 6,
+                    maxContinuousMinutes: data.maxContinuousMinutes || 90,
+                    dayStartHour: data.dayStartHour || 8,
+                    dayEndHour: data.dayEndHour || 22,
+                    sleepHoursPerDay: data.sleepHoursPerDay || 8,
+                    lunchBreakStart: data.lunchEnabled !== false ? (data.lunchStart || "12:00") : null,
+                    lunchBreakEnd:   data.lunchEnabled !== false ? (data.lunchEnd   || "13:00") : null,
+                    breakDurationMinutes: data.breakDurationMinutes || 15,
+                    defaultTaskEstimatedHours: 4.0,
+                    maxDailyTotalHours: data.maxDailyTotalHours || 14,
+                    examPrepHoursPerDay: data.examPrepHoursPerDay || 5,
+                    examPrepDays: data.examPrepDays || 3
+                },
+                notificationSettings: {
+                    notifyBeforeTask: data.notifyDeadline !== false,
+                    dailyMorningSummary: data.notifyMorning || false,
+                    weeklyPlanReminder: data.notifyWeekly || false,
+                    enablePushNotification: false,
+                    quietHoursStart: data.quietStart || "22:00",
+                    quietHoursEnd:   data.quietEnd   || "07:00"
+                },
+                constraints: data.constraints || []
+            };
+        }
+
+        function FinishSC() {
+            sessionStorage.removeItem(STORE_KEY);
+            var user = getUser();
+            if (user) { user.onboardingCompleted = true; localStorage.setItem("smartstudy_user", JSON.stringify(user)); }
+            window.location.href = BASE_PATH + "/Pages/Dashboard.html";
+        }
+
+        function FinishEC(xhr) {
+            console.log("Onboarding save failed:", xhr);
+            // Still navigate — user can retry from Settings
+            sessionStorage.removeItem(STORE_KEY);
+            var user = getUser();
+            if (user) { user.onboardingCompleted = true; localStorage.setItem("smartstudy_user", JSON.stringify(user)); }
+            window.location.href = BASE_PATH + "/Pages/Dashboard.html";
+        }
+    </script>
 </body>
 </html>

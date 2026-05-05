@@ -5,51 +5,217 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>SmartStudy - Analytics</title>
     <link rel="stylesheet" href="../CSS/app.css">
+    <script src="https://code.jquery.com/jquery-3.7.1.min.js" integrity="sha256-/JqT3SQfawRcv/BIHPThkBvs0OEvtFFmqPF/lYI/Cxo=" crossorigin="anonymous"></script>
+    <script src="../Scripts/ajaxCall.js"></script>
+    <script src="../Scripts/appShell.js"></script>
 </head>
 <body data-page="analytics">
     <div id="pageRoot">
         <div class="analytics-grid">
             <div class="card">
-                <div class="card-header">
-                    <h3 class="card-title">Weekly Stress Trend</h3>
-                </div>
-                <div class="card-body" id="weeklyChart">
-                    <div class="skeleton skeleton-chart"></div>
-                </div>
+                <div class="card-header"><h3 class="card-title">Weekly Stress Trend</h3></div>
+                <div class="card-body" id="weeklyChart"><div class="skeleton skeleton-chart"></div></div>
             </div>
 
             <div class="card">
-                <div class="card-header">
-                    <h3 class="card-title">Workload by Course</h3>
-                </div>
+                <div class="card-header"><h3 class="card-title">Workload by Course</h3></div>
                 <div class="card-body" id="workloadByCourse">
                     <div class="skeleton skeleton-text"></div>
                     <div class="skeleton skeleton-text"></div>
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-header"><h3 class="card-title">Task Statistics</h3></div>
+                <div class="card-body" id="taskStats">
                     <div class="skeleton skeleton-text"></div>
                 </div>
             </div>
 
             <div class="card">
-                <div class="card-header">
-                    <h3 class="card-title">Task Statistics</h3>
-                </div>
-                <div class="card-body" id="taskStats">
-                    <div class="skeleton skeleton-text"></div>
+                <div class="card-header"><h3 class="card-title">Estimated vs Actual Hours</h3></div>
+                <div class="card-body" id="estVsActual">
                     <div class="skeleton skeleton-text"></div>
                 </div>
             </div>
+
             <div class="card">
-                <div class="card-header">
-                    <h3 class="card-title">Learning Insights</h3>
-                </div>
+                <div class="card-header"><h3 class="card-title">Learning Insights</h3></div>
                 <div class="card-body" id="learningInsights">
-                    <div class="skeleton skeleton-text"></div>
                     <div class="skeleton skeleton-text"></div>
                 </div>
             </div>
         </div>
     </div>
-    <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
-    <script type="module" src="../Script/main.js"></script>
+
+    <script>
+        // ---- API endpoints -----------------------------------------------
+        var StressWeeklyApi    = API_BASE + "/stress/weekly";
+        var TasksApi           = API_BASE + "/tasks";
+        var CoursesApi         = API_BASE + "/courses";
+        var InsightsApi        = API_BASE + "/tasks/learning-insights";
+
+        var COURSE_COLORS = ["#4A90D9", "#F28D35", "#9B76FF", "#43B88C", "#E84B6A", "#54BFB5"];
+        var allTasks = [];
+        var allCourses = [];
+
+        function escapeHtml(s) {
+            if (s == null) return "";
+            return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+        }
+
+        $(document).ready(function () {
+            if (!requireAuth()) return;
+            SmartStudy.initShell("analytics");
+
+            ajaxCall("GET", StressWeeklyApi, null, RenderWeeklyChart, function () {
+                $("#weeklyChart").html('<p class="text-muted">Failed to load stress data.</p>');
+            });
+
+            ajaxCall("GET", TasksApi, null, function (tasks) {
+                allTasks = tasks || [];
+                ajaxCall("GET", CoursesApi, null, function (courses) {
+                    allCourses = courses || [];
+                    RenderWorkloadByCourse();
+                    RenderTaskStats();
+                    RenderEstVsActual();
+                    LoadLearningInsights();
+                }, function () { /* silent */ });
+            }, function () { /* silent */ });
+        });
+
+        function RenderWeeklyChart(weekly) {
+            weekly = weekly || [];
+            if (!weekly.length) { $("#weeklyChart").html('<p class="text-muted">No data yet.</p>'); return; }
+            var html = '<div class="bar-chart">' + weekly.map(function (d) {
+                var score = Math.round(d.score || 0);
+                return '<div class="bar-chart-col">' +
+                    '<div class="bar-chart-bar-container">' +
+                        '<div class="bar-chart-bar" style="height:' + score + '%;background:' + (d.color || '#54BFB5') + '" title="' + escapeHtml(d.dayName) + ': ' + score + '%"></div>' +
+                    '</div>' +
+                    '<div class="bar-chart-label">' + escapeHtml(d.dayName) + '</div>' +
+                    '<div class="bar-chart-value">' + score + '%</div>' +
+                '</div>';
+            }).join("") + '</div>';
+            $("#weeklyChart").html(html);
+        }
+
+        function RenderWorkloadByCourse() {
+            var totalHours = allTasks.reduce(function (s, t) { return s + (t.estimatedHours || 0); }, 0) || 1;
+            var html = allCourses.map(function (c, i) {
+                var courseHours = allTasks.filter(function (t) { return t.courseId === c.courseId; })
+                    .reduce(function (s, t) { return s + (t.estimatedHours || 0); }, 0);
+                var pct = Math.round((courseHours / totalHours) * 100);
+                var color = COURSE_COLORS[i % COURSE_COLORS.length];
+                return '<div class="progress-item">' +
+                    '<div class="progress-label"><span>' + escapeHtml(c.courseName) + '</span><span>' + courseHours + 'h (' + pct + '%)</span></div>' +
+                    '<div class="progress-bar-track"><div class="progress-bar-fill" style="width:' + pct + '%;background:' + color + '"></div></div>' +
+                '</div>';
+            }).join("");
+            $("#workloadByCourse").html(html || '<p class="text-muted">No courses yet.</p>');
+        }
+
+        function RenderTaskStats() {
+            var total = allTasks.length;
+            var completed = allTasks.filter(function (t) { return t.isCompleted || t.completed; }).length;
+            var pending = total - completed;
+            var now = new Date();
+            var overdue = allTasks.filter(function (t) { return !(t.isCompleted || t.completed) && t.dueDate && new Date(t.dueDate) < now; }).length;
+            var rate = total > 0 ? Math.round(completed / total * 100) : 0;
+
+            var html = '<div class="stat-boxes">' +
+                '<div class="stat-box"><span class="stat-box-value">' + total + '</span><span class="stat-box-label">Total Tasks</span></div>' +
+                '<div class="stat-box"><span class="stat-box-value" style="color:#27AE60">' + completed + '</span><span class="stat-box-label">Completed</span></div>' +
+                '<div class="stat-box"><span class="stat-box-value" style="color:#F28D35">' + pending + '</span><span class="stat-box-label">Pending</span></div>' +
+                '<div class="stat-box"><span class="stat-box-value" style="color:#E74C3C">' + overdue + '</span><span class="stat-box-label">Overdue</span></div>' +
+                '</div>' +
+                '<div class="progress-item" style="margin-top:1rem">' +
+                    '<div class="progress-label"><span>Completion Rate</span><span>' + rate + '%</span></div>' +
+                    '<div class="progress-bar-track"><div class="progress-bar-fill progress-bar-success" style="width:' + rate + '%"></div></div>' +
+                '</div>';
+            $("#taskStats").html(html);
+        }
+
+        function RenderEstVsActual() {
+            var $el = $("#estVsActual");
+            var completedWithHours = allTasks.filter(function (t) {
+                return (t.isCompleted || t.completed) && t.estimatedHours && t.actualHours;
+            });
+            if (!completedWithHours.length) {
+                $el.html('<p class="text-muted">Complete more tasks with actual hours to see comparison.</p>');
+                return;
+            }
+
+            var courseMap = {};
+            completedWithHours.forEach(function (t) {
+                var key = t.courseId;
+                if (!courseMap[key]) courseMap[key] = { courseName: t.courseName || "Unknown", estimated: 0, actual: 0 };
+                courseMap[key].estimated += t.estimatedHours;
+                courseMap[key].actual += t.actualHours;
+            });
+
+            var entries = Object.keys(courseMap).map(function (k) { return courseMap[k]; });
+            var maxHours = 1;
+            entries.forEach(function (e) {
+                if (e.estimated > maxHours) maxHours = e.estimated;
+                if (e.actual > maxHours) maxHours = e.actual;
+            });
+
+            var html = '<div class="est-vs-actual-chart">' + entries.map(function (e, i) {
+                var estPct = Math.round((e.estimated / maxHours) * 100);
+                var actPct = Math.round((e.actual / maxHours) * 100);
+                var color = COURSE_COLORS[i % COURSE_COLORS.length];
+                var accuracy = e.estimated > 0 ? Math.round((e.actual / e.estimated) * 100) : 0;
+                var accuracyClass = accuracy > 120 ? "text-danger" : accuracy < 80 ? "text-warning" : "text-success";
+                return '<div class="est-vs-actual-row" style="display:flex;align-items:center;gap:var(--space-3);margin-bottom:var(--space-2)">' +
+                    '<span class="est-vs-actual-label" style="flex:0 0 150px">' + escapeHtml(e.courseName) + '</span>' +
+                    '<div class="est-vs-actual-bar est-vs-actual-bar--overlay" style="flex:1;position:relative;height:28px;background:var(--bg-surface);border-radius:var(--radius-sm);overflow:hidden">' +
+                        '<div class="est-vs-actual-fill est-vs-actual-fill--est" style="position:absolute;top:0;left:0;height:100%;width:' + estPct + '%;background:' + color + ';opacity:0.35"></div>' +
+                        '<div class="est-vs-actual-fill est-vs-actual-fill--act" style="position:absolute;top:0;left:0;height:100%;width:' + actPct + '%;background:' + color + '"></div>' +
+                        '<span class="est-vs-actual-value" style="position:absolute;top:50%;left:8px;transform:translateY(-50%);font-size:0.85em;color:#fff;font-weight:600">' + e.actual.toFixed(1) + 'h / ' + e.estimated.toFixed(1) + 'h</span>' +
+                    '</div>' +
+                    '<span class="est-vs-actual-accuracy ' + accuracyClass + '" style="flex:0 0 60px;text-align:right">' + accuracy + '%</span>' +
+                '</div>';
+            }).join("") + '</div>' +
+            '<div class="est-vs-actual-legend" style="margin-top:var(--space-3);display:flex;gap:var(--space-4)">' +
+                '<span class="legend-item"><span class="legend-dot" style="opacity:0.35;background:#888"></span> Estimated</span>' +
+                '<span class="legend-item"><span class="legend-dot" style="background:#888"></span> Actual</span>' +
+            '</div>';
+
+            $el.html(html);
+        }
+
+        function LoadLearningInsights() {
+            ajaxCall("GET", InsightsApi, null, RenderLearningInsights, function () {
+                $("#learningInsights").html('<p class="text-muted">Failed to load learning insights.</p>');
+            });
+        }
+
+        function RenderLearningInsights(insights) {
+            insights = insights || [];
+            if (!insights.length) {
+                $("#learningInsights").html('<p class="text-muted">Complete more tasks with actual hours to see insights.</p>');
+                return;
+            }
+            var html = insights.map(function (i) {
+                var accuracy = i.accuracy != null ? Math.round(i.accuracy) : 100;
+                var isOver = accuracy > 110, isUnder = accuracy < 90;
+                var barColor = isOver ? '#E74C3C' : isUnder ? '#F28D35' : '#27AE60';
+                var label = isOver ? 'Takes longer than estimated' : isUnder ? 'Finishes faster than estimated' : 'On track';
+                return '<div class="learning-insight-item">' +
+                    '<div class="learning-insight-header">' +
+                        '<span class="learning-insight-course">' + escapeHtml(i.courseName) + '</span>' +
+                        '<span class="learning-insight-factor" style="color:' + barColor + '">' + accuracy + '% ' + label + '</span>' +
+                    '</div>' +
+                    '<div class="progress-bar-track"><div class="progress-bar-fill" style="width:' + (Math.min(accuracy, 200) / 2) + '%;background:' + barColor + '"></div></div>' +
+                    '<div class="learning-insight-meta">' +
+                        '<span>' + (i.taskCount || 0) + ' tasks completed</span>' +
+                        '<span>Avg: ' + ((i.avgEstimated || 0).toFixed(1)) + 'h est / ' + ((i.avgActual || 0).toFixed(1)) + 'h actual</span>' +
+                    '</div>' +
+                '</div>';
+            }).join("");
+            $("#learningInsights").html(html);
+        }
+    </script>
 </body>
 </html>

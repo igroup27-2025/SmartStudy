@@ -5,6 +5,7 @@ namespace SmartStudy.Services;
 public class MoodleBackgroundSyncService : BackgroundService
 {
     private readonly IServiceScopeFactory _scopeFactory;
+    private readonly IConfiguration _config;
     private readonly ILogger<MoodleBackgroundSyncService> _logger;
     private readonly TimeSpan _interval;
 
@@ -13,6 +14,7 @@ public class MoodleBackgroundSyncService : BackgroundService
     {
         _scopeFactory = scopeFactory;
         _logger = logger;
+        _config = config;
         var hours = int.TryParse(config["Moodle:BackgroundSyncIntervalHours"], out var h) ? h : 12;
         _interval = TimeSpan.FromHours(hours);
     }
@@ -21,7 +23,6 @@ public class MoodleBackgroundSyncService : BackgroundService
     {
         try
         {
-            // Wait before first run to let the app fully start
             await Task.Delay(TimeSpan.FromMinutes(3), stoppingToken);
         }
         catch (TaskCanceledException)
@@ -53,13 +54,11 @@ public class MoodleBackgroundSyncService : BackgroundService
 
     private async Task SyncAllUsersAsync()
     {
-        using var scope = _scopeFactory.CreateScope();
-        var dal = scope.ServiceProvider.GetRequiredService<DBservices>();
-        var config = scope.ServiceProvider.GetRequiredService<IConfiguration>();
-        var syncIntervalHours = int.TryParse(config["Moodle:SyncIntervalHours"], out var h) ? h : 24;
+        var dal = new DBservices();
+        var syncIntervalHours = int.TryParse(_config["Moodle:SyncIntervalHours"], out var h) ? h : 24;
         var cutoff = DateTime.UtcNow.AddHours(-syncIntervalHours);
 
-        var usersToSync = await dal.GetUsersForMoodleSyncAsync(cutoff);
+        var usersToSync = dal.GetUsersForMoodleSync(cutoff);
 
         if (usersToSync.Count == 0) return;
 

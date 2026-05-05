@@ -1112,10 +1112,16 @@ BEGIN
                            ELSE ActualHours END
     WHERE TaskId = @TaskId;
 
-    -- Remove task events when completing
+    -- Remove task events when completing. Subtype rows are deleted explicitly
+    -- because the live DB still has the EF-Core FK without ON DELETE CASCADE.
     IF @IsCompleted = 1
     BEGIN
-        DELETE FROM SmartStudy_Events WHERE EventId IN (SELECT EventId FROM SmartStudy_TaskEvents WHERE TaskId = @TaskId);
+        DECLARE @EventIds TABLE (EventId INT);
+        INSERT INTO @EventIds (EventId)
+        SELECT EventId FROM SmartStudy_TaskEvents WHERE TaskId = @TaskId;
+
+        DELETE FROM SmartStudy_TaskEvents WHERE EventId IN (SELECT EventId FROM @EventIds);
+        DELETE FROM SmartStudy_Events     WHERE EventId IN (SELECT EventId FROM @EventIds);
     END
 END
 GO
@@ -1972,8 +1978,13 @@ CREATE PROCEDURE SS_Events_Delete
 AS
 BEGIN
     SET NOCOUNT ON;
-    -- Subtype rows cascade-delete via FK
-    DELETE FROM SmartStudy_Events WHERE EventId = @EventId;
+    -- Delete subtype rows explicitly. The live DB still has the EF-Core FK
+    -- without ON DELETE CASCADE, so we cannot rely on the cascade.
+    DELETE FROM SmartStudy_TaskEvents     WHERE EventId = @EventId;
+    DELETE FROM SmartStudy_ClassEvents    WHERE EventId = @EventId;
+    DELETE FROM SmartStudy_WorkEvents     WHERE EventId = @EventId;
+    DELETE FROM SmartStudy_PersonalEvents WHERE EventId = @EventId;
+    DELETE FROM SmartStudy_Events         WHERE EventId = @EventId;
 END
 GO
 

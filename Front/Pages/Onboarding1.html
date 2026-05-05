@@ -5,18 +5,21 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>SmartStudy - Welcome</title>
     <link rel="stylesheet" href="../CSS/app.css">
+    <script src="https://code.jquery.com/jquery-3.7.1.min.js" integrity="sha256-/JqT3SQfawRcv/BIHPThkBvs0OEvtFFmqPF/lYI/Cxo=" crossorigin="anonymous"></script>
+    <script src="../Scripts/ajaxCall.js"></script>
+    <script src="../Scripts/appShell.js"></script>
 </head>
 <body data-page="onboarding" data-layout="onboarding" data-step="1">
     <div class="onboarding-container">
         <div class="onboarding-logo"><img src="../Images/logo.png" alt="SmartStudy" class="onboarding-logo-img"></div>
         <div class="onboarding-dots">
-            <span class="onboarding-dot"></span>
+            <span class="onboarding-dot active current"></span>
             <span class="onboarding-dot"></span>
             <span class="onboarding-dot"></span>
             <span class="onboarding-dot"></span>
         </div>
         <div class="onboarding-progress-bar">
-            <div class="onboarding-progress" id="onboardingProgress"></div>
+            <div class="onboarding-progress" id="onboardingProgress" style="width:25%"></div>
         </div>
         <div class="onboarding-card">
             <h1 class="onboarding-title">Welcome to SmartStudy!</h1>
@@ -24,11 +27,11 @@
             <div class="onboarding-features">
                 <div class="onboarding-feature">
                     <span class="onboarding-feature-icon">&#128218;</span>
-                    <span>Manage courses & exams</span>
+                    <span>Manage courses &amp; exams</span>
                 </div>
                 <div class="onboarding-feature">
                     <span class="onboarding-feature-icon">&#9745;</span>
-                    <span>Track tasks & deadlines</span>
+                    <span>Track tasks &amp; deadlines</span>
                 </div>
                 <div class="onboarding-feature">
                     <span class="onboarding-feature-icon">&#128200;</span>
@@ -45,7 +48,50 @@
             <button class="btn btn-primary btn-lg" id="onboardingNext">Get Started</button>
         </div>
     </div>
-    <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
-    <script type="module" src="../Script/main.js"></script>
+
+    <script>
+        // ---- Onboarding state helpers ----------------------------------
+        var STORE_KEY = "smartstudy_onboarding";
+        var OnboardingApi = API_BASE + "/settings/onboarding";
+
+        $(document).ready(function () {
+            $("#onboardingNext").on("click", function () {
+                window.location.href = BASE_PATH + "/Pages/Onboarding2.html";
+            });
+            $("#onboardingSkip").on("click", function () {
+                sessionStorage.removeItem(STORE_KEY);
+                // Save defaults by calling the onboarding endpoint
+                var payload = BuildDefaultPayload();
+                ajaxCall("PUT", OnboardingApi, JSON.stringify(payload),
+                    function () { GoToDashboard(); },
+                    function () { GoToDashboard(); }  // ignore errors, still redirect
+                );
+            });
+        });
+
+        function GoToDashboard() {
+            var user = getUser();
+            if (user) { user.onboardingCompleted = true; localStorage.setItem("smartstudy_user", JSON.stringify(user)); }
+            window.location.href = BASE_PATH + "/Pages/Dashboard.html";
+        }
+
+        function BuildDefaultPayload() {
+            return {
+                schedulingPreferences: {
+                    maxDailyStudyHours: 6, maxContinuousMinutes: 90,
+                    dayStartHour: 8, dayEndHour: 22, sleepHoursPerDay: 8,
+                    lunchBreakStart: "12:00", lunchBreakEnd: "13:00",
+                    breakDurationMinutes: 15, defaultTaskEstimatedHours: 4.0,
+                    maxDailyTotalHours: 14, examPrepHoursPerDay: 5, examPrepDays: 3
+                },
+                notificationSettings: {
+                    notifyBeforeTask: true, dailyMorningSummary: false,
+                    weeklyPlanReminder: false, enablePushNotification: false,
+                    quietHoursStart: "22:00", quietHoursEnd: "07:00"
+                },
+                constraints: []
+            };
+        }
+    </script>
 </body>
 </html>

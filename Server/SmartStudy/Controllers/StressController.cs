@@ -1,7 +1,7 @@
 using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using SmartStudy.Services;
+using UserModel = SmartStudy.Models.User;
 
 namespace SmartStudy.Controllers;
 
@@ -10,23 +10,19 @@ namespace SmartStudy.Controllers;
 [Authorize]
 public class StressController : ControllerBase
 {
-    private readonly StressService _stressService;
-
-    public StressController(StressService stressService) => _stressService = stressService;
-
     private string GetEmail() => User.FindFirst(ClaimTypes.Email)!.Value;
 
     [HttpGet("score")]
-    public async Task<IActionResult> GetScore()
+    public IActionResult GetScore()
     {
-        var score = await _stressService.GetStressScoreAsync(GetEmail());
+        var score = UserModel.GetStressScore(GetEmail());
         return Ok(score);
     }
 
     [HttpGet("weekly")]
-    public async Task<IActionResult> GetWeekly()
+    public IActionResult GetWeekly()
     {
-        var weekly = await _stressService.GetWeeklyStressAsync(GetEmail());
+        var weekly = UserModel.GetWeeklyStress(GetEmail());
         return Ok(weekly);
     }
 }

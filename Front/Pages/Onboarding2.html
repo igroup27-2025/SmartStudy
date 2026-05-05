@@ -5,18 +5,21 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>SmartStudy - Study Preferences</title>
     <link rel="stylesheet" href="../CSS/app.css">
+    <script src="https://code.jquery.com/jquery-3.7.1.min.js" integrity="sha256-/JqT3SQfawRcv/BIHPThkBvs0OEvtFFmqPF/lYI/Cxo=" crossorigin="anonymous"></script>
+    <script src="../Scripts/ajaxCall.js"></script>
+    <script src="../Scripts/appShell.js"></script>
 </head>
 <body data-page="onboarding" data-layout="onboarding" data-step="2">
     <div class="onboarding-container">
         <div class="onboarding-logo"><img src="../Images/logo.png" alt="SmartStudy" class="onboarding-logo-img"></div>
         <div class="onboarding-dots">
-            <span class="onboarding-dot"></span>
-            <span class="onboarding-dot"></span>
+            <span class="onboarding-dot active"></span>
+            <span class="onboarding-dot active current"></span>
             <span class="onboarding-dot"></span>
             <span class="onboarding-dot"></span>
         </div>
         <div class="onboarding-progress-bar">
-            <div class="onboarding-progress" id="onboardingProgress"></div>
+            <div class="onboarding-progress" id="onboardingProgress" style="width:50%"></div>
         </div>
         <div class="onboarding-card">
             <h1 class="onboarding-title">Study Preferences</h1>
@@ -141,7 +144,75 @@
             <button class="btn btn-primary btn-lg" id="onboardingNext">Next</button>
         </div>
     </div>
-    <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
-    <script type="module" src="../Script/main.js"></script>
+
+    <script>
+        var STORE_KEY = "smartstudy_onboarding";
+
+        function LoadDraft() {
+            try { return JSON.parse(sessionStorage.getItem(STORE_KEY)) || {}; }
+            catch (e) { return {}; }
+        }
+        function SaveDraft(patch) {
+            var existing = LoadDraft();
+            sessionStorage.setItem(STORE_KEY, JSON.stringify($.extend({}, existing, patch)));
+        }
+
+        $(document).ready(function () {
+            var data = LoadDraft();
+
+            // Restore saved values
+            if (data.maxDailyStudyHours)  $("#maxDailyStudy").val(data.maxDailyStudyHours);
+            if (data.sleepHoursPerDay)    $("#sleepHours").val(data.sleepHoursPerDay);
+            if (data.maxDailyTotalHours)  $("#maxDailyTotal").val(data.maxDailyTotalHours);
+            if (data.maxContinuousMinutes) $("#maxContinuous").val(data.maxContinuousMinutes);
+            if (data.breakDurationMinutes) $("#breakDuration").val(data.breakDurationMinutes);
+            if (data.dayStartHour)        $("#dayStart").val(data.dayStartHour);
+            if (data.dayEndHour)          $("#dayEnd").val(data.dayEndHour);
+            if (data.examPrepHoursPerDay) $("#examPrepHoursPerDay").val(data.examPrepHoursPerDay);
+            if (data.examPrepDays)        $("#examPrepDays").val(data.examPrepDays);
+            if (data.lunchEnabled === false) { $("#lunchEnabled").prop("checked", false); $("#lunchTimeRow").hide(); }
+            if (data.lunchStart) $("#lunchStart").val(data.lunchStart);
+            if (data.lunchEnd)   $("#lunchEnd").val(data.lunchEnd);
+
+            UpdateRangeLabels();
+
+            $("#maxDailyStudy,#sleepHours,#maxDailyTotal").on("input", UpdateRangeLabels);
+            $("#lunchEnabled").on("change", function () {
+                $("#lunchTimeRow").toggle(this.checked);
+            });
+
+            $("#onboardingBack").on("click", function () {
+                CollectStep2();
+                window.location.href = BASE_PATH + "/Pages/Onboarding1.html";
+            });
+            $("#onboardingNext").on("click", function () {
+                CollectStep2();
+                window.location.href = BASE_PATH + "/Pages/Onboarding3.html";
+            });
+        });
+
+        function UpdateRangeLabels() {
+            $("#maxDailyStudyValue").text($("#maxDailyStudy").val() + "h");
+            $("#sleepHoursValue").text($("#sleepHours").val() + "h");
+            $("#maxDailyTotalValue").text($("#maxDailyTotal").val() + "h");
+        }
+
+        function CollectStep2() {
+            SaveDraft({
+                maxDailyStudyHours:   parseFloat($("#maxDailyStudy").val()) || 6,
+                maxContinuousMinutes: parseInt($("#maxContinuous").val()) || 90,
+                dayStartHour:         parseInt($("#dayStart").val()) || 8,
+                dayEndHour:           parseInt($("#dayEnd").val()) || 22,
+                sleepHoursPerDay:     parseFloat($("#sleepHours").val()) || 8,
+                lunchEnabled:         $("#lunchEnabled").is(":checked"),
+                lunchStart:           $("#lunchStart").val() || "12:00",
+                lunchEnd:             $("#lunchEnd").val() || "13:00",
+                breakDurationMinutes: parseInt($("#breakDuration").val()) || 15,
+                maxDailyTotalHours:   parseFloat($("#maxDailyTotal").val()) || 14,
+                examPrepHoursPerDay:  parseFloat($("#examPrepHoursPerDay").val()) || 5,
+                examPrepDays:         parseInt($("#examPrepDays").val()) || 3
+            });
+        }
+    </script>
 </body>
 </html>

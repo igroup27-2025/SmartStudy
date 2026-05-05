@@ -3,23 +3,27 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-    <title>SmartStudy - Notifications & Constraints</title>
+    <title>SmartStudy - Notifications &amp; Constraints</title>
     <link rel="stylesheet" href="../CSS/app.css">
+    <script src="https://code.jquery.com/jquery-3.7.1.min.js" integrity="sha256-/JqT3SQfawRcv/BIHPThkBvs0OEvtFFmqPF/lYI/Cxo=" crossorigin="anonymous"></script>
+    <script src="https://accounts.google.com/gsi/client" async defer></script>
+    <script src="../Scripts/ajaxCall.js"></script>
+    <script src="../Scripts/appShell.js"></script>
 </head>
 <body data-page="onboarding" data-layout="onboarding" data-step="3">
     <div class="onboarding-container">
         <div class="onboarding-logo"><img src="../Images/logo.png" alt="SmartStudy" class="onboarding-logo-img"></div>
         <div class="onboarding-dots">
-            <span class="onboarding-dot"></span>
-            <span class="onboarding-dot"></span>
-            <span class="onboarding-dot"></span>
+            <span class="onboarding-dot active"></span>
+            <span class="onboarding-dot active"></span>
+            <span class="onboarding-dot active current"></span>
             <span class="onboarding-dot"></span>
         </div>
         <div class="onboarding-progress-bar">
-            <div class="onboarding-progress" id="onboardingProgress"></div>
+            <div class="onboarding-progress" id="onboardingProgress" style="width:75%"></div>
         </div>
         <div class="onboarding-card">
-            <h1 class="onboarding-title">Notifications & Constraints</h1>
+            <h1 class="onboarding-title">Notifications &amp; Constraints</h1>
             <p class="onboarding-subtitle">Set up notification preferences and add recurring commitments.</p>
 
             <form id="notifForm" class="onboarding-form">
@@ -90,7 +94,7 @@
                     </div>
                     <div class="onboarding-field">
                         <label class="onboarding-field__label">Days</label>
-                        <div class="onboarding-day-picker">
+                        <div class="onboarding-day-picker" id="constraintDayPicker">
                             <label class="onboarding-day-chip"><input type="checkbox" value="0"> Sun</label>
                             <label class="onboarding-day-chip"><input type="checkbox" value="1"> Mon</label>
                             <label class="onboarding-day-chip"><input type="checkbox" value="2"> Tue</label>
@@ -117,7 +121,7 @@
                 </div>
 
                 <h3 class="onboarding-section-title" style="margin-top:24px">Connect External Systems <span style="font-weight:400;font-size:13px;color:var(--text-muted)">(optional)</span></h3>
-                <p class="onboarding-hint" style="margin-bottom:12px">Import your calendar and academic data to SmartStudy.</p>
+                <p class="onboarding-hint" style="margin-bottom:12px">You can also connect these later from Settings.</p>
 
                 <div class="onboarding-external-systems">
                     <div class="onboarding-external-item">
@@ -125,47 +129,39 @@
                             <span class="onboarding-external-icon">&#x1F4C5;</span>
                             <div>
                                 <strong>Google Calendar</strong>
-                                <p class="onboarding-hint" style="margin:0">Sync your existing events into SmartStudy</p>
+                                <p class="onboarding-hint" style="margin:0" id="googleCalHint">Sync your Google events into SmartStudy</p>
                             </div>
                         </div>
-                        <button type="button" class="btn btn-secondary btn-sm" id="connectGoogleCal">Connect</button>
-                        <span class="onboarding-external-status hidden" id="googleCalStatus">Connected</span>
+                        <button type="button" class="btn btn-sm btn-primary" id="connectGoogleCal">Connect</button>
+                        <span class="onboarding-external-badge hidden" id="googleCalStatus" style="background:#27AE60;color:#fff;display:none">Connected</span>
                     </div>
+
                     <div class="onboarding-external-item">
-                        <div class="onboarding-external-info">
-                            <span class="onboarding-external-icon">&#x1F393;</span>
-                            <div>
-                                <strong>Moodle</strong>
-                                <p class="onboarding-hint" style="margin:0">Import assignments and deadlines</p>
-                            </div>
-                        </div>
-                        <span class="onboarding-external-badge">Coming Soon</span>
-                    </div>
-                    <div class="onboarding-external-item" id="ruppinetOnboardingItem">
                         <div class="onboarding-external-info">
                             <span class="onboarding-external-icon">&#x1F3EB;</span>
                             <div>
                                 <strong>Ruppinet</strong>
-                                <p class="onboarding-hint" style="margin:0">Sync university schedule, courses &amp; exams</p>
+                                <p class="onboarding-hint" style="margin:0">Sync university courses, classes, and exams</p>
                             </div>
                         </div>
-                        <button type="button" class="btn btn-secondary btn-sm" id="connectRuppinetOnboarding">Connect</button>
-                        <span class="onboarding-external-status hidden" id="ruppinetOnboardingStatus">Connected</span>
+                        <button type="button" class="btn btn-sm btn-primary" id="connectRuppinetOnboarding">Connect</button>
+                        <span class="onboarding-external-badge hidden" id="ruppinetOnboardingStatus" style="background:#27AE60;color:#fff;display:none">Connected</span>
                     </div>
-                    <div id="ruppinetOnboardingForm" style="display:none; margin-top:8px; padding:12px; background:var(--bg-secondary); border-radius:14px;">
+
+                    <div id="ruppinetOnboardingForm" style="display:none;padding:var(--space-3);background:var(--bg-surface);border-radius:var(--radius-md);margin-top:var(--space-3)">
                         <div class="form-row">
                             <div class="form-group">
-                                <label for="ruppinetOnbId">ID Number (ת.ז.)</label>
-                                <input type="text" id="ruppinetOnbId" class="form-input" placeholder="123456789" inputmode="numeric">
+                                <label for="ruppinetOnbId">Ruppinet ID / Email</label>
+                                <input type="text" id="ruppinetOnbId" class="form-input">
                             </div>
                             <div class="form-group">
                                 <label for="ruppinetOnbPass">Password</label>
                                 <input type="password" id="ruppinetOnbPass" class="form-input">
                             </div>
                         </div>
-                        <div style="display:flex;gap:8px;margin-top:8px">
-                            <button type="button" class="btn btn-primary btn-sm" id="ruppinetOnbSubmit">Connect & Sync</button>
-                            <button type="button" class="btn btn-ghost btn-sm" id="ruppinetOnbCancel">Cancel</button>
+                        <div style="display:flex;gap:var(--space-2);justify-content:flex-end">
+                            <button type="button" class="btn btn-secondary btn-sm" id="ruppinetOnbCancel">Cancel</button>
+                            <button type="button" class="btn btn-primary btn-sm" id="ruppinetOnbSubmit">Connect &amp; Sync</button>
                         </div>
                     </div>
                 </div>
@@ -176,7 +172,225 @@
             <button class="btn btn-primary btn-lg" id="onboardingNext">Next</button>
         </div>
     </div>
-    <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
-    <script type="module" src="../Script/main.js"></script>
+
+    <script>
+        var STORE_KEY = "smartstudy_onboarding";
+        var constraints = [];
+
+        function LoadDraft() {
+            try { return JSON.parse(sessionStorage.getItem(STORE_KEY)) || {}; }
+            catch (e) { return {}; }
+        }
+        function SaveDraft(patch) {
+            var existing = LoadDraft();
+            sessionStorage.setItem(STORE_KEY, JSON.stringify($.extend({}, existing, patch)));
+        }
+
+        function escapeHtml(s) {
+            if (s == null) return "";
+            return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
+        }
+
+        // API endpoints for external integrations
+        var CalendarSyncStatusApi  = API_BASE + "/calendar-sync/status";
+        var CalendarSyncConnectApi = API_BASE + "/calendar-sync/connect";
+        var CalendarSyncGoogleApi  = API_BASE + "/calendar-sync/google";
+        var AuthConfigApi          = API_BASE + "/auth/config";
+        var RuppinetConnectApi     = API_BASE + "/settings/ruppinet/connect";
+
+        $(document).ready(function () {
+            var data = LoadDraft();
+
+            if (data.notifyDeadline !== undefined) $("#notifyDeadline").prop("checked", data.notifyDeadline);
+            if (data.notifyMorning !== undefined)  $("#notifyMorning").prop("checked", data.notifyMorning);
+            if (data.notifyWeekly !== undefined)   $("#notifyWeekly").prop("checked", data.notifyWeekly);
+            if (data.quietStart) $("#quietStart").val(data.quietStart);
+            if (data.quietEnd)   $("#quietEnd").val(data.quietEnd);
+
+            constraints = data.constraints || [];
+            RenderConstraints();
+
+            // Restore external-system state from draft
+            if (data.googleCalConnected) {
+                $("#connectGoogleCal").hide();
+                $("#googleCalStatus").show();
+            }
+            if (data.ruppinetConnected) {
+                $("#connectRuppinetOnboarding").hide();
+                $("#ruppinetOnboardingStatus").show();
+            }
+
+            $("#addConstraintBtn").on("click", function () {
+                $("#constraintForm").show();
+                $("#addConstraintBtn").hide();
+            });
+            $("#cancelConstraintBtn").on("click", function () {
+                ResetConstraintForm();
+                $("#constraintForm").hide();
+                $("#addConstraintBtn").show();
+            });
+            $("#saveConstraintBtn").on("click", SaveConstraint);
+
+            // Google Calendar connect
+            $("#connectGoogleCal").on("click", ConnectGoogleCalendar);
+
+            // Ruppinet connect
+            $("#connectRuppinetOnboarding").on("click", function () {
+                $("#ruppinetOnboardingForm").show();
+                $("#connectRuppinetOnboarding").hide();
+            });
+            $("#ruppinetOnbCancel").on("click", function () {
+                $("#ruppinetOnboardingForm").hide();
+                $("#connectRuppinetOnboarding").show();
+            });
+            $("#ruppinetOnbSubmit").on("click", ConnectRuppinet);
+
+            $("#onboardingBack").on("click", function () {
+                CollectStep3();
+                window.location.href = BASE_PATH + "/Pages/Onboarding2.html";
+            });
+            $("#onboardingNext").on("click", function () {
+                CollectStep3();
+                window.location.href = BASE_PATH + "/Pages/Onboarding4.html";
+            });
+        });
+
+        function ConnectGoogleCalendar() {
+            var $btn = $("#connectGoogleCal");
+            $btn.prop("disabled", true).text("Checking...");
+            ajaxCall("GET", CalendarSyncStatusApi, null, function (st) {
+                if (st && st.useComposio) {
+                    var callbackUrl = window.location.origin + "/api/calendar-sync/callback";
+                    ajaxCall("POST", CalendarSyncConnectApi, JSON.stringify({ callbackUrl: callbackUrl }),
+                        function (result) {
+                            if (result && result.redirectUrl) {
+                                window.location.href = result.redirectUrl;
+                            } else {
+                                $btn.prop("disabled", false).text("Connect");
+                                alert("Failed to connect Google Calendar.");
+                            }
+                        },
+                        function () {
+                            $btn.prop("disabled", false).text("Connect");
+                            alert("Failed to start Google connect");
+                        });
+                    return;
+                }
+
+                // Legacy OAuth
+                ajaxCall("GET", AuthConfigApi, null, function (config) {
+                    if (!config || !config.googleClientId || config.googleClientId === "PLACEHOLDER_GOOGLE_CLIENT_ID") {
+                        $btn.prop("disabled", false).text("Connect");
+                        alert("Google Calendar sync is not configured yet.");
+                        return;
+                    }
+                    if (typeof google === "undefined" || !google.accounts) {
+                        $btn.prop("disabled", false).text("Connect");
+                        alert("Google Sign-In library not loaded.");
+                        return;
+                    }
+                    var tokenClient = google.accounts.oauth2.initTokenClient({
+                        client_id: config.googleClientId,
+                        scope: "https://www.googleapis.com/auth/calendar.readonly",
+                        callback: function (resp) {
+                            if (!resp.access_token) { $btn.prop("disabled", false).text("Connect"); return; }
+                            ajaxCall("POST", CalendarSyncGoogleApi, JSON.stringify({ accessToken: resp.access_token }),
+                                function () {
+                                    $btn.hide();
+                                    $("#googleCalStatus").show();
+                                    SaveDraft({ googleCalConnected: true });
+                                },
+                                function () {
+                                    $btn.prop("disabled", false).text("Connect");
+                                    alert("Sync failed");
+                                });
+                        }
+                    });
+                    tokenClient.requestAccessToken();
+                }, function () {
+                    $btn.prop("disabled", false).text("Connect");
+                    alert("Failed to load Google config");
+                });
+            }, function () {
+                $btn.prop("disabled", false).text("Connect");
+                alert("Failed to check sync status");
+            });
+        }
+
+        function ConnectRuppinet() {
+            var id = $.trim($("#ruppinetOnbId").val());
+            var pass = $("#ruppinetOnbPass").val();
+            if (!id || !pass) { alert("Please fill in both fields"); return; }
+            var $btn = $("#ruppinetOnbSubmit");
+            $btn.prop("disabled", true).text("Connecting...");
+            ajaxCall("POST", RuppinetConnectApi, JSON.stringify({ ruppinetId: id, ruppinetPassword: pass }),
+                function () {
+                    $("#ruppinetOnboardingForm").hide();
+                    $("#connectRuppinetOnboarding").hide();
+                    $("#ruppinetOnboardingStatus").show();
+                    SaveDraft({ ruppinetConnected: true });
+                    $btn.prop("disabled", false).text("Connect & Sync");
+                },
+                function (xhr) {
+                    $btn.prop("disabled", false).text("Connect & Sync");
+                    alert((xhr.responseJSON && xhr.responseJSON.message) || "Connection failed");
+                });
+        }
+
+        function SaveConstraint() {
+            var name = $.trim($("#constraintName").val());
+            var type = $("#constraintType").val() || "work";
+            var start = $("#constraintStart").val();
+            var end = $("#constraintEnd").val();
+            var days = [];
+            $("#constraintDayPicker input:checked").each(function () {
+                days.push(parseInt($(this).val()));
+            });
+            if (!name || !start || !end || !days.length) {
+                alert("Please fill in all fields and pick at least one day.");
+                return;
+            }
+            constraints.push({ type: type, name: name, days: days, startTime: start, endTime: end });
+            RenderConstraints();
+            ResetConstraintForm();
+            $("#constraintForm").hide();
+            $("#addConstraintBtn").show();
+        }
+
+        function ResetConstraintForm() {
+            $("#constraintName").val("");
+            $("#constraintStart").val("17:00");
+            $("#constraintEnd").val("20:00");
+            $("#constraintDayPicker input").prop("checked", false);
+        }
+
+        function RenderConstraints() {
+            var el = $("#constraintList");
+            var dayNames = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+            var html = constraints.map(function (c, i) {
+                var daysStr = c.days.map(function (d) { return dayNames[d]; }).join(", ");
+                return '<div class="onboarding-constraint-item">' +
+                    '<span>' + escapeHtml(c.name) + ' (' + escapeHtml(c.type) + ') - ' + daysStr + ' ' + c.startTime + '-' + c.endTime + '</span>' +
+                    '<button type="button" class="btn btn-ghost btn-sm constraint-remove" data-index="' + i + '">&times;</button>' +
+                    '</div>';
+            }).join("");
+            el.html(html);
+            el.find(".constraint-remove").on("click", function () {
+                constraints.splice(parseInt($(this).data("index")), 1);
+                RenderConstraints();
+            });
+        }
+
+        function CollectStep3() {
+            SaveDraft({
+                notifyDeadline: $("#notifyDeadline").is(":checked"),
+                notifyMorning:  $("#notifyMorning").is(":checked"),
+                notifyWeekly:   $("#notifyWeekly").is(":checked"),
+                quietStart: $("#quietStart").val() || "22:00",
+                quietEnd:   $("#quietEnd").val() || "07:00",
+                constraints: constraints
+            });
+        }
+    </script>
 </body>
 </html>

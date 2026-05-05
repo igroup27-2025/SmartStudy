@@ -5,6 +5,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>SmartStudy - Tasks</title>
     <link rel="stylesheet" href="../CSS/app.css">
+    <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+    <script src="../Scripts/ajaxCall.js"></script>
+    <script src="../Scripts/appShell.js"></script>
 </head>
 <body data-page="tasks">
     <div id="pageRoot">
@@ -22,20 +25,20 @@
                     <label class="toggle-label"><input type="checkbox" name="filterStatus" value="completed" class="toggle-input"><span class="toggle-switch"></span> Completed</label>
                 </div>
                 <div class="filter-section">
-                    <h4>Course</h4>
-                    <div id="filterCourseCheckboxes"></div>
-                </div>
-                <div class="filter-section">
                     <h4>Priority</h4>
                     <label class="toggle-label"><input type="checkbox" name="filterPriority" value="high" class="toggle-input"><span class="toggle-switch"></span> High</label>
                     <label class="toggle-label"><input type="checkbox" name="filterPriority" value="medium" class="toggle-input"><span class="toggle-switch"></span> Medium</label>
                     <label class="toggle-label"><input type="checkbox" name="filterPriority" value="low" class="toggle-input"><span class="toggle-switch"></span> Low</label>
                 </div>
+                <div class="filter-section">
+                    <h4>Course</h4>
+                    <div id="filterCourseCheckboxes"></div>
+                </div>
             </div>
         </div>
 
-        <!-- Shared Task Invitations -->
-        <div id="sharedInvitations" class="shared-invitations" style="display:none;"></div>
+        <!-- Shared Invitations -->
+        <div id="sharedInvitations" class="shared-invitations" style="display:none;margin-bottom:var(--space-4)"></div>
 
         <div id="taskList" class="task-list">
             <div class="skeleton skeleton-card"></div>
@@ -48,7 +51,7 @@
             <div class="modal">
                 <div class="modal-header">
                     <h3 id="taskModalTitle">Add Task</h3>
-                    <button class="modal-close" data-close-modal>&times;</button>
+                    <button type="button" class="modal-close" id="taskModalClose">&times;</button>
                 </div>
                 <form id="taskForm">
                     <input type="hidden" id="taskId">
@@ -84,9 +87,9 @@
                             <div class="form-group">
                                 <label for="taskHours">Estimated Hours</label>
                                 <input type="number" id="taskHours" class="form-input" step="0.5" min="0">
-                                <small id="hoursSuggestion" class="form-hint" style="display:none;"></small>
                             </div>
                         </div>
+                        <div id="hoursSuggestion" class="form-hint" style="display:none;color:var(--accent);margin-top:-8px;margin-bottom:var(--space-3)"></div>
                         <div class="form-group">
                             <label for="taskPriority">Priority</label>
                             <select id="taskPriority" class="form-input">
@@ -96,22 +99,14 @@
                                 <option value="High">High</option>
                             </select>
                         </div>
-                        <div class="form-group">
-                            <label class="toggle-label">
-                                <input type="checkbox" id="taskAllowSplitting" class="toggle-input">
-                                <span class="toggle-switch"></span>
-                                Allow splitting across multiple days
-                            </label>
-                            <small class="form-hint">When off, the task is scheduled as a single continuous block with breaks</small>
-                        </div>
-                        <!-- Share Task Toggle (only for new tasks) -->
                         <div id="sharedSection" class="form-group">
                             <label class="toggle-label">
                                 <input type="checkbox" id="taskShared" class="toggle-input">
                                 <span class="toggle-switch"></span>
-                                Share with friend
+                                Share with study partner
                             </label>
-                            <div id="friendSelector" style="display:none;">
+                            <div id="friendSelector" style="display:none;margin-top:var(--space-3)">
+                                <label for="taskFriend">Choose partner</label>
                                 <select id="taskFriend" class="form-input">
                                     <option value="">Select friend...</option>
                                 </select>
@@ -119,32 +114,10 @@
                         </div>
                     </div>
                     <div class="modal-footer">
-                        <button type="button" class="btn btn-secondary" data-close-modal>Cancel</button>
+                        <button type="button" class="btn btn-secondary" id="taskModalCancel">Cancel</button>
                         <button type="submit" class="btn btn-primary">Save Task</button>
                     </div>
                 </form>
-            </div>
-        </div>
-
-        <!-- Completion Modal -->
-        <div class="modal-overlay" id="completeModal">
-            <div class="modal modal-sm">
-                <div class="modal-header">
-                    <h3>Complete Task</h3>
-                    <button class="modal-close" data-close-modal>&times;</button>
-                </div>
-                <div class="modal-body">
-                    <p id="completeTaskName" style="font-weight:600;margin-bottom:8px;"></p>
-                    <p id="completeEstimated" class="text-muted" style="margin-bottom:12px;"></p>
-                    <div class="form-group">
-                        <label for="actualHours">How long did this actually take? (hours)</label>
-                        <input type="number" id="actualHours" class="form-input" step="0.5" min="0" placeholder="e.g. 3.5">
-                    </div>
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" id="completeSkip">Cancel</button>
-                    <button type="button" class="btn btn-primary" id="completeConfirm">Mark Complete</button>
-                </div>
             </div>
         </div>
 
@@ -152,22 +125,487 @@
         <div class="modal-overlay" id="splitTaskModal">
             <div class="modal">
                 <div class="modal-header">
-                    <h3>Split Into Sub-tasks</h3>
-                    <button class="modal-close" data-close-modal>&times;</button>
+                    <h3>Split Task into Sub-tasks</h3>
+                    <button type="button" class="modal-close" id="splitModalClose">&times;</button>
                 </div>
                 <div class="modal-body">
-                    <p id="splitParentName" style="font-weight:600;margin-bottom:12px;"></p>
+                    <p style="margin-bottom:var(--space-3)"><strong>Parent:</strong> <span id="splitParentName"></span></p>
                     <div id="subtaskRows"></div>
                     <button type="button" class="btn btn-ghost btn-sm" id="addSubtaskRow">+ Add Sub-task</button>
                 </div>
                 <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-close-modal>Cancel</button>
-                    <button type="button" class="btn btn-primary" id="splitConfirm">Split Task</button>
+                    <button type="button" class="btn btn-secondary" id="splitCancel">Cancel</button>
+                    <button type="button" class="btn btn-primary" id="splitConfirm">Split</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Complete Task Modal -->
+        <div class="modal-overlay" id="completeModal">
+            <div class="modal" style="max-width:440px">
+                <div class="modal-header">
+                    <h3>Complete Task</h3>
+                    <button type="button" class="modal-close" id="completeClose">&times;</button>
+                </div>
+                <div class="modal-body">
+                    <p style="font-weight:600;margin-bottom:var(--space-2)" id="completeTaskName">Task</p>
+                    <p style="color:var(--text-secondary);margin-bottom:var(--space-4)" id="completeEstimated"></p>
+                    <label class="form-label">How long did this actually take? (hours)</label>
+                    <input type="number" id="actualHours" class="form-input" min="0" step="0.5" placeholder="e.g. 3.5">
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-ghost" id="completeSkip">Skip</button>
+                    <button type="button" class="btn btn-primary" id="completeConfirm">Mark Complete</button>
                 </div>
             </div>
         </div>
     </div>
-    <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
-    <script type="module" src="../Script/main.js"></script>
+
+    <script>
+        // ---- API endpoints -----------------------------------------------
+        var TasksApi         = API_BASE + "/tasks";
+        var CoursesApi       = API_BASE + "/courses";
+        var TaskApi          = function (id) { return API_BASE + "/tasks/" + id; };
+        var CompleteApi      = function (id) { return API_BASE + "/tasks/" + id + "/complete"; };
+        var SchedulingRunApi = API_BASE + "/scheduling/run";
+        var ConnectionsApi   = API_BASE + "/connections";
+        var SharedTasksApi   = API_BASE + "/shared-tasks";
+        var SharedTaskApi    = function (id) { return API_BASE + "/shared-tasks/" + id; };
+        var SharedTaskRespondApi = function (id) { return API_BASE + "/shared-tasks/" + id + "/respond"; };
+        var SharedTaskCancelApi  = function (id) { return API_BASE + "/shared-tasks/" + id + "/cancel"; };
+        var SplitTaskApi     = function (id) { return API_BASE + "/tasks/" + id + "/split"; };
+        var SuggestHoursApi  = API_BASE + "/tasks/suggest-hours";
+
+        var allTasks = [];
+        var courses = [];
+        var friends = [];
+        var sharedTasks = [];
+        var editingId = null;
+        var completingTaskId = null;
+
+        function escapeHtml(s) {
+            if (s == null) return "";
+            return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+        }
+
+        $(document).ready(function () {
+            if (!requireAuth()) return;
+            SmartStudy.initShell("tasks");
+
+            $("#addTaskBtn").on("click", OpenAddTask);
+            $("#rescheduleBtn").on("click", Reschedule);
+            $("#filterToggle").on("click", ToggleFilterPanel);
+            $("#taskModalClose, #taskModalCancel").on("click", CloseTaskModal);
+            $("#taskModal").on("click", function (e) { if (e.target.id === "taskModal") CloseTaskModal(); });
+            $("#taskForm").on("submit", SubmitTask);
+
+            $("#splitModalClose, #splitCancel").on("click", function () { $("#splitTaskModal").removeClass("open"); });
+            $("#splitTaskModal").on("click", function (e) { if (e.target.id === "splitTaskModal") $(this).removeClass("open"); });
+            $("#addSubtaskRow").on("click", AddSubtaskRow);
+            $("#splitConfirm").on("click", ConfirmSplit);
+
+            $("#completeClose, #completeSkip").on("click", function () { $("#completeModal").removeClass("open"); });
+            $("#completeModal").on("click", function (e) { if (e.target.id === "completeModal") $(this).removeClass("open"); });
+            $("#completeConfirm").on("click", ConfirmComplete);
+
+            // Shared toggle
+            $("#taskShared").on("change", function () {
+                $("#friendSelector").toggle(this.checked);
+            });
+
+            // Filter panel change listeners
+            $("#filterPanel").on("change", "input", function () {
+                RenderTasks(ApplyFilters());
+                UpdateFilterBadge();
+            });
+
+            // Hours suggestion
+            $("#taskCourseId, #taskHours").on("change", FetchHoursSuggestion);
+
+            LoadAll();
+        });
+
+        function ToggleFilterPanel() {
+            var $panel = $("#filterPanel");
+            $panel.css("display", $panel.css("display") === "none" ? "flex" : "none");
+        }
+
+        function UpdateFilterBadge() {
+            var checked = $("#filterPanel input:checked").length;
+            $("#filterToggle").text(checked > 0 ? "Filter (" + checked + ")" : "Filter");
+        }
+
+        function LoadAll() {
+            ajaxCall("GET", CoursesApi, null, function (data) {
+                courses = data || [];
+                PopulateCourseSelect();
+                LoadConnections();
+                LoadSharedTasks();
+                LoadTasks();
+            }, function () { alert("Failed to load courses"); });
+        }
+
+        function LoadConnections() {
+            ajaxCall("GET", ConnectionsApi, null, function (data) {
+                friends = ((data || []).filter(function (c) { return c.status === "accepted"; }))
+                    .map(function (c) { return { email: c.friendEmail, name: c.friendName }; });
+                var $sel = $("#taskFriend");
+                $sel.find("option:not(:first)").remove();
+                friends.forEach(function (f) {
+                    $sel.append('<option value="' + escapeHtml(f.email) + '">' + escapeHtml(f.name) + ' (' + escapeHtml(f.email) + ')</option>');
+                });
+            }, function () { friends = []; });
+        }
+
+        function LoadSharedTasks() {
+            ajaxCall("GET", SharedTasksApi, null, function (data) {
+                sharedTasks = data || [];
+                RenderSharedInvitations();
+            }, function () { sharedTasks = []; });
+        }
+
+        function LoadTasks() {
+            ajaxCall("GET", TasksApi, null, function (data) {
+                allTasks = data || [];
+                RenderTasks(ApplyFilters());
+            }, function () { $("#taskList").html('<p>Failed to load tasks.</p>'); });
+        }
+
+        function PopulateCourseSelect() {
+            var $sel = $("#taskCourseId");
+            $sel.find("option:not(:first)").remove();
+            courses.forEach(function (c) {
+                $sel.append('<option value="' + c.courseId + '">' + escapeHtml(c.courseName) + '</option>');
+            });
+            var $filter = $("#filterCourseCheckboxes");
+            $filter.html(courses.map(function (c) {
+                return '<label class="toggle-label"><input type="checkbox" name="filterCourse" value="' + c.courseId + '" class="toggle-input"><span class="toggle-switch"></span> ' + escapeHtml(c.courseName) + '</label>';
+            }).join(""));
+        }
+
+        function ApplyFilters() {
+            var filtered = allTasks.slice();
+            var statuses = $('input[name="filterStatus"]:checked').map(function () { return $(this).val(); }).get();
+            if (statuses.length) {
+                filtered = filtered.filter(function (t) {
+                    if (statuses.indexOf("completed") !== -1 && (t.completed || t.isCompleted)) return true;
+                    if (statuses.indexOf("pending") !== -1 && !(t.completed || t.isCompleted)) return true;
+                    return false;
+                });
+            }
+            var courseIds = $('input[name="filterCourse"]:checked').map(function () { return parseInt($(this).val()); }).get();
+            if (courseIds.length) {
+                filtered = filtered.filter(function (t) { return courseIds.indexOf(t.courseId) !== -1; });
+            }
+            var priorities = $('input[name="filterPriority"]:checked').map(function () { return $(this).val(); }).get();
+            if (priorities.length) {
+                filtered = filtered.filter(function (t) { return priorities.indexOf((t.priority || "").toLowerCase()) !== -1; });
+            }
+            return filtered;
+        }
+
+        function RenderSharedInvitations() {
+            var user = getUser() || {};
+            var myEmail = (user.email || "").toLowerCase();
+            var pending = sharedTasks.filter(function (st) {
+                if (st.sharedStatus !== "Pending") return false;
+                var me = (st.members || []).find(function (m) { return m.email && m.email.toLowerCase() === myEmail; });
+                return me && me.responseStatus === "Pending";
+            });
+            var $el = $("#sharedInvitations");
+            if (!pending.length) { $el.hide(); return; }
+
+            var html = '<h3 style="margin-bottom:12px">Shared Task Invitations</h3>' +
+                pending.map(function (st) {
+                    return '<div class="invitation-card">' +
+                        '<div class="invitation-card__info">' +
+                            '<div class="invitation-card__title">' + escapeHtml(st.taskTitle) +
+                                (st.courseName ? ' <span class="task-course-tag">' + escapeHtml(st.courseName) + '</span>' : '') +
+                            '</div>' +
+                            '<div class="invitation-card__from">from ' + escapeHtml(st.createdByName || "") + '</div>' +
+                        '</div>' +
+                        '<div class="invitation-actions">' +
+                            '<button class="btn btn-sm btn-primary accept-shared" data-id="' + st.taskId + '">Accept</button>' +
+                            '<button class="btn btn-sm btn-secondary decline-shared" data-id="' + st.taskId + '">Decline</button>' +
+                        '</div>' +
+                    '</div>';
+                }).join("");
+            $el.html(html).show();
+
+            $el.find(".accept-shared").on("click", function () { RespondSharedTask(parseInt($(this).data("id")), true); });
+            $el.find(".decline-shared").on("click", function () { RespondSharedTask(parseInt($(this).data("id")), false); });
+        }
+
+        function RespondSharedTask(taskId, accept) {
+            ajaxCall("POST", SharedTaskRespondApi(taskId), JSON.stringify({ accept: accept }),
+                function () { LoadSharedTasks(); LoadTasks(); },
+                function () { alert("Failed to respond"); });
+        }
+
+        function RenderTasks(tasks) {
+            if (!tasks.length) {
+                $("#taskList").html('<div class="empty-state"><h3>No tasks found</h3><p>Click "+ Add Task" to create one.</p></div>');
+                return;
+            }
+            var html = tasks.map(function (t) {
+                var priorityClass = (t.priority || "medium").toLowerCase();
+                var dueStr = t.dueDate ? new Date(t.dueDate).toLocaleDateString("en-US", { month: "short", day: "numeric" }) : "";
+                var courseName = t.courseName || "";
+                var completed = t.completed || t.isCompleted;
+
+                var sharedBadge = "";
+                if (t.isShared) {
+                    var cls = t.sharedStatus === "Confirmed" ? "badge-success" : t.sharedStatus === "Cancelled" ? "badge-danger" : "badge-warning";
+                    sharedBadge = '<span class="badge ' + cls + '">Shared' + (t.sharedWithName ? ': ' + escapeHtml(t.sharedWithName) : '') + ' (' + escapeHtml(t.sharedStatus || '') + ')</span>';
+                }
+
+                var scheduleBadge = "";
+                if (!completed && t.schedulingStatus) {
+                    if (t.schedulingStatus === "Scheduled" && t.scheduledDate) {
+                        var sd = new Date(t.scheduledDate);
+                        scheduleBadge = '<span class="badge badge-scheduled">Scheduled: ' + sd.toLocaleDateString("en-US", { month: "short", day: "numeric" }) + '</span>';
+                    } else if (t.schedulingStatus === "Partial") {
+                        scheduleBadge = '<span class="badge badge-partial">Partially Scheduled</span>';
+                    } else if (t.schedulingStatus === "Unscheduled") {
+                        scheduleBadge = '<span class="badge badge-unscheduled">Not Scheduled</span>';
+                    }
+                }
+
+                return '<div class="task-card ' + (completed ? 'completed' : '') + '" data-task-id="' + t.taskId + '">' +
+                           '<div class="task-info">' +
+                               '<div class="task-title">' + escapeHtml(t.title) + '</div>' +
+                               '<div class="task-meta">' +
+                                   (courseName ? '<span>' + escapeHtml(courseName) + '</span>' : '') +
+                                   (dueStr ? '<span>Due: ' + dueStr + '</span>' : '') +
+                                   (t.estimatedHours ? '<span>' + t.estimatedHours + 'h</span>' : '') +
+                                   (t.actualHours ? '<span>(actual: ' + t.actualHours + 'h)</span>' : '') +
+                                   '<span class="badge badge-priority-' + priorityClass + '">' + escapeHtml(t.priority || "Medium") + '</span>' +
+                                   scheduleBadge + sharedBadge +
+                               '</div>' +
+                           '</div>' +
+                           '<div class="task-actions">' +
+                               (!completed ? '<button class="btn btn-sm btn-primary task-complete-btn" data-id="' + t.taskId + '">Complete</button>' : '') +
+                               (!completed ? '<button class="btn btn-sm btn-ghost task-split-btn" data-id="' + t.taskId + '" title="Split into sub-tasks">Split</button>' : '') +
+                               '<button class="btn btn-sm btn-ghost task-edit-btn" data-id="' + t.taskId + '">Edit</button>' +
+                               '<button class="btn btn-sm btn-ghost task-delete-btn" data-id="' + t.taskId + '">Delete</button>' +
+                           '</div>' +
+                       '</div>';
+            }).join("");
+            $("#taskList").html(html);
+
+            $(".task-complete-btn").on("click", function () { ShowCompleteModal($(this).data("id")); });
+            $(".task-edit-btn").on("click",     function () { OpenEditTask($(this).data("id")); });
+            $(".task-delete-btn").on("click",   function () { DeleteTask($(this).data("id")); });
+            $(".task-split-btn").on("click",    function () { ShowSplitModal($(this).data("id")); });
+        }
+
+        // ---- Add / Edit modal --------------------------------------------
+        function OpenAddTask() {
+            editingId = null;
+            $("#taskModalTitle").text("Add Task");
+            $("#taskForm")[0].reset();
+            $("#taskId").val("");
+            $("#taskPriority").val("Auto");
+            $("#friendSelector").hide();
+            $("#hoursSuggestion").hide();
+            $("#taskModal").addClass("open");
+        }
+
+        function OpenEditTask(id) {
+            var t = allTasks.find(function (x) { return x.taskId === id; });
+            if (!t) return;
+            editingId = id;
+            $("#taskModalTitle").text("Edit Task");
+            $("#taskId").val(t.taskId);
+            $("#taskTitle").val(t.title || "");
+            $("#taskCourseId").val(t.courseId || "");
+            $("#taskType").val(t.taskType || t.type || "Assignment");
+            $("#taskDueDate").val(t.dueDate ? t.dueDate.substring(0, 10) : "");
+            $("#taskHours").val(t.estimatedHours || "");
+            $("#taskPriority").val(t.isManualPriority ? (t.priority || "Auto") : "Auto");
+
+            // Pre-populate share
+            if (t.isShared && t.sharedWithEmail) {
+                $("#taskShared").prop("checked", true);
+                $("#friendSelector").show();
+                $("#taskFriend").val(t.sharedWithEmail);
+            } else {
+                $("#taskShared").prop("checked", false);
+                $("#friendSelector").hide();
+            }
+            $("#hoursSuggestion").hide();
+
+            $("#taskModal").addClass("open");
+        }
+
+        function CloseTaskModal() { $("#taskModal").removeClass("open"); }
+
+        function SubmitTask(e) {
+            e.preventDefault();
+            var data = {
+                title:          $("#taskTitle").val(),
+                courseId:       parseInt($("#taskCourseId").val()),
+                taskType:       $("#taskType").val(),
+                type:           $("#taskType").val(),
+                dueDate:        $("#taskDueDate").val() || null,
+                estimatedHours: parseFloat($("#taskHours").val()) || 0,
+                priority:       $("#taskPriority").val()
+            };
+
+            var isShared = $("#taskShared").is(":checked");
+            var friendEmail = $("#taskFriend").val();
+
+            if (editingId) {
+                ajaxCall("PUT", TaskApi(editingId), JSON.stringify(data),
+                    function () {
+                        var existing = allTasks.find(function (x) { return x.taskId === editingId; });
+                        var wasShared = existing && existing.isShared;
+                        if (isShared && friendEmail && !wasShared) {
+                            ajaxCall("POST", SharedTasksApi, JSON.stringify({ taskId: editingId, partnerEmail: friendEmail }),
+                                function () { CloseTaskModal(); LoadTasks(); LoadSharedTasks(); },
+                                function () { CloseTaskModal(); LoadTasks(); alert("Saved, but sharing failed"); });
+                        } else if (!isShared && wasShared) {
+                            ajaxCall("POST", SharedTaskCancelApi(editingId), null,
+                                function () { CloseTaskModal(); LoadTasks(); LoadSharedTasks(); },
+                                function () { CloseTaskModal(); LoadTasks(); });
+                        } else {
+                            CloseTaskModal(); LoadTasks();
+                        }
+                    }, TaskSaveEC);
+            } else {
+                ajaxCall("POST", TasksApi, JSON.stringify(data), function (created) {
+                    if (isShared && friendEmail && created && created.taskId) {
+                        ajaxCall("POST", SharedTasksApi, JSON.stringify({ taskId: created.taskId, partnerEmail: friendEmail }),
+                            function () { CloseTaskModal(); LoadTasks(); LoadSharedTasks(); },
+                            function () { CloseTaskModal(); LoadTasks(); alert("Task created, but sharing failed"); });
+                    } else {
+                        CloseTaskModal(); LoadTasks();
+                    }
+                }, TaskSaveEC);
+            }
+        }
+        function TaskSaveEC(xhr) { alert((xhr.responseJSON && xhr.responseJSON.message) || "Failed to save task"); }
+
+        // ---- Complete modal ----------------------------------------------
+        function ShowCompleteModal(taskId) {
+            var t = allTasks.find(function (x) { return x.taskId === taskId; });
+            if (!t) return;
+            completingTaskId = taskId;
+            $("#completeTaskName").text(t.title);
+            $("#completeEstimated").text(t.estimatedHours ? ("Estimated: " + t.estimatedHours + " hours") : "No estimate");
+            $("#actualHours").val("");
+            $("#completeModal").addClass("open");
+        }
+
+        function ConfirmComplete() {
+            var actual = parseFloat($("#actualHours").val()) || null;
+            var task = allTasks.find(function (x) { return x.taskId === completingTaskId; });
+            var estHours = task ? task.estimatedHours : null;
+
+            ajaxCall("POST", CompleteApi(completingTaskId), JSON.stringify({ actualHours: actual }),
+                function (result) {
+                    $("#completeModal").removeClass("open");
+                    // ML hint
+                    if (actual && estHours && estHours > 0) {
+                        var ratio = actual / estHours;
+                        if (ratio > 1.3 || ratio < 0.7) {
+                            var direction = ratio > 1 ? "longer" : "shorter";
+                            alert("Tip: This task took " + direction + " than estimated (" + ratio.toFixed(1) + "x). Future estimates will improve.");
+                        }
+                    }
+                    if (result && result.mlStats && result.mlStats.sampleSize >= 3) {
+                        var bias = result.mlStats.estimationBias;
+                        if (bias && bias !== "accurate") {
+                            var msg = bias === "underestimate"
+                                ? "You tend to underestimate tasks in this course."
+                                : "You tend to overestimate tasks in this course.";
+                            alert(msg + " Avg ratio: " + result.mlStats.courseAvgRatio.toFixed(2) + "x (" + result.mlStats.sampleSize + " tasks)");
+                        }
+                    }
+                    LoadTasks();
+                },
+                function () { alert("Failed to complete task"); });
+        }
+
+        // ---- Delete -------------------------------------------------------
+        function DeleteTask(id) {
+            if (!confirm("Delete this task?")) return;
+            ajaxCall("DELETE", TaskApi(id), null,
+                function () { LoadTasks(); },
+                function () { alert("Failed to delete task"); });
+        }
+
+        // ---- Reschedule ---------------------------------------------------
+        function Reschedule() {
+            var $btn = $("#rescheduleBtn");
+            $btn.prop("disabled", true).text("Rescheduling...");
+            ajaxCall("POST", SchedulingRunApi, null,
+                function () { $btn.prop("disabled", false).text("Reschedule All"); LoadTasks(); alert("Rescheduled!"); },
+                function () { $btn.prop("disabled", false).text("Reschedule All"); alert("Failed to reschedule"); });
+        }
+
+        // ---- Split Task Modal --------------------------------------------
+        function ShowSplitModal(taskId) {
+            var task = allTasks.find(function (x) { return x.taskId === taskId; });
+            if (!task) return;
+            $("#splitParentName").text(task.title);
+            $("#subtaskRows").empty();
+            $("#splitConfirm").data("task-id", taskId);
+            AddSubtaskRow();
+            AddSubtaskRow();
+            $("#splitTaskModal").addClass("open");
+        }
+
+        function AddSubtaskRow() {
+            var rowHtml =
+                '<div class="subtask-row form-row">' +
+                    '<div class="form-group" style="flex:3">' +
+                        '<input type="text" class="form-input subtask-title" placeholder="Sub-task title" required>' +
+                    '</div>' +
+                    '<div class="form-group" style="flex:1">' +
+                        '<input type="number" class="form-input subtask-hours" placeholder="Hours" step="0.5" min="0">' +
+                    '</div>' +
+                    '<button type="button" class="btn btn-ghost btn-sm subtask-remove" style="align-self:center">&times;</button>' +
+                '</div>';
+            var $row = $(rowHtml);
+            $("#subtaskRows").append($row);
+            $row.find(".subtask-remove").on("click", function () { $row.remove(); });
+        }
+
+        function ConfirmSplit() {
+            var taskId = $("#splitConfirm").data("task-id");
+            var subTasks = [];
+            $("#subtaskRows .subtask-row").each(function () {
+                var title = $.trim($(this).find(".subtask-title").val());
+                var hours = parseFloat($(this).find(".subtask-hours").val()) || null;
+                if (title) subTasks.push({ title: title, estimatedHours: hours });
+            });
+            if (!subTasks.length) { alert("Add at least one sub-task"); return; }
+            ajaxCall("POST", SplitTaskApi(taskId), JSON.stringify({ subTasks: subTasks }),
+                function () { $("#splitTaskModal").removeClass("open"); LoadTasks(); alert("Task split"); },
+                function (xhr) { alert((xhr.responseJSON && xhr.responseJSON.message) || "Failed to split"); });
+        }
+
+        // ---- Suggested hours ---------------------------------------------
+        function FetchHoursSuggestion() {
+            var courseId = $("#taskCourseId").val();
+            var hours = $("#taskHours").val();
+            if (!courseId) { $("#hoursSuggestion").hide(); return; }
+
+            var qs = "?courseId=" + encodeURIComponent(courseId);
+            if (hours) qs += "&estimatedHours=" + encodeURIComponent(hours);
+
+            ajaxCall("GET", SuggestHoursApi + qs, null, function (data) {
+                if (data && data.hasSuggestion) {
+                    var text = data.suggestedHours
+                        ? "Machine Learning suggests ~" + data.suggestedHours + "h (based on " + data.sampleSize + " past tasks, " + data.adjustmentFactor + "x ratio)"
+                        : "Past accuracy: " + data.adjustmentFactor + "x estimated (" + data.sampleSize + " tasks)";
+                    $("#hoursSuggestion").text(text).show();
+                } else {
+                    $("#hoursSuggestion").hide();
+                }
+            }, function () { $("#hoursSuggestion").hide(); });
+        }
+    </script>
 </body>
 </html>

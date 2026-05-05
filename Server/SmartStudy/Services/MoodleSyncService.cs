@@ -2,31 +2,26 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.RegularExpressions;
 using SmartStudy.DAL;
-using SmartStudy.DTOs;
+using SmartStudy.Models;
 
 namespace SmartStudy.Services;
 
 public class MoodleSyncService
 {
-    private readonly DBservices _dal;
+    private readonly DBservices _dal = new DBservices();
     private readonly MoodleApiClient _api;
-    private readonly RuppinetSyncService _ruppinetSync;
     private readonly IConfiguration _config;
     private readonly ILogger<MoodleSyncService> _logger;
-    private readonly SchedulingService _scheduling;
 
     private readonly decimal _defaultAssignmentHours;
     private readonly decimal _defaultQuizHours;
 
-    public MoodleSyncService(DBservices dal, MoodleApiClient api, RuppinetSyncService ruppinetSync,
-        IConfiguration config, ILogger<MoodleSyncService> logger, SchedulingService scheduling)
+    public MoodleSyncService(MoodleApiClient api,
+        IConfiguration config, ILogger<MoodleSyncService> logger)
     {
-        _dal = dal;
         _api = api;
-        _ruppinetSync = ruppinetSync;
         _config = config;
         _logger = logger;
-        _scheduling = scheduling;
 
         _defaultAssignmentHours = decimal.TryParse(config["Moodle:DefaultAssignmentHours"], out var ah) ? ah : 4m;
         _defaultQuizHours = decimal.TryParse(config["Moodle:DefaultQuizHours"], out var qh) ? qh : 2m;
@@ -34,7 +29,7 @@ public class MoodleSyncService
 
     public async Task<object> DebugFetchAsync(string email)
     {
-        var user = await _dal.GetUserByEmailAsync(email);
+        var user = _dal.GetUserByEmail(email);
         if (user == null || string.IsNullOrEmpty(user.RuppinetId) || string.IsNullOrEmpty(user.RuppinetPassword))
             return new { error = "Not connected" };
 
@@ -61,7 +56,7 @@ public class MoodleSyncService
     public async Task<MoodleSyncResultDto> SyncAllAsync(string email)
     {
         var result = new MoodleSyncResultDto();
-        var user = await _dal.GetUserByEmailAsync(email);
+        var user = _dal.GetUserByEmail(email);
         if (user == null || string.IsNullOrEmpty(user.RuppinetId) || string.IsNullOrEmpty(user.RuppinetPassword))
         {
             result.Message = "Ruppinet credentials not configured. Connect Ruppinet first.";
@@ -131,7 +126,7 @@ public class MoodleSyncService
             result.Success = true;
             result.Message = "No courses found in Moodle.";
             result.Warnings.Add("No enrolled courses found in Moodle");
-            await _dal.UpdateLastMoodleSyncAsync(email, DateTime.UtcNow);
+            _dal.UpdateLastMoodleSync(email, DateTime.UtcNow);
             return result;
         }
 
@@ -160,15 +155,15 @@ public class MoodleSyncService
             moodleCourses.Count, assignments.Count, quizzes.Count, email);
 
         // Process items
-        await ProcessMoodleItemsAsync(email, moodleCourses, assignments, quizzes, result);
+        ProcessMoodleItems(email, moodleCourses, assignments, quizzes, result);
 
         // Update sync timestamp
-        await _dal.UpdateLastMoodleSyncAsync(email, DateTime.UtcNow);
+        _dal.UpdateLastMoodleSync(email, DateTime.UtcNow);
 
         // Re-run scheduling engine
         try
         {
-            await _scheduling.ScheduleAllTasksAsync(email);
+            SmartStudy.Models.StudentTask.ScheduleAll(email);
         }
         catch (Exception ex)
         {
@@ -182,11 +177,11 @@ public class MoodleSyncService
         return result;
     }
 
-    private async Task ProcessMoodleItemsAsync(string email, List<MoodleCourse> moodleCourses,
+    private void ProcessMoodleItems(string email, List<MoodleCourse> moodleCourses,
         List<MoodleAssignment> assignments, List<MoodleQuiz> quizzes, MoodleSyncResultDto result)
     {
         // Build course mapping: Moodle course ID -> SmartStudy course ID
-        var courseMap = await BuildCourseMapAsync(email);
+        var courseMap = BuildCourseMap(email);
         var moodleToSmartStudy = new Dictionary<int, int>();
 
         foreach (var mc in moodleCourses)
@@ -200,13 +195,13 @@ public class MoodleSyncService
             else
             {
                 // Create new course
-                var newId = await CreateCourseFromMoodle(email, mc);
+                var newId = CreateCourseFromMoodle(email, mc);
                 if (newId != null)
                 {
                     moodleToSmartStudy[mc.Id] = newId.Value;
                     result.CoursesCreated++;
                     // Refresh course map
-                    courseMap = await BuildCourseMapAsync(email);
+                    courseMap = BuildCourseMap(email);
                 }
             }
         }
@@ -229,14 +224,14 @@ public class MoodleSyncService
             var moodleId = $"assign_{assignment.Id}";
             try
             {
-                var existing = await _dal.FindTaskByMoodleIdAsync(email, moodleId);
+                var existing = _dal.FindTaskByMoodleId(email, moodleId);
                 if (existing != null)
                 {
                     // Update DueDate if changed and task not completed
                     if (!existing.IsCompleted && assignment.DueDate.HasValue &&
                         existing.DueDate != assignment.DueDate)
                     {
-                        await _dal.UpdateTaskAsync(existing.TaskId, dueDate: assignment.DueDate);
+                        _dal.UpdateTask(existing.TaskId, dueDate: assignment.DueDate);
                         result.TasksUpdated++;
                     }
                     else
@@ -247,7 +242,7 @@ public class MoodleSyncService
                 else
                 {
                     var title = assignment.Name.Length > 200 ? assignment.Name[..200] : assignment.Name;
-                    await _dal.CreateTaskWithMoodleIdAsync(courseId, email, title, "Homework",
+                    _dal.CreateTaskWithMoodleId(courseId, email, title, "Homework",
                         _defaultAssignmentHours, assignment.DueDate, "Medium", moodleId);
                     result.TasksCreated++;
                 }
@@ -275,13 +270,13 @@ public class MoodleSyncService
             var moodleId = $"quiz_{quiz.Id}";
             try
             {
-                var existing = await _dal.FindTaskByMoodleIdAsync(email, moodleId);
+                var existing = _dal.FindTaskByMoodleId(email, moodleId);
                 if (existing != null)
                 {
                     if (!existing.IsCompleted && quiz.TimeClose.HasValue &&
                         existing.DueDate != quiz.TimeClose)
                     {
-                        await _dal.UpdateTaskAsync(existing.TaskId, dueDate: quiz.TimeClose);
+                        _dal.UpdateTask(existing.TaskId, dueDate: quiz.TimeClose);
                         result.TasksUpdated++;
                     }
                     else
@@ -292,7 +287,7 @@ public class MoodleSyncService
                 else
                 {
                     var title = quiz.Name.Length > 200 ? quiz.Name[..200] : quiz.Name;
-                    await _dal.CreateTaskWithMoodleIdAsync(courseId, email, title, "Quiz",
+                    _dal.CreateTaskWithMoodleId(courseId, email, title, "Quiz",
                         _defaultQuizHours, quiz.TimeClose, "Medium", moodleId);
                     result.TasksCreated++;
                 }
@@ -330,30 +325,30 @@ public class MoodleSyncService
         return null;
     }
 
-    private async Task<int?> CreateCourseFromMoodle(string email, MoodleCourse mc)
+    private int? CreateCourseFromMoodle(string email, MoodleCourse mc)
     {
         var name = mc.FullName.Trim();
         if (string.IsNullOrEmpty(name)) name = mc.ShortName.Trim();
         if (string.IsNullOrEmpty(name)) return null;
 
-        var courseId = await GenerateStableIdAsync(name, 300000);
-        if (!await _dal.CourseExistsAsync(courseId))
+        var courseId = GenerateStableId(name, 300000);
+        if (!_dal.CourseExists(courseId))
         {
             var truncatedName = name.Length > 200 ? name[..200] : name;
-            await _dal.CreateCourseAsync(courseId, truncatedName, null, null, null, null);
+            _dal.CreateCourse(courseId, truncatedName, null, null, null, null);
         }
 
-        if (!await _dal.UserCourseExistsAsync(email, courseId))
-            await _dal.CreateUserCourseAsync(email, courseId);
+        if (!_dal.UserCourseExists(email, courseId))
+            _dal.CreateUserCourse(email, courseId);
 
         return courseId;
     }
 
     // Reuse same patterns from RuppinetSyncService
 
-    private async Task<Dictionary<string, int>> BuildCourseMapAsync(string email)
+    private Dictionary<string, int> BuildCourseMap(string email)
     {
-        var userCourses = await _dal.GetUserCoursesWithNameAsync(email);
+        var userCourses = _dal.GetUserCoursesWithName(email);
         var map = new Dictionary<string, int>();
         foreach (var (courseId, courseName) in userCourses)
         {
@@ -422,7 +417,7 @@ public class MoodleSyncService
         return null;
     }
 
-    private async Task<int> GenerateStableIdAsync(string input, int offset)
+    private int GenerateStableId(string input, int offset)
     {
         using var sha = System.Security.Cryptography.SHA256.Create();
         var hash = sha.ComputeHash(Encoding.UTF8.GetBytes(input.ToLower().Trim()));
@@ -430,7 +425,7 @@ public class MoodleSyncService
 
         for (int i = 0; i < 100; i++)
         {
-            var existing = await _dal.GetCourseByIdAsync(value);
+            var existing = _dal.GetCourseById(value);
             if (existing == null || existing.CourseName.ToLower().Trim() == input.ToLower().Trim())
                 return value;
             value++;

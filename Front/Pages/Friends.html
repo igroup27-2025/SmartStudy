@@ -5,6 +5,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>SmartStudy - Friends</title>
     <link rel="stylesheet" href="../CSS/app.css">
+    <script src="https://code.jquery.com/jquery-3.7.1.min.js" integrity="sha256-/JqT3SQfawRcv/BIHPThkBvs0OEvtFFmqPF/lYI/Cxo=" crossorigin="anonymous"></script>
+    <script src="../Scripts/ajaxCall.js"></script>
+    <script src="../Scripts/appShell.js"></script>
 </head>
 <body data-page="friends">
     <div id="pageRoot">
@@ -42,7 +45,7 @@
             <div class="modal" style="max-width: 440px;">
                 <div class="modal-header">
                     <h3>Invite a Friend</h3>
-                    <button class="modal-close" data-close-modal>&times;</button>
+                    <button type="button" class="modal-close" id="inviteModalClose">&times;</button>
                 </div>
                 <form id="inviteForm">
                     <div class="modal-body">
@@ -53,53 +56,213 @@
                         </div>
                     </div>
                     <div class="modal-footer">
-                        <button type="button" class="btn btn-secondary" data-close-modal>Cancel</button>
+                        <button type="button" class="btn btn-secondary" id="inviteModalCancel">Cancel</button>
                         <button type="submit" class="btn btn-primary">Send Invite</button>
                     </div>
                 </form>
             </div>
         </div>
-
-        <!-- Share Task Modal -->
-        <div class="modal-overlay" id="shareTaskModal">
-            <div class="modal" style="max-width: 480px;">
-                <div class="modal-header">
-                    <h3 id="shareTaskTitle">Share Task</h3>
-                    <button class="modal-close" data-close-modal>&times;</button>
-                </div>
-                <form id="shareTaskForm">
-                    <div class="modal-body">
-                        <p class="form-hint" style="margin-bottom: var(--space-4);" id="shareTaskSubtitle"></p>
-                        <div class="form-group">
-                            <label for="shareTaskSelect">Select Task *</label>
-                            <select id="shareTaskSelect" class="form-input" required>
-                                <option value="">Choose a task...</option>
-                            </select>
-                        </div>
-                        <input type="hidden" id="shareTaskFriendEmail">
-                    </div>
-                    <div class="modal-footer">
-                        <button type="button" class="btn btn-secondary" data-close-modal>Cancel</button>
-                        <button type="submit" class="btn btn-primary">Share Task</button>
-                    </div>
-                </form>
-            </div>
-        </div>
-
-        <!-- Shared Task Detail Modal -->
-        <div class="modal-overlay" id="sharedTaskDetailModal">
-            <div class="modal" style="max-width: 520px;">
-                <div class="modal-header">
-                    <h3>Shared Task Details</h3>
-                    <button class="modal-close" data-close-modal>&times;</button>
-                </div>
-                <div class="modal-body" id="sharedTaskDetailContent">
-                    <div class="spinner-center"><div class="spinner"></div></div>
-                </div>
-            </div>
-        </div>
     </div>
-    <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
-    <script type="module" src="../Script/main.js"></script>
+
+    <script>
+        // ---- API endpoints -----------------------------------------------
+        var ConnectionsApi   = API_BASE + "/connections";
+        var InviteApi        = API_BASE + "/connections/invite";
+        var AcceptApi        = function (id) { return API_BASE + "/connections/" + id + "/accept"; };
+        var DeclineApi       = function (id) { return API_BASE + "/connections/" + id + "/decline"; };
+        var RemoveApi        = function (id) { return API_BASE + "/connections/" + id; };
+        var SharedTasksApi   = API_BASE + "/shared-tasks";
+        var RespondSharedApi = function (id) { return API_BASE + "/shared-tasks/" + id + "/respond"; };
+
+        var connections = [];
+        var pendingRequests = [];
+        var sharedTasks = [];
+
+        function escapeHtml(s) {
+            if (s == null) return "";
+            return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+        }
+        function getInitials(name) {
+            if (!name) return "?";
+            return name.split(" ").map(function (w) { return w[0]; }).join("").toUpperCase().slice(0, 2);
+        }
+        function formatDate(dateStr) {
+            if (!dateStr) return "";
+            return new Date(dateStr).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+        }
+
+        $(document).ready(function () {
+            if (!requireAuth()) return;
+            SmartStudy.initShell("friends");
+
+            $("#inviteFriendBtn").on("click", function () {
+                $("#inviteForm")[0].reset();
+                $("#inviteModal").addClass("open");
+            });
+            $("#inviteModalClose, #inviteModalCancel").on("click", function () {
+                $("#inviteModal").removeClass("open");
+            });
+            $("#inviteModal").on("click", function (e) {
+                if (e.target.id === "inviteModal") $("#inviteModal").removeClass("open");
+            });
+            $("#inviteForm").on("submit", SubmitInvite);
+
+            LoadConnections();
+        });
+
+        function LoadConnections() {
+            ajaxCall("GET", ConnectionsApi, null, ConnectionsSC, ConnectionsEC);
+        }
+
+        function ConnectionsSC(data) {
+            var all = data || [];
+            connections = all.filter(function (c) { return c.status === "accepted"; });
+            pendingRequests = all.filter(function (c) { return c.status === "pending" || c.status === "sent"; });
+            RenderPendingRequests();
+            RenderFriends();
+            LoadSharedTasks();
+        }
+        function ConnectionsEC() {
+            connections = []; pendingRequests = [];
+            RenderPendingRequests(); RenderFriends();
+            LoadSharedTasks();
+        }
+
+        function LoadSharedTasks() {
+            ajaxCall("GET", SharedTasksApi, null,
+                function (data) { sharedTasks = data || []; RenderSharedTasks(); },
+                function () { sharedTasks = []; RenderSharedTasks(); });
+        }
+
+        function RenderPendingRequests() {
+            if (!pendingRequests.length) { $("#friendRequests").hide(); return; }
+            $("#friendRequests").show();
+            $("#requestCount").text(pendingRequests.length);
+            var html = pendingRequests.map(function (r) {
+                var actions = r.status === "sent"
+                    ? '<span style="color:var(--text-muted,#888);font-size:0.9rem;font-style:italic;">Waiting for response...</span>'
+                    : '<button class="btn btn-primary btn-sm request-accept" data-id="' + r.connectionId + '">Accept</button>' +
+                      '<button class="btn btn-secondary btn-sm request-decline" data-id="' + r.connectionId + '">Decline</button>';
+                return '<div class="friend-request-card">' +
+                    '<div class="friend-request-avatar">' + getInitials(r.friendName) + '</div>' +
+                    '<div class="friend-request-info">' +
+                        '<div class="friend-request-name">' + escapeHtml(r.friendName || "") + '</div>' +
+                        '<div class="friend-request-email">' + escapeHtml(r.friendEmail || "") + '</div>' +
+                    '</div>' +
+                    '<div class="friend-request-actions">' + actions + '</div>' +
+                '</div>';
+            }).join("");
+            $("#requestsList").html(html);
+
+            $(".request-accept").on("click", function () {
+                var id = parseInt($(this).data("id"));
+                ajaxCall("POST", AcceptApi(id), null,
+                    function () { LoadConnections(); alert("Friend request accepted!"); },
+                    function (xhr) { alert((xhr.responseJSON && xhr.responseJSON.message) || "Failed to accept"); });
+            });
+            $(".request-decline").on("click", function () {
+                var id = parseInt($(this).data("id"));
+                ajaxCall("POST", DeclineApi(id), null,
+                    function () { LoadConnections(); },
+                    function () { alert("Failed to decline"); });
+            });
+        }
+
+        function RenderFriends() {
+            if (!connections.length) {
+                $("#friendsList").html('<div class="empty-state"><div class="empty-state-icon">&#129309;</div><h3>No friends yet</h3><p>Invite classmates to connect and find study times together</p></div>');
+                return;
+            }
+            var html = connections.map(function (c) {
+                return '<div class="friend-card" data-id="' + c.connectionId + '">' +
+                    '<div class="friend-card-header">' +
+                        '<div class="friend-card-avatar">' + getInitials(c.friendName) + '</div>' +
+                        '<button class="btn btn-ghost btn-sm friend-remove" data-id="' + c.connectionId + '" title="Remove">&times;</button>' +
+                    '</div>' +
+                    '<div class="friend-card-body">' +
+                        '<div class="friend-card-name">' + escapeHtml(c.friendName || "") + '</div>' +
+                        '<div class="friend-card-email">' + escapeHtml(c.friendEmail || "") + '</div>' +
+                        '<div class="friend-card-date">Connected ' + formatDate(c.connectedDate) + '</div>' +
+                    '</div>' +
+                '</div>';
+            }).join("");
+            $("#friendsList").html(html);
+
+            $(".friend-remove").on("click", function (e) {
+                e.stopPropagation();
+                var id = parseInt($(this).data("id"));
+                if (!confirm("Remove this friend?")) return;
+                ajaxCall("DELETE", RemoveApi(id), null,
+                    function () { LoadConnections(); },
+                    function (xhr) { alert((xhr.responseJSON && xhr.responseJSON.message) || "Failed to remove"); });
+            });
+        }
+
+        function RenderSharedTasks() {
+            var visible = sharedTasks.filter(function (t) { return t.sharedStatus !== "Cancelled"; });
+            if (!visible.length) { $("#sharedTasksSection").hide(); return; }
+            $("#sharedTasksSection").show();
+            $("#sharedTaskCount").text(visible.length);
+
+            var user = getUser();
+            var myEmail = user ? user.email.toLowerCase() : "";
+
+            var html = visible.map(function (t) {
+                var members = t.members || [];
+                var partner = members.find(function (m) { return m.email.toLowerCase() !== myEmail; }) || { email: "", name: "" };
+                var myMember = members.find(function (m) { return m.email.toLowerCase() === myEmail; });
+                var isPending = t.sharedStatus === "Pending";
+                var myPending = myMember && myMember.responseStatus === "Pending";
+                var actionHtml = '';
+                if (isPending && myPending) {
+                    actionHtml =
+                        '<button class="btn btn-primary btn-sm shared-task-accept" data-task-id="' + t.taskId + '">Accept</button>' +
+                        '<button class="btn btn-secondary btn-sm shared-task-decline" data-task-id="' + t.taskId + '">Decline</button>';
+                } else if (isPending) {
+                    actionHtml = '<span class="badge badge-medium">Awaiting response</span>';
+                } else {
+                    actionHtml = '<span class="badge badge-low">Confirmed</span>';
+                }
+                return '<div class="shared-task-card">' +
+                    '<div class="shared-task-card__body">' +
+                        '<div class="shared-task-card__title">' + escapeHtml(t.taskTitle || "Untitled Task") + '</div>' +
+                        '<div class="shared-task-card__meta">' +
+                            (t.courseName ? '<span>' + escapeHtml(t.courseName) + '</span> ' : '') +
+                            '<span>' + (isPending && myPending ? 'From' : 'With') + ': ' + escapeHtml(partner.name || partner.email) + '</span>' +
+                        '</div>' +
+                    '</div>' +
+                    '<div class="shared-task-card__actions">' + actionHtml + '</div>' +
+                '</div>';
+            }).join("");
+            $("#sharedTasksList").html(html);
+
+            $(".shared-task-accept").on("click", function () { RespondShared(parseInt($(this).data("task-id")), true); });
+            $(".shared-task-decline").on("click", function () { RespondShared(parseInt($(this).data("task-id")), false); });
+        }
+
+        function RespondShared(taskId, accept) {
+            ajaxCall("POST", RespondSharedApi(taskId), JSON.stringify({ accept: accept }),
+                function () { LoadSharedTasks(); },
+                function (xhr) { alert((xhr.responseJSON && xhr.responseJSON.message) || "Failed to respond"); });
+        }
+
+        function SubmitInvite(e) {
+            e.preventDefault();
+            var email = $.trim($("#inviteEmail").val());
+            var user = getUser();
+            if (user && email.toLowerCase() === user.email.toLowerCase()) {
+                alert("You can't invite yourself!");
+                return;
+            }
+            var already = connections.concat(pendingRequests).some(function (c) { return (c.friendEmail || "").toLowerCase() === email.toLowerCase(); });
+            if (already) {
+                alert("Already connected or pending with this person");
+                return;
+            }
+            ajaxCall("POST", InviteApi, JSON.stringify({ email: email }),
+                function () { $("#inviteModal").removeClass("open"); alert("Invitation sent!"); LoadConnections(); },
+                function (xhr) { alert((xhr.responseJSON && xhr.responseJSON.message) || "Failed to send invitation"); });
+        }
+    </script>
 </body>
 </html>

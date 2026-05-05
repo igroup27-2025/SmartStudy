@@ -1,9 +1,8 @@
 using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using SmartStudy.DAL;
-using SmartStudy.DTOs;
-using SmartStudy.Services;
+using SmartStudy.Models;
+using UserModel = SmartStudy.Models.User;
 
 namespace SmartStudy.Controllers;
 
@@ -12,24 +11,13 @@ namespace SmartStudy.Controllers;
 [Authorize]
 public class NotificationsController : ControllerBase
 {
-    private readonly DBservices _db;
-    private readonly NotificationService _notificationService;
-    private readonly StressService _stressService;
-
-    public NotificationsController(DBservices db, NotificationService notificationService, StressService stressService)
-    {
-        _db = db;
-        _notificationService = notificationService;
-        _stressService = stressService;
-    }
-
     private string GetEmail() => User.FindFirst(ClaimTypes.Email)!.Value;
 
     [HttpGet]
-    public async Task<IActionResult> GetAll()
+    public IActionResult GetAll()
     {
         var email = GetEmail();
-        var (notifications, unreadCount) = await _db.GetNotificationsByUserAsync(email);
+        var (notifications, unreadCount) = Notification.GetByUser(email);
 
         return Ok(new NotificationListDto
         {
@@ -49,40 +37,38 @@ public class NotificationsController : ControllerBase
     }
 
     [HttpGet("unread-count")]
-    public async Task<IActionResult> GetUnreadCount()
+    public IActionResult GetUnreadCount()
     {
         var email = GetEmail();
-        var count = await _db.GetUnreadNotificationCountAsync(email);
+        var count = Notification.GetUnreadCount(email);
         return Ok(new { count });
     }
 
     [HttpPost("mark-read")]
-    public async Task<IActionResult> MarkRead([FromBody] MarkReadDto dto)
+    public IActionResult MarkRead([FromBody] MarkReadDto dto)
     {
         var email = GetEmail();
-        await _db.MarkNotificationsReadAsync(email, dto.NotificationIds);
+        Notification.MarkRead(email, dto.NotificationIds);
         return Ok();
     }
 
     [HttpPost("mark-all-read")]
-    public async Task<IActionResult> MarkAllRead()
+    public IActionResult MarkAllRead()
     {
         var email = GetEmail();
-        await _db.MarkAllNotificationsReadAsync(email);
+        Notification.MarkAllRead(email);
         return Ok();
     }
 
     [HttpPost("generate")]
-    public async Task<IActionResult> Generate()
+    public IActionResult Generate()
     {
         var email = GetEmail();
 
-        // Generate deadline notifications
-        await _notificationService.GenerateDeadlineNotificationsAsync(email);
+        Notification.GenerateDeadline(email);
 
-        // Generate overload notification based on stress
-        var stress = await _stressService.GetStressScoreAsync(email);
-        await _notificationService.GenerateOverloadNotificationAsync(email, stress.Score);
+        var stress = UserModel.GetStressScore(email);
+        Notification.GenerateOverload(email, stress.Score);
 
         return Ok(new { generated = true });
     }

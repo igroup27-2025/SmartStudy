@@ -1,8 +1,7 @@
 using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using SmartStudy.DAL;
-using SmartStudy.Services;
+using SmartStudy.Models;
 
 namespace SmartStudy.Controllers;
 
@@ -11,48 +10,36 @@ namespace SmartStudy.Controllers;
 [Authorize]
 public class SchedulingController : ControllerBase
 {
-    private readonly SchedulingService _schedulingService;
-    private readonly DBservices _dal;
-
-    public SchedulingController(SchedulingService schedulingService, DBservices dal)
-    {
-        _schedulingService = schedulingService;
-        _dal = dal;
-    }
-
     private string GetEmail() => User.FindFirst(ClaimTypes.Email)!.Value;
 
     [HttpPost("run")]
-    public async Task<IActionResult> RunScheduling()
+    public IActionResult RunScheduling()
     {
         var email = GetEmail();
-        var result = await _schedulingService.ScheduleAllTasksAsync(email);
+        var result = StudentTask.ScheduleAll(email);
         return Ok(result);
     }
 
     [HttpGet("status")]
-    public async Task<IActionResult> GetStatus()
+    public IActionResult GetStatus()
     {
         var email = GetEmail();
-        var result = await _schedulingService.GetSchedulingStatusAsync(email);
+        var result = StudentTask.GetSchedulingStatus(email);
         return Ok(result);
     }
 
     [HttpPost("approve/{taskId}")]
-    public async Task<IActionResult> ApproveScheduledTask(int taskId)
+    public IActionResult ApproveScheduledTask(int taskId)
     {
         var email = GetEmail();
         var now = DateTime.Now;
 
-        // Verify task exists and belongs to user (case-insensitive — JWT claim
-        // and DB email can differ in casing).
-        var task = await _dal.GetTaskByIdAsync(taskId);
+        var task = StudentTask.GetById(taskId);
         if (task == null || !string.Equals(task.Email, email, StringComparison.OrdinalIgnoreCase))
             return NotFound();
 
-        var (approvedCount, removedPast) = await _dal.ApproveTaskEventsAsync(taskId, email, now);
+        var (approvedCount, removedPast) = StudentTask.ApproveTaskEvents(taskId, email, now);
 
         return Ok(new { message = "Task schedule approved.", approvedCount, removedPast });
     }
-
 }

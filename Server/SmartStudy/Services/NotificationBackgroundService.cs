@@ -1,16 +1,15 @@
 using SmartStudy.DAL;
+using SmartStudy.Models;
 
 namespace SmartStudy.Services;
 
 public class NotificationBackgroundService : BackgroundService
 {
-    private readonly IServiceScopeFactory _scopeFactory;
     private readonly ILogger<NotificationBackgroundService> _logger;
     private static readonly TimeSpan Interval = TimeSpan.FromMinutes(30);
 
-    public NotificationBackgroundService(IServiceScopeFactory scopeFactory, ILogger<NotificationBackgroundService> logger)
+    public NotificationBackgroundService(ILogger<NotificationBackgroundService> logger)
     {
-        _scopeFactory = scopeFactory;
         _logger = logger;
     }
 
@@ -18,19 +17,18 @@ public class NotificationBackgroundService : BackgroundService
     {
         try
         {
-            // Wait a bit before first run to let the app fully start
             await Task.Delay(TimeSpan.FromSeconds(30), stoppingToken);
         }
         catch (TaskCanceledException)
         {
-            return; // App is shutting down, exit gracefully
+            return;
         }
 
         while (!stoppingToken.IsCancellationRequested)
         {
             try
             {
-                await GenerateNotificationsForAllUsersAsync();
+                GenerateNotificationsForAllUsers();
             }
             catch (Exception ex)
             {
@@ -43,50 +41,42 @@ public class NotificationBackgroundService : BackgroundService
             }
             catch (TaskCanceledException)
             {
-                return; // App is shutting down, exit gracefully
+                return;
             }
         }
     }
 
-    private async Task GenerateNotificationsForAllUsersAsync()
+    private void GenerateNotificationsForAllUsers()
     {
-        using var scope = _scopeFactory.CreateScope();
-        var db = scope.ServiceProvider.GetRequiredService<DBservices>();
-        var notificationService = scope.ServiceProvider.GetRequiredService<NotificationService>();
-        var stressService = scope.ServiceProvider.GetRequiredService<StressService>();
-
-        var userEmails = await db.GetAllUserEmailsAsync();
+        var db = new DBservices();
+        var userEmails = db.GetAllUserEmails();
 
         foreach (var email in userEmails)
         {
             try
             {
-                // Deadline notifications
-                await notificationService.GenerateDeadlineNotificationsAsync(email);
+                Notification.GenerateDeadline(email);
 
-                // Overload notifications (need stress score)
                 try
                 {
-                    var stressResult = await stressService.GetStressScoreAsync(email);
+                    var stressResult = User.GetStressScore(email);
                     if (stressResult != null)
                     {
-                        await notificationService.GenerateOverloadNotificationAsync(email, stressResult.Score);
+                        Notification.GenerateOverload(email, stressResult.Score);
                     }
                 }
                 catch { /* skip stress for this user if it fails */ }
 
-                // Daily summary (only before 10 AM makes sense, but generate whenever - dedup handles repeats)
                 var hour = DateTime.Now.Hour;
                 if (hour >= 6 && hour <= 10)
                 {
-                    await notificationService.GenerateDailySummaryAsync(email);
+                    Notification.GenerateDailySummary(email);
                 }
 
-                // Weekly reminder (Sunday or Monday morning)
                 var dayOfWeek = DateTime.Now.DayOfWeek;
                 if ((dayOfWeek == DayOfWeek.Sunday || dayOfWeek == DayOfWeek.Monday) && hour >= 6 && hour <= 10)
                 {
-                    await notificationService.GenerateWeeklyPlanReminderAsync(email);
+                    Notification.GenerateWeeklyPlanReminder(email);
                 }
             }
             catch (Exception ex)

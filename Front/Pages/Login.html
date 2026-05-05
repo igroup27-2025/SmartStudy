@@ -5,6 +5,10 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>SmartStudy - Login</title>
     <link rel="stylesheet" href="../CSS/app.css">
+    <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+    <script src="../Scripts/ajaxCall.js"></script>
+    <script src="../Scripts/appShell.js"></script>
+    <script src="https://accounts.google.com/gsi/client" async defer></script>
 </head>
 <body data-page="login">
     <div class="login-page">
@@ -14,8 +18,8 @@
                 <h1>SmartStudy</h1>
                 <p class="login-tagline">Your intelligent study companion</p>
                 <ul class="login-features">
-                    <li>Manage courses, tasks & exams</li>
-                    <li>Track your stress & workload</li>
+                    <li>Manage courses, tasks &amp; exams</li>
+                    <li>Track your stress &amp; workload</li>
                     <li>Visualize your academic schedule</li>
                     <li>Collaborate with study partners</li>
                 </ul>
@@ -40,15 +44,7 @@
                     <button type="submit" class="btn btn-primary btn-block btn-lg">Sign In</button>
                 </form>
                 <div class="login-divider"><span>or</span></div>
-                <button class="btn btn-secondary btn-block btn-lg" id="googleSignIn">
-                    <svg width="18" height="18" viewBox="0 0 48 48" style="vertical-align:middle;margin-right:8px">
-                        <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/>
-                        <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/>
-                        <path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/>
-                        <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/>
-                    </svg>
-                    Sign in with Google
-                </button>
+                <div id="googleSignInBtn" style="display:flex;justify-content:center;margin:12px 0"></div>
                 <p class="login-forgot"><a href="#" id="showForgot">Forgot password?</a></p>
                 <p class="login-footer">Don't have an account? <a href="#" id="showRegister">Create one</a></p>
             </div>
@@ -122,7 +118,155 @@
             </div>
         </div>
     </div>
-    <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
-    <script type="module" src="../Script/main.js"></script>
+
+    <script>
+        // ---- API endpoints ------------------------------------------------
+        var LoginApi       = API_BASE + "/auth/login";
+        var RegisterApi    = API_BASE + "/auth/register";
+        var ForgotApi      = API_BASE + "/auth/forgot-password";
+        var ResetApi       = API_BASE + "/auth/reset-password";
+        var GoogleLoginApi = API_BASE + "/auth/google";
+        var AuthConfigApi  = API_BASE + "/auth/config";
+
+        $(document).ready(function () {
+            // Already logged in? Go to dashboard.
+            if (isLoggedIn()) {
+                window.location.href = BASE_PATH + "/Pages/Dashboard.html";
+                return;
+            }
+
+            // Section toggles
+            $("#showRegister").on("click", function (e) { e.preventDefault(); showSection("registerSection"); });
+            $("#showLogin").on("click", function (e) { e.preventDefault(); showSection("loginSection"); });
+            $("#showForgot").on("click", function (e) { e.preventDefault(); showSection("forgotSection"); });
+            $("#showLoginFromForgot").on("click", function (e) { e.preventDefault(); showSection("loginSection"); });
+            $("#showLoginFromReset").on("click", function (e) { e.preventDefault(); showSection("loginSection"); });
+
+            // Form bindings
+            $("#loginForm").on("submit", SubmitLogin);
+            $("#registerForm").on("submit", SubmitRegister);
+            $("#forgotForm").on("submit", SubmitForgot);
+            $("#resetForm").on("submit", SubmitReset);
+
+            // Google Sign-In (GSI). Load config, then render the button when GSI is ready.
+            ajaxCall("GET", AuthConfigApi, null, AuthConfigSC, function () {});
+        });
+
+        // ---- Google Sign-In ----------------------------------------------
+        function AuthConfigSC(cfg) {
+            if (!cfg || !cfg.googleClientId) return;
+            var tries = 0;
+            var t = setInterval(function () {
+                if (window.google && window.google.accounts && window.google.accounts.id) {
+                    clearInterval(t);
+                    window.google.accounts.id.initialize({
+                        client_id: cfg.googleClientId,
+                        callback:  GoogleCredentialCB
+                    });
+                    window.google.accounts.id.renderButton(
+                        document.getElementById("googleSignInBtn"),
+                        { theme: "outline", size: "large", width: 320, text: "signin_with" }
+                    );
+                }
+                if (++tries > 50) clearInterval(t);
+            }, 100);
+        }
+        function GoogleCredentialCB(resp) {
+            if (!resp || !resp.credential) return;
+            ajaxCall("POST", GoogleLoginApi, JSON.stringify({ idToken: resp.credential }), LoginSC, LoginEC);
+        }
+
+        function showSection(id) {
+            $("#loginSection, #registerSection, #forgotSection, #resetSection").hide();
+            $("#" + id).show();
+        }
+
+        // ---- Login --------------------------------------------------------
+        function SubmitLogin(e) {
+            e.preventDefault();
+            var data = {
+                email: $("#loginEmail").val(),
+                password: $("#loginPassword").val()
+            };
+            var btn = $("#loginForm button[type=submit]");
+            btn.prop("disabled", true).text("Signing in...");
+            ajaxCall("POST", LoginApi, JSON.stringify(data), LoginSC, LoginEC);
+        }
+        function LoginSC(res) {
+            saveAuth(res);
+            window.location.href = BASE_PATH + (res.onboardingCompleted ? "/Pages/Dashboard.html" : "/Pages/Onboarding1.html");
+        }
+        function LoginEC(xhr) {
+            alert((xhr.responseJSON && xhr.responseJSON.message) || "Login failed");
+            $("#loginForm button[type=submit]").prop("disabled", false).text("Sign In");
+        }
+
+        // ---- Register -----------------------------------------------------
+        function SubmitRegister(e) {
+            e.preventDefault();
+            var data = {
+                email:     $("#regEmail").val(),
+                firstName: $("#regFirstName").val(),
+                lastName:  $("#regLastName").val(),
+                password:  $("#regPassword").val()
+            };
+            var btn = $("#registerForm button[type=submit]");
+            btn.prop("disabled", true).text("Creating account...");
+            ajaxCall("POST", RegisterApi, JSON.stringify(data), RegisterSC, RegisterEC);
+        }
+        function RegisterSC(res) {
+            saveAuth(res);
+            window.location.href = BASE_PATH + "/Pages/Onboarding1.html";
+        }
+        function RegisterEC(xhr) {
+            alert((xhr.responseJSON && xhr.responseJSON.message) || "Registration failed");
+            $("#registerForm button[type=submit]").prop("disabled", false).text("Create Account");
+        }
+
+        // ---- Forgot password ---------------------------------------------
+        function SubmitForgot(e) {
+            e.preventDefault();
+            var data = { email: $("#forgotEmail").val() };
+            var btn = $("#forgotForm button[type=submit]");
+            btn.prop("disabled", true).text("Sending...");
+            ajaxCall("POST", ForgotApi, JSON.stringify(data), ForgotSC, ForgotEC);
+        }
+        function ForgotSC(res) {
+            $("#forgotForm button[type=submit]").prop("disabled", false).text("Send Reset Token");
+            if (res && res.resetToken) {
+                $("#resetTokenDisplay").text(res.resetToken);
+                $("#resetTokenResult").show();
+                $("#resetEmail").val($("#forgotEmail").val());
+                $("#resetToken").val(res.resetToken);
+                setTimeout(function () { showSection("resetSection"); }, 2000);
+            }
+        }
+        function ForgotEC(xhr) {
+            alert((xhr.responseJSON && xhr.responseJSON.message) || "Failed to send reset token");
+            $("#forgotForm button[type=submit]").prop("disabled", false).text("Send Reset Token");
+        }
+
+        // ---- Reset password ----------------------------------------------
+        function SubmitReset(e) {
+            e.preventDefault();
+            var data = {
+                email:       $("#resetEmail").val(),
+                token:       $("#resetToken").val(),
+                newPassword: $("#resetNewPassword").val()
+            };
+            var btn = $("#resetForm button[type=submit]");
+            btn.prop("disabled", true).text("Resetting...");
+            ajaxCall("POST", ResetApi, JSON.stringify(data), ResetSC, ResetEC);
+        }
+        function ResetSC() {
+            alert("Password reset successfully! Please sign in.");
+            $("#resetForm button[type=submit]").prop("disabled", false).text("Reset Password");
+            showSection("loginSection");
+        }
+        function ResetEC(xhr) {
+            alert((xhr.responseJSON && xhr.responseJSON.message) || "Failed to reset password");
+            $("#resetForm button[type=submit]").prop("disabled", false).text("Reset Password");
+        }
+    </script>
 </body>
 </html>

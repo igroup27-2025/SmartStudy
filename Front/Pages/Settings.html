@@ -5,15 +5,17 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>SmartStudy - Settings</title>
     <link rel="stylesheet" href="../CSS/app.css">
+    <script src="https://code.jquery.com/jquery-3.7.1.min.js" integrity="sha256-/JqT3SQfawRcv/BIHPThkBvs0OEvtFFmqPF/lYI/Cxo=" crossorigin="anonymous"></script>
+    <script src="../Scripts/ajaxCall.js"></script>
+    <script src="../Scripts/appShell.js"></script>
 </head>
 <body data-page="settings">
     <div id="pageRoot">
+        <div class="page-actions"></div>
         <div class="settings-layout">
             <div class="settings-content">
                 <div class="card">
-                    <div class="card-header">
-                        <h3 class="card-title">Profile</h3>
-                    </div>
+                    <div class="card-header"><h3 class="card-title">Profile</h3></div>
                     <div class="card-body">
                         <form id="profileForm">
                             <div class="settings-row">
@@ -38,66 +40,31 @@
                 </div>
 
                 <div class="card">
-                    <div class="card-header">
-                        <h3 class="card-title">Notification Preferences</h3>
-                    </div>
+                    <div class="card-header"><h3 class="card-title">Notification Preferences</h3></div>
                     <div class="card-body">
                         <form id="notificationForm">
                             <div class="settings-row">
-                                <div class="settings-info">
-                                    <div class="settings-label">Task Reminders</div>
-                                    <div class="settings-description">Get notified before task deadlines</div>
-                                </div>
-                                <label class="toggle-switch">
-                                    <input type="checkbox" id="notifyBeforeTask">
-                                    <span class="toggle-slider"></span>
-                                </label>
+                                <div class="settings-info"><div class="settings-label">Task Reminders</div><div class="settings-description">Get notified before task deadlines</div></div>
+                                <label class="toggle-switch"><input type="checkbox" id="notifyBeforeTask"><span class="toggle-slider"></span></label>
                             </div>
                             <div class="settings-row">
-                                <div class="settings-info">
-                                    <div class="settings-label">Daily Summary</div>
-                                    <div class="settings-description">Morning summary of your day's tasks</div>
-                                </div>
-                                <label class="toggle-switch">
-                                    <input type="checkbox" id="dailyMorningSummary">
-                                    <span class="toggle-slider"></span>
-                                </label>
+                                <div class="settings-info"><div class="settings-label">Daily Summary</div><div class="settings-description">Morning summary of your day's tasks</div></div>
+                                <label class="toggle-switch"><input type="checkbox" id="dailyMorningSummary"><span class="toggle-slider"></span></label>
                             </div>
                             <div class="settings-row">
-                                <div class="settings-info">
-                                    <div class="settings-label">Weekly Plan</div>
-                                    <div class="settings-description">Weekly planning reminder</div>
-                                </div>
-                                <label class="toggle-switch">
-                                    <input type="checkbox" id="weeklyPlanReminder">
-                                    <span class="toggle-slider"></span>
-                                </label>
+                                <div class="settings-info"><div class="settings-label">Weekly Plan</div><div class="settings-description">Weekly planning reminder</div></div>
+                                <label class="toggle-switch"><input type="checkbox" id="weeklyPlanReminder"><span class="toggle-slider"></span></label>
                             </div>
                             <div class="settings-row">
-                                <div class="settings-info">
-                                    <div class="settings-label">Push Notifications</div>
-                                    <div class="settings-description">Enable browser push notifications</div>
-                                </div>
-                                <label class="toggle-switch">
-                                    <input type="checkbox" id="enablePushNotification">
-                                    <span class="toggle-slider"></span>
-                                </label>
+                                <div class="settings-info"><div class="settings-label">Push Notifications</div><div class="settings-description">Enable browser push notifications</div></div>
+                                <label class="toggle-switch"><input type="checkbox" id="enablePushNotification"><span class="toggle-slider"></span></label>
                             </div>
                             <div class="settings-row">
-                                <div class="settings-info">
-                                    <div class="settings-label">Quiet Hours</div>
-                                    <div class="settings-description">No notifications during these hours</div>
-                                </div>
+                                <div class="settings-info"><div class="settings-label">Quiet Hours</div><div class="settings-description">No notifications during these hours</div></div>
                             </div>
                             <div class="form-row">
-                                <div class="form-group">
-                                    <label for="quietHoursStart">From</label>
-                                    <input type="time" id="quietHoursStart" class="form-input">
-                                </div>
-                                <div class="form-group">
-                                    <label for="quietHoursEnd">Until</label>
-                                    <input type="time" id="quietHoursEnd" class="form-input">
-                                </div>
+                                <div class="form-group"><label for="quietHoursStart">From</label><input type="time" id="quietHoursStart" class="form-input"></div>
+                                <div class="form-group"><label for="quietHoursEnd">Until</label><input type="time" id="quietHoursEnd" class="form-input"></div>
                             </div>
                             <button type="submit" class="btn btn-primary">Save Notifications</button>
                         </form>
@@ -105,218 +72,435 @@
                 </div>
 
                 <div class="card">
-                    <div class="card-header">
-                        <h3 class="card-title">Scheduling Preferences</h3>
-                    </div>
+                    <div class="card-header"><h3 class="card-title">Scheduling Preferences</h3></div>
                     <div class="card-body">
                         <form id="schedulingForm">
                             <div class="settings-row">
-                                <div class="settings-info">
-                                    <div class="settings-label">Max daily study hours</div>
-                                    <div class="settings-description">Maximum hours to schedule per day</div>
-                                </div>
+                                <div class="settings-info"><div class="settings-label">Max daily study hours</div><div class="settings-description">Maximum hours to schedule per day</div></div>
                                 <div class="onboarding-field__range-wrap">
                                     <input type="range" id="settMaxDaily" min="2" max="12" step="0.5" value="6" class="onboarding-range">
                                     <span class="onboarding-field__value" id="settMaxDailyValue">6h</span>
                                 </div>
                             </div>
                             <div class="settings-row">
-                                <div class="settings-info">
-                                    <div class="settings-label">Max continuous study time</div>
-                                    <div class="settings-description">Maximum duration for a single study block</div>
-                                </div>
+                                <div class="settings-info"><div class="settings-label">Max continuous study time</div><div class="settings-description">Maximum duration for a single study block</div></div>
                                 <select id="settMaxContinuous" class="form-input settings-select">
-                                    <option value="30">30 minutes</option>
-                                    <option value="60">60 minutes</option>
-                                    <option value="90">90 minutes</option>
-                                    <option value="120">120 minutes</option>
+                                    <option value="30">30 minutes</option><option value="60">60 minutes</option>
+                                    <option value="90">90 minutes</option><option value="120">120 minutes</option>
                                 </select>
                             </div>
                             <div class="settings-row">
-                                <div class="settings-info">
-                                    <div class="settings-label">Break between sessions</div>
-                                    <div class="settings-description">Break duration after each continuous study block</div>
-                                </div>
+                                <div class="settings-info"><div class="settings-label">Break between sessions</div><div class="settings-description">Break duration after each continuous study block</div></div>
                                 <select id="settBreakDuration" class="form-input settings-select">
-                                    <option value="5">5 minutes</option>
-                                    <option value="10">10 minutes</option>
-                                    <option value="15">15 minutes</option>
-                                    <option value="20">20 minutes</option>
+                                    <option value="5">5 minutes</option><option value="10">10 minutes</option>
+                                    <option value="15">15 minutes</option><option value="20">20 minutes</option>
                                     <option value="30">30 minutes</option>
                                 </select>
                             </div>
-                            <div class="settings-row">
-                                <div class="settings-info">
-                                    <div class="settings-label">Study window</div>
-                                    <div class="settings-description">Scheduling bounds for each day</div>
-                                </div>
-                            </div>
+                            <div class="settings-row"><div class="settings-info"><div class="settings-label">Study window</div><div class="settings-description">Scheduling bounds for each day</div></div></div>
                             <div class="form-row">
                                 <div class="form-group">
                                     <label for="settDayStart">Start</label>
                                     <select id="settDayStart" class="form-input">
-                                        <option value="5">5:00 AM</option>
-                                        <option value="6">6:00 AM</option>
-                                        <option value="7">7:00 AM</option>
-                                        <option value="8">8:00 AM</option>
-                                        <option value="9">9:00 AM</option>
-                                        <option value="10">10:00 AM</option>
-                                        <option value="11">11:00 AM</option>
-                                        <option value="12">12:00 PM</option>
+                                        <option value="5">5:00 AM</option><option value="6">6:00 AM</option>
+                                        <option value="7">7:00 AM</option><option value="8">8:00 AM</option>
+                                        <option value="9">9:00 AM</option><option value="10">10:00 AM</option>
+                                        <option value="11">11:00 AM</option><option value="12">12:00 PM</option>
                                     </select>
                                 </div>
                                 <div class="form-group">
                                     <label for="settDayEnd">End</label>
                                     <select id="settDayEnd" class="form-input">
-                                        <option value="16">4:00 PM</option>
-                                        <option value="17">5:00 PM</option>
-                                        <option value="18">6:00 PM</option>
-                                        <option value="19">7:00 PM</option>
-                                        <option value="20">8:00 PM</option>
-                                        <option value="21">9:00 PM</option>
-                                        <option value="22">10:00 PM</option>
-                                        <option value="23">11:00 PM</option>
+                                        <option value="16">4:00 PM</option><option value="17">5:00 PM</option>
+                                        <option value="18">6:00 PM</option><option value="19">7:00 PM</option>
+                                        <option value="20">8:00 PM</option><option value="21">9:00 PM</option>
+                                        <option value="22">10:00 PM</option><option value="23">11:00 PM</option>
                                     </select>
                                 </div>
                             </div>
                             <div class="settings-row">
-                                <div class="settings-info">
-                                    <div class="settings-label">Sleep hours per day</div>
-                                    <div class="settings-description">Used for stress calculations</div>
-                                </div>
+                                <div class="settings-info"><div class="settings-label">Sleep hours per day</div><div class="settings-description">Used for stress calculations</div></div>
                                 <div class="onboarding-field__range-wrap">
                                     <input type="range" id="settSleepHours" min="5" max="10" step="0.5" value="8" class="onboarding-range">
                                     <span class="onboarding-field__value" id="settSleepHoursValue">8h</span>
                                 </div>
                             </div>
                             <div class="settings-row">
-                                <div class="settings-info">
-                                    <div class="settings-label">Max total active hours per day</div>
-                                    <div class="settings-description">Study + work + classes + personal (24h minus sleep &amp; routine)</div>
-                                </div>
+                                <div class="settings-info"><div class="settings-label">Max total active hours per day</div><div class="settings-description">Study + work + classes + personal</div></div>
                                 <div class="onboarding-field__range-wrap">
                                     <input type="range" id="settMaxDailyTotal" min="6" max="20" step="0.5" value="14" class="onboarding-range">
                                     <span class="onboarding-field__value" id="settMaxDailyTotalValue">14h</span>
                                 </div>
                             </div>
                             <div class="settings-row">
-                                <div class="settings-info">
-                                    <div class="settings-label">Default estimated hours per task</div>
-                                    <div class="settings-description">Used when no estimate is provided and no Machine Learning data is available</div>
-                                </div>
+                                <div class="settings-info"><div class="settings-label">Default estimated hours per task</div><div class="settings-description">Used when no estimate is provided</div></div>
                                 <input type="number" id="settDefaultTaskHours" class="form-input settings-number" min="0.5" max="20" step="0.5" value="4">
                             </div>
-                            <div class="settings-row">
-                                <div class="settings-info">
-                                    <div class="settings-label">Exam preparation</div>
-                                    <div class="settings-description">Default exam prep schedule</div>
-                                </div>
-                            </div>
+                            <div class="settings-row"><div class="settings-info"><div class="settings-label">Exam preparation</div><div class="settings-description">Default exam prep schedule</div></div></div>
                             <div class="form-row">
-                                <div class="form-group">
-                                    <label for="settExamPrepHours">Hours/day</label>
-                                    <input type="number" id="settExamPrepHours" class="form-input" min="1" max="12" step="0.5" value="5">
-                                </div>
-                                <div class="form-group">
-                                    <label for="settExamPrepDays">Days before exam</label>
-                                    <input type="number" id="settExamPrepDays" class="form-input" min="1" max="14" step="1" value="3">
-                                </div>
+                                <div class="form-group"><label for="settExamPrepHours">Hours/day</label><input type="number" id="settExamPrepHours" class="form-input" min="1" max="12" step="0.5" value="5"></div>
+                                <div class="form-group"><label for="settExamPrepDays">Days before exam</label><input type="number" id="settExamPrepDays" class="form-input" min="1" max="14" step="1" value="3"></div>
                             </div>
                             <div class="settings-row">
-                                <div class="settings-info">
-                                    <div class="settings-label">Lunch break</div>
-                                    <div class="settings-description">Block time for lunch daily</div>
-                                </div>
-                                <label class="toggle-switch">
-                                    <input type="checkbox" id="settLunchEnabled">
-                                    <span class="toggle-slider"></span>
-                                </label>
+                                <div class="settings-info"><div class="settings-label">Lunch break</div><div class="settings-description">Block time for lunch daily</div></div>
+                                <label class="toggle-switch"><input type="checkbox" id="settLunchEnabled"><span class="toggle-slider"></span></label>
                             </div>
                             <div class="form-row" id="settLunchTimeRow" style="display:none">
-                                <div class="form-group">
-                                    <label for="settLunchStart">From</label>
-                                    <input type="time" id="settLunchStart" class="form-input" value="12:00">
-                                </div>
-                                <div class="form-group">
-                                    <label for="settLunchEnd">Until</label>
-                                    <input type="time" id="settLunchEnd" class="form-input" value="13:00">
-                                </div>
+                                <div class="form-group"><label for="settLunchStart">From</label><input type="time" id="settLunchStart" class="form-input" value="12:00"></div>
+                                <div class="form-group"><label for="settLunchEnd">Until</label><input type="time" id="settLunchEnd" class="form-input" value="13:00"></div>
                             </div>
                             <button type="submit" class="btn btn-primary">Save Scheduling Preferences</button>
                         </form>
                     </div>
                 </div>
 
-                <div class="card" id="integrationsCard">
-                    <div class="card-header">
-                        <h3 class="card-title">Integrations</h3>
-                    </div>
+                <div class="card">
+                    <div class="card-header"><h3 class="card-title">Integrations</h3></div>
                     <div class="card-body">
                         <div class="settings-row">
-                            <div class="settings-info">
-                                <div class="settings-label">Google Calendar</div>
-                                <div class="settings-description" id="gcalStatus">Checking connection...</div>
-                            </div>
-                            <div id="gcalActions">
-                                <button class="btn btn-primary btn-sm" id="gcalConnectBtn" style="display:none">Connect Google Calendar</button>
-                                <div id="gcalConnectedActions" style="display:none">
-                                    <button class="btn btn-primary btn-sm" id="gcalSyncBtn">Sync Now</button>
-                                    <button class="btn btn-secondary btn-sm" id="gcalDisconnectBtn">Disconnect</button>
-                                </div>
-                            </div>
-                        </div>
-                        <div class="settings-row" id="ruppinetRow">
-                            <div class="settings-info">
-                                <div class="settings-label">Ruppinet (University Portal)</div>
-                                <div class="settings-description" id="ruppinetStatus">Checking connection...</div>
-                            </div>
-                            <div id="ruppinetActions">
+                            <div class="settings-info"><div class="settings-label">Ruppinet (University Portal)</div><div class="settings-description" id="ruppinetStatus">Checking...</div></div>
+                            <div>
                                 <button class="btn btn-primary btn-sm" id="ruppinetConnectBtn" style="display:none">Connect Ruppinet</button>
-                                <div id="ruppinetConnectedActions" style="display:none">
+                                <span id="ruppinetConnectedActions" style="display:none">
                                     <button class="btn btn-primary btn-sm" id="ruppinetSyncBtn">Sync Now</button>
                                     <button class="btn btn-secondary btn-sm" id="ruppinetDisconnectBtn">Disconnect</button>
-                                </div>
+                                </span>
                             </div>
                         </div>
                         <div id="ruppinetConnectForm" style="display:none; margin-top:12px; padding:16px; background:var(--bg-secondary); border-radius:14px;">
-                            <p style="font-size:13px; color:var(--text-muted); margin-bottom:12px">Enter your Ruppinet credentials to sync courses, schedule, and exams automatically.</p>
+                            <p style="font-size:13px; color:var(--text-muted); margin-bottom:12px">Enter your Ruppinet credentials.</p>
                             <div class="form-row">
-                                <div class="form-group">
-                                    <label for="ruppinetIdInput">ID Number (ת.ז.)</label>
-                                    <input type="text" id="ruppinetIdInput" class="form-input" placeholder="e.g. 123456789" inputmode="numeric">
-                                </div>
-                                <div class="form-group">
-                                    <label for="ruppinetPassInput">Password</label>
-                                    <input type="password" id="ruppinetPassInput" class="form-input">
-                                </div>
+                                <div class="form-group"><label for="ruppinetIdInput">ID Number</label><input type="text" id="ruppinetIdInput" class="form-input" placeholder="123456789" inputmode="numeric"></div>
+                                <div class="form-group"><label for="ruppinetPassInput">Password</label><input type="password" id="ruppinetPassInput" class="form-input"></div>
                             </div>
                             <div style="display:flex;gap:8px;margin-top:8px">
-                                <button type="button" class="btn btn-primary btn-sm" id="ruppinetSubmitBtn">Connect & Sync</button>
+                                <button type="button" class="btn btn-primary btn-sm" id="ruppinetSubmitBtn">Connect &amp; Sync</button>
                                 <button type="button" class="btn btn-ghost btn-sm" id="ruppinetCancelBtn">Cancel</button>
                             </div>
                         </div>
-                        <div class="settings-row" id="moodleRow">
-                            <div class="settings-info">
-                                <div class="settings-label">Moodle (Assignments & Quizzes)</div>
-                                <div class="settings-description" id="moodleStatus">Checking...</div>
-                            </div>
-                            <div id="moodleActions">
-                                <div id="moodleNotAvailable" style="display:none">
-                                    <span style="font-size:12px; color:var(--text-muted)">Connect Ruppinet first</span>
-                                </div>
-                                <div id="moodleConnectedActions" style="display:none">
-                                    <button class="btn btn-primary btn-sm" id="moodleSyncBtn">Sync Assignments</button>
-                                    <button class="btn btn-secondary btn-sm" id="moodleDisconnectBtn">Disconnect</button>
-                                </div>
+                        <div class="settings-row">
+                            <div class="settings-info"><div class="settings-label">Moodle (Assignments &amp; Quizzes)</div><div class="settings-description" id="moodleStatus">Checking...</div></div>
+                            <span id="moodleConnectedActions" style="display:none">
+                                <button class="btn btn-primary btn-sm" id="moodleSyncBtn">Sync Assignments</button>
+                                <button class="btn btn-secondary btn-sm" id="moodleDisconnectBtn">Disconnect</button>
+                            </span>
+                        </div>
+                        <div class="settings-row">
+                            <div class="settings-info"><div class="settings-label">Google Calendar</div><div class="settings-description" id="gcalStatus">Checking...</div></div>
+                            <div>
+                                <button class="btn btn-primary btn-sm" id="gcalConnectBtn" style="display:none">Connect Google Calendar</button>
+                                <span id="gcalConnectedActions" style="display:none">
+                                    <button class="btn btn-primary btn-sm" id="gcalSyncBtn">Sync Now</button>
+                                    <button class="btn btn-secondary btn-sm" id="gcalDisconnectBtn">Disconnect</button>
+                                </span>
                             </div>
                         </div>
                     </div>
                 </div>
-
             </div>
         </div>
     </div>
-    <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
-    <script type="module" src="../Script/main.js"></script>
+
+    <script>
+        // ---- API endpoints -----------------------------------------------
+        var ProfileApi          = API_BASE + "/settings/profile";
+        var NotificationsApi    = API_BASE + "/settings/notifications";
+        var SchedulingPrefsApi  = API_BASE + "/settings/scheduling";
+        var RunSchedulingApi    = API_BASE + "/scheduling/run";
+
+        var RuppinetStatusApi   = API_BASE + "/settings/ruppinet";
+        var RuppinetConnectApi  = API_BASE + "/settings/ruppinet/connect";
+        var RuppinetSyncApi     = API_BASE + "/settings/ruppinet/sync";
+
+        var MoodleStatusApi     = API_BASE + "/settings/moodle";
+        var MoodleSyncApi       = API_BASE + "/settings/moodle/sync";
+
+        var GcalStatusApi       = API_BASE + "/calendar-sync/status";
+        var GcalConnectApi      = API_BASE + "/calendar-sync/connect";
+        var GcalSyncApi         = API_BASE + "/calendar-sync/google";
+        var GcalDisconnectApi   = API_BASE + "/calendar-sync/disconnect";
+
+        $(document).ready(function () {
+            if (!requireAuth()) return;
+            SmartStudy.initShell("settings");
+
+            // Range slider labels
+            $("#settMaxDaily").on("input", function () { $("#settMaxDailyValue").text($(this).val() + "h"); });
+            $("#settSleepHours").on("input", function () { $("#settSleepHoursValue").text($(this).val() + "h"); });
+            $("#settMaxDailyTotal").on("input", function () { $("#settMaxDailyTotalValue").text($(this).val() + "h"); });
+
+            $("#settLunchEnabled").on("change", function () {
+                $("#settLunchTimeRow").toggle(this.checked);
+            });
+
+            $("#profileForm").on("submit", SaveProfile);
+            $("#notificationForm").on("submit", SaveNotifications);
+            $("#schedulingForm").on("submit", SaveScheduling);
+
+            // Integration handlers
+            $("#ruppinetConnectBtn").on("click", function () { $("#ruppinetConnectForm").show(); $(this).hide(); });
+            $("#ruppinetCancelBtn").on("click", function () { $("#ruppinetConnectForm").hide(); $("#ruppinetConnectBtn").show(); });
+            $("#ruppinetSubmitBtn").on("click", ConnectRuppinet);
+            $("#ruppinetSyncBtn").on("click", SyncRuppinet);
+            $("#ruppinetDisconnectBtn").on("click", DisconnectRuppinet);
+
+            $("#moodleSyncBtn").on("click", SyncMoodle);
+            $("#moodleDisconnectBtn").on("click", DisconnectMoodle);
+
+            $("#gcalSyncBtn").on("click", SyncGcal);
+            $("#gcalDisconnectBtn").on("click", DisconnectGcal);
+            $("#gcalConnectBtn").on("click", ConnectGcal);
+
+            LoadProfile();
+            LoadSchedulingPrefs();
+            LoadRuppinetStatus();
+            LoadMoodleStatus();
+            LoadGcalStatus();
+        });
+
+        // ---- Profile & Notifications ------------------------------------
+        function LoadProfile() {
+            ajaxCall("GET", ProfileApi, null, function (p) {
+                $("#profileEmail").text(p.email || "");
+                $("#profileFirstName").val(p.firstName || "");
+                $("#profileLastName").val(p.lastName || "");
+                var s = p.notificationSettings || {};
+                $("#notifyBeforeTask").prop("checked", !!s.notifyBeforeTask);
+                $("#dailyMorningSummary").prop("checked", !!s.dailyMorningSummary);
+                $("#weeklyPlanReminder").prop("checked", !!s.weeklyPlanReminder);
+                $("#enablePushNotification").prop("checked", !!s.enablePushNotification);
+                if (s.quietHoursStart) $("#quietHoursStart").val(s.quietHoursStart);
+                if (s.quietHoursEnd)   $("#quietHoursEnd").val(s.quietHoursEnd);
+            }, function () { alert("Failed to load profile"); });
+        }
+
+        function SaveProfile(e) {
+            e.preventDefault();
+            var data = { firstName: $("#profileFirstName").val(), lastName: $("#profileLastName").val() };
+            ajaxCall("PUT", ProfileApi, JSON.stringify(data), function () {
+                var user = getUser();
+                if (user) { user.firstName = data.firstName; user.lastName = data.lastName; localStorage.setItem("smartstudy_user", JSON.stringify(user)); }
+                alert("Profile updated");
+            }, function () { alert("Failed to update profile"); });
+        }
+
+        function SaveNotifications(e) {
+            e.preventDefault();
+            var data = {
+                notifyBeforeTask:       $("#notifyBeforeTask").is(":checked"),
+                dailyMorningSummary:    $("#dailyMorningSummary").is(":checked"),
+                weeklyPlanReminder:     $("#weeklyPlanReminder").is(":checked"),
+                enablePushNotification: $("#enablePushNotification").is(":checked"),
+                quietHoursStart:        $("#quietHoursStart").val() || null,
+                quietHoursEnd:          $("#quietHoursEnd").val() || null
+            };
+            ajaxCall("PUT", NotificationsApi, JSON.stringify(data),
+                function () { alert("Notifications updated"); },
+                function () { alert("Failed to update notifications"); });
+        }
+
+        // ---- Scheduling Preferences -------------------------------------
+        function LoadSchedulingPrefs() {
+            ajaxCall("GET", SchedulingPrefsApi, null, function (p) {
+                $("#settMaxDaily").val(p.maxDailyStudyHours || 6);
+                $("#settMaxDailyValue").text((p.maxDailyStudyHours || 6) + "h");
+                $("#settMaxContinuous").val(p.maxContinuousMinutes || 90);
+                $("#settBreakDuration").val(p.breakDurationMinutes || 15);
+                $("#settDayStart").val(p.dayStartHour || 8);
+                $("#settDayEnd").val(p.dayEndHour || 22);
+                $("#settSleepHours").val(p.sleepHoursPerDay || 8);
+                $("#settSleepHoursValue").text((p.sleepHoursPerDay || 8) + "h");
+                $("#settMaxDailyTotal").val(p.maxDailyTotalHours || 14);
+                $("#settMaxDailyTotalValue").text((p.maxDailyTotalHours || 14) + "h");
+                $("#settDefaultTaskHours").val(p.defaultTaskEstimatedHours || 4);
+                $("#settExamPrepHours").val(p.examPrepHoursPerDay || 5);
+                $("#settExamPrepDays").val(p.examPrepDays || 3);
+                var hasLunch = !!p.lunchBreakStart;
+                $("#settLunchEnabled").prop("checked", hasLunch);
+                $("#settLunchTimeRow").toggle(hasLunch);
+                if (p.lunchBreakStart) $("#settLunchStart").val(p.lunchBreakStart);
+                if (p.lunchBreakEnd)   $("#settLunchEnd").val(p.lunchBreakEnd);
+            }, function () { /* silent */ });
+        }
+
+        function SaveScheduling(e) {
+            e.preventDefault();
+            var lunchEnabled = $("#settLunchEnabled").is(":checked");
+            var data = {
+                maxDailyStudyHours:   parseFloat($("#settMaxDaily").val()),
+                maxContinuousMinutes: parseInt($("#settMaxContinuous").val()),
+                dayStartHour:         parseInt($("#settDayStart").val()),
+                dayEndHour:           parseInt($("#settDayEnd").val()),
+                sleepHoursPerDay:     parseFloat($("#settSleepHours").val()),
+                breakDurationMinutes: parseInt($("#settBreakDuration").val()) || 15,
+                maxDailyTotalHours:   parseFloat($("#settMaxDailyTotal").val()) || 14,
+                defaultTaskEstimatedHours: parseFloat($("#settDefaultTaskHours").val()) || 4,
+                examPrepHoursPerDay:  parseFloat($("#settExamPrepHours").val()) || 5,
+                examPrepDays:         parseInt($("#settExamPrepDays").val()) || 3,
+                lunchBreakStart:      lunchEnabled ? ($("#settLunchStart").val() || null) : null,
+                lunchBreakEnd:        lunchEnabled ? ($("#settLunchEnd").val() || null) : null
+            };
+            ajaxCall("PUT", SchedulingPrefsApi, JSON.stringify(data), function () {
+                ajaxCall("POST", RunSchedulingApi, null,
+                    function () { alert("Scheduling preferences saved & rescheduled"); },
+                    function () { alert("Preferences saved"); });
+            }, function () { alert("Failed to update scheduling preferences"); });
+        }
+
+        // ---- Ruppinet Integration ---------------------------------------
+        function LoadRuppinetStatus() {
+            ajaxCall("GET", RuppinetStatusApi, null, function (s) {
+                if (s && s.isConnected) {
+                    var lastSync = s.lastSync ? new Date(s.lastSync).toLocaleString() : "Never";
+                    $("#ruppinetStatus").text("Connected (" + (s.ruppinetId || "") + ") - Last sync: " + lastSync);
+                    $("#ruppinetConnectBtn").hide();
+                    $("#ruppinetConnectedActions").show();
+                    $("#ruppinetConnectForm").hide();
+                } else {
+                    $("#ruppinetStatus").text("Not connected");
+                    $("#ruppinetConnectBtn").show();
+                    $("#ruppinetConnectedActions").hide();
+                }
+            }, function () {
+                $("#ruppinetStatus").text("Not connected");
+                $("#ruppinetConnectBtn").show();
+                $("#ruppinetConnectedActions").hide();
+            });
+        }
+
+        function ConnectRuppinet() {
+            var idVal = $.trim($("#ruppinetIdInput").val());
+            var passVal = $("#ruppinetPassInput").val();
+            if (!idVal || !passVal) { alert("Please fill in both fields"); return; }
+            var btn = $("#ruppinetSubmitBtn");
+            btn.prop("disabled", true).text("Connecting...");
+            ajaxCall("POST", RuppinetConnectApi, JSON.stringify({ ruppinetId: idVal, ruppinetPassword: passVal }),
+                function (res) {
+                    btn.prop("disabled", false).text("Connect & Sync");
+                    alert((res && res.message) || "Ruppinet connected!");
+                    LoadRuppinetStatus();
+                    LoadMoodleStatus();
+                },
+                function (xhr) {
+                    btn.prop("disabled", false).text("Connect & Sync");
+                    alert((xhr.responseJSON && xhr.responseJSON.message) || "Connection failed");
+                });
+        }
+
+        function SyncRuppinet() {
+            var btn = $("#ruppinetSyncBtn");
+            btn.prop("disabled", true).text("Syncing...");
+            ajaxCall("POST", RuppinetSyncApi, null,
+                function (res) {
+                    btn.prop("disabled", false).text("Sync Now");
+                    if (res && res.errorCode) { alert(res.message || "Sync failed"); }
+                    else {
+                        var parts = [];
+                        if (res.coursesCreated) parts.push(res.coursesCreated + " courses");
+                        if (res.classEventsCreated) parts.push(res.classEventsCreated + " class events");
+                        if (res.examsCreated) parts.push(res.examsCreated + " exams");
+                        alert(parts.length ? "Synced: " + parts.join(", ") : "Everything up to date");
+                    }
+                    LoadRuppinetStatus();
+                },
+                function () { btn.prop("disabled", false).text("Sync Now"); alert("Sync failed"); });
+        }
+
+        function DisconnectRuppinet() {
+            if (!confirm("Disconnect Ruppinet? Your imported data will remain.")) return;
+            ajaxCall("DELETE", RuppinetStatusApi, null,
+                function () { alert("Ruppinet disconnected"); LoadRuppinetStatus(); LoadMoodleStatus(); },
+                function () { alert("Failed to disconnect"); });
+        }
+
+        // ---- Moodle Integration -----------------------------------------
+        function LoadMoodleStatus() {
+            ajaxCall("GET", MoodleStatusApi, null, function (s) {
+                if (s && s.isAvailable) {
+                    var lastSync = s.lastSync ? "Last sync: " + new Date(s.lastSync).toLocaleString() : "Never synced";
+                    $("#moodleStatus").text("Available - " + lastSync);
+                    $("#moodleConnectedActions").show();
+                } else {
+                    $("#moodleStatus").text("Connect Ruppinet to enable Moodle sync");
+                    $("#moodleConnectedActions").hide();
+                }
+            }, function () {
+                $("#moodleStatus").text("Unable to check Moodle status");
+                $("#moodleConnectedActions").hide();
+            });
+        }
+
+        function SyncMoodle() {
+            var btn = $("#moodleSyncBtn");
+            btn.prop("disabled", true).text("Syncing...");
+            ajaxCall("POST", MoodleSyncApi, null, function (res) {
+                btn.prop("disabled", false).text("Sync Assignments");
+                if (res && res.errorCode) { alert(res.message || "Moodle sync failed"); }
+                else {
+                    var parts = [];
+                    if (res.tasksCreated) parts.push(res.tasksCreated + " new tasks");
+                    if (res.tasksUpdated) parts.push(res.tasksUpdated + " updated");
+                    alert(parts.length ? "Moodle synced: " + parts.join(", ") : "Everything up to date");
+                }
+                LoadMoodleStatus();
+            }, function () { btn.prop("disabled", false).text("Sync Assignments"); alert("Moodle sync failed"); });
+        }
+
+        function DisconnectMoodle() {
+            if (!confirm("Disconnect Moodle? Your synced tasks will remain.")) return;
+            ajaxCall("DELETE", MoodleStatusApi, null,
+                function () { alert("Moodle disconnected"); LoadMoodleStatus(); },
+                function () { alert("Failed to disconnect"); });
+        }
+
+        // ---- Google Calendar Integration --------------------------------
+        function LoadGcalStatus() {
+            ajaxCall("GET", GcalStatusApi, null, function (s) {
+                if (s && s.isConnected) {
+                    var lastSync = s.lastSync ? new Date(s.lastSync).toLocaleString() : "Never";
+                    $("#gcalStatus").text("Connected - Last synced: " + lastSync);
+                    $("#gcalConnectBtn").hide();
+                    $("#gcalConnectedActions").show();
+                } else if (s && s.isEnabled) {
+                    $("#gcalStatus").text("Not connected");
+                    $("#gcalConnectBtn").show();
+                    $("#gcalConnectedActions").hide();
+                } else {
+                    $("#gcalStatus").text("Integration not configured");
+                    $("#gcalConnectBtn").hide();
+                    $("#gcalConnectedActions").hide();
+                }
+            }, function () {
+                $("#gcalStatus").text("Not connected");
+                $("#gcalConnectBtn").show();
+                $("#gcalConnectedActions").hide();
+            });
+        }
+
+        function ConnectGcal() {
+            var callbackUrl = window.location.origin + "/api/calendar-sync/callback";
+            ajaxCall("POST", GcalConnectApi, JSON.stringify({ callbackUrl: callbackUrl }),
+                function (res) {
+                    if (res && res.redirectUrl) { window.location.href = res.redirectUrl; }
+                    else { alert("Failed to start Google Calendar OAuth"); }
+                },
+                function (xhr) { alert((xhr.responseJSON && xhr.responseJSON.message) || "Failed to connect"); });
+        }
+
+        function SyncGcal() {
+            var btn = $("#gcalSyncBtn");
+            btn.prop("disabled", true).text("Syncing...");
+            ajaxCall("POST", GcalSyncApi, JSON.stringify({}),
+                function (res) { btn.prop("disabled", false).text("Sync Now"); alert((res && res.message) || "Calendar synced!"); LoadGcalStatus(); },
+                function () { btn.prop("disabled", false).text("Sync Now"); alert("Sync failed"); });
+        }
+
+        function DisconnectGcal() {
+            if (!confirm("Disconnect Google Calendar? Synced events will be removed.")) return;
+            ajaxCall("DELETE", GcalDisconnectApi, null,
+                function () { alert("Google Calendar disconnected"); LoadGcalStatus(); },
+                function () { alert("Failed to disconnect"); });
+        }
+    </script>
 </body>
 </html>

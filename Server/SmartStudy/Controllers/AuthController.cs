@@ -3,10 +3,10 @@ using System.Security.Claims;
 using System.Text;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.IdentityModel.Tokens;
-using SmartStudy.DAL;
-using SmartStudy.DTOs;
 using SmartStudy.Models;
 using SmartStudy.Services;
+using UserModel = SmartStudy.Models.User;
+using NotifSettingsModel = SmartStudy.Models.NotificationSettings;
 
 namespace SmartStudy.Controllers;
 
@@ -14,16 +14,14 @@ namespace SmartStudy.Controllers;
 [Route("api/auth")]
 public class AuthController : ControllerBase
 {
-    private readonly DBservices _db;
     private readonly IConfiguration _config;
     private readonly EmailService _emailService;
     private readonly RuppinetSyncService _ruppinetSync;
     private readonly ILogger<AuthController> _logger;
 
-    public AuthController(DBservices db, IConfiguration config, EmailService emailService,
+    public AuthController(IConfiguration config, EmailService emailService,
         RuppinetSyncService ruppinetSync, ILogger<AuthController> logger)
     {
-        _db = db;
         _config = config;
         _emailService = emailService;
         _ruppinetSync = ruppinetSync;
@@ -31,21 +29,21 @@ public class AuthController : ControllerBase
     }
 
     [HttpPost("login")]
-    public async Task<IActionResult> Login([FromBody] LoginDto dto)
+    public IActionResult Login([FromBody] LoginDto dto)
     {
-        var user = await _db.GetUserByEmailAsync(dto.Email);
+        var user = UserModel.GetByEmail(dto.Email);
         if (user == null || user.Password != HashPassword(dto.Password))
             return Unauthorized(new { message = "Invalid email or password" });
 
         var token = GenerateToken(user);
 
         // Trigger Ruppinet sync in background (non-blocking)
-        DTOs.RuppinetSyncResultDto? syncResult = null;
+        RuppinetSyncResultDto? syncResult = null;
         var syncIntervalHours = int.TryParse(_config["Ruppinet:SyncIntervalHours"], out var h) ? h : 12;
         if (!string.IsNullOrEmpty(user.RuppinetId) &&
             (user.LastRuppinetSync == null || user.LastRuppinetSync < DateTime.UtcNow.AddHours(-syncIntervalHours)))
         {
-            try { syncResult = await _ruppinetSync.SyncAllAsync(user.Email); }
+            try { syncResult = _ruppinetSync.SyncAllAsync(user.Email).GetAwaiter().GetResult(); }
             catch (Exception ex) { _logger.LogWarning(ex, "Ruppinet sync failed during login for {Email}", user.Email); }
         }
 
@@ -62,16 +60,16 @@ public class AuthController : ControllerBase
     }
 
     [HttpPost("register")]
-    public async Task<IActionResult> Register([FromBody] RegisterDto dto)
+    public IActionResult Register([FromBody] RegisterDto dto)
     {
-        if (await _db.UserExistsAsync(dto.Email))
+        if (UserModel.Exists(dto.Email))
             return BadRequest(new { message = "Email already registered" });
 
         var hashedPassword = HashPassword(dto.Password);
-        await _db.CreateUserAsync(dto.Email, dto.FirstName, dto.LastName, hashedPassword);
-        await _db.CreateDefaultNotifSettingsAsync(dto.Email);
+        UserModel.Create(dto.Email, dto.FirstName, dto.LastName, hashedPassword);
+        NotifSettingsModel.CreateDefault(dto.Email);
 
-        var user = new User
+        var user = new UserModel
         {
             Email = dto.Email,
             FirstName = dto.FirstName,
@@ -96,24 +94,21 @@ public class AuthController : ControllerBase
     }
 
     [HttpPost("forgot-password")]
-    public async Task<IActionResult> ForgotPassword([FromBody] ForgotPasswordDto dto)
+    public IActionResult ForgotPassword([FromBody] ForgotPasswordDto dto)
     {
-        var user = await _db.GetUserByEmailAsync(dto.Email);
+        var user = UserModel.GetByEmail(dto.Email);
         if (user == null)
             return Ok(new { message = "If the email exists, a reset link has been sent." });
 
-        // Generate 8-char reset token
         var token = Guid.NewGuid().ToString("N")[..8].ToUpper();
-        await _db.UpdateResetTokenAsync(dto.Email, token, DateTime.UtcNow.AddHours(1));
+        UserModel.UpdateResetToken(dto.Email, token, DateTime.UtcNow.AddHours(1));
 
-        // Send reset email (falls back to console log if SMTP not configured)
-        await _emailService.SendAsync(
+        _emailService.SendAsync(
             dto.Email,
             "SmartStudy — Password Reset",
             $"Your password reset code: {token}\n\nThis code expires in 1 hour.\n\nIf you did not request a password reset, please ignore this email."
-        );
+        ).GetAwaiter().GetResult();
 
-        // In dev/no-SMTP mode, return token so the frontend flow works
         if (!_emailService.IsConfigured)
             return Ok(new { message = "If the email exists, a reset link has been sent.", resetToken = token });
 
@@ -121,32 +116,32 @@ public class AuthController : ControllerBase
     }
 
     [HttpPost("reset-password")]
-    public async Task<IActionResult> ResetPassword([FromBody] ResetPasswordDto dto)
+    public IActionResult ResetPassword([FromBody] ResetPasswordDto dto)
     {
-        var user = await _db.GetUserByEmailAsync(dto.Email);
+        var user = UserModel.GetByEmail(dto.Email);
         if (user == null)
             return BadRequest(new { message = "Invalid email or token" });
 
         if (user.ResetToken != dto.Token || user.ResetTokenExpiry < DateTime.UtcNow)
             return BadRequest(new { message = "Invalid or expired token" });
 
-        await _db.ResetPasswordAsync(dto.Email, HashPassword(dto.NewPassword));
+        UserModel.ResetPassword(dto.Email, HashPassword(dto.NewPassword));
 
         return Ok(new { message = "Password reset successfully" });
     }
 
     [HttpPost("google")]
-    public async Task<IActionResult> GoogleLogin([FromBody] GoogleLoginDto dto)
+    public IActionResult GoogleLogin([FromBody] GoogleLoginDto dto)
     {
         try
         {
-            var payload = await Google.Apis.Auth.GoogleJsonWebSignature.ValidateAsync(dto.IdToken, new Google.Apis.Auth.GoogleJsonWebSignature.ValidationSettings
+            var payload = Google.Apis.Auth.GoogleJsonWebSignature.ValidateAsync(dto.IdToken, new Google.Apis.Auth.GoogleJsonWebSignature.ValidationSettings
             {
                 Audience = new[] { _config["Google:ClientId"] ?? "" }
-            });
+            }).GetAwaiter().GetResult();
 
             var email = payload.Email;
-            var user = await _db.GetUserByEmailAsync(email);
+            var user = UserModel.GetByEmail(email);
             var isNewUser = false;
 
             if (user == null)
@@ -154,10 +149,10 @@ public class AuthController : ControllerBase
                 isNewUser = true;
                 var firstName = payload.GivenName ?? "User";
                 var lastName = payload.FamilyName ?? "";
-                await _db.CreateUserAsync(email, firstName, lastName, HashPassword(Guid.NewGuid().ToString()), "Google");
-                await _db.CreateDefaultNotifSettingsAsync(email);
+                UserModel.Create(email, firstName, lastName, HashPassword(Guid.NewGuid().ToString()), "Google");
+                NotifSettingsModel.CreateDefault(email);
 
-                user = new User
+                user = new UserModel
                 {
                     Email = email,
                     FirstName = firstName,
@@ -167,7 +162,7 @@ public class AuthController : ControllerBase
             }
             else if (!user.OnboardingCompleted)
             {
-                await _db.SetOnboardingCompleteAsync(user.Email);
+                UserModel.SetOnboardingComplete(user.Email);
                 user.OnboardingCompleted = true;
             }
 
@@ -197,7 +192,7 @@ public class AuthController : ControllerBase
         });
     }
 
-    private string GenerateToken(User user)
+    private string GenerateToken(UserModel user)
     {
         var jwtKey = _config["Jwt:Key"] ?? "SmartStudySuperSecretKey2026ForJwtTokenGeneration!";
         var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtKey));

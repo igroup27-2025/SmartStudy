@@ -2,33 +2,29 @@ using System.Security.Cryptography;
 using System.Text;
 using Microsoft.Extensions.Logging;
 using SmartStudy.DAL;
-using SmartStudy.DTOs;
 using SmartStudy.Models;
 
 namespace SmartStudy.Services;
 
 public class RuppinetSyncService
 {
-    private readonly DBservices _dal;
+    private readonly DBservices _dal = new DBservices();
     private readonly RuppinetApiClient _api;
     private readonly IConfiguration _config;
     private readonly ILogger<RuppinetSyncService> _logger;
-    private readonly SchedulingService _scheduling;
 
-    public RuppinetSyncService(DBservices dal, RuppinetApiClient api,
-        IConfiguration config, ILogger<RuppinetSyncService> logger, SchedulingService scheduling)
+    public RuppinetSyncService(RuppinetApiClient api,
+        IConfiguration config, ILogger<RuppinetSyncService> logger)
     {
-        _dal = dal;
         _api = api;
         _config = config;
         _logger = logger;
-        _scheduling = scheduling;
     }
 
     public async Task<RuppinetSyncResultDto> SyncAllAsync(string email)
     {
         var result = new RuppinetSyncResultDto();
-        var user = await _dal.GetUserByEmailAsync(email);
+        var user = _dal.GetUserByEmail(email);
         if (user == null || string.IsNullOrEmpty(user.RuppinetId) || string.IsNullOrEmpty(user.RuppinetPassword))
         {
             result.Message = "Ruppinet credentials not configured";
@@ -87,15 +83,15 @@ public class RuppinetSyncService
             var scheduleEvents = await scheduleTask;
             var ruppinetExams = await examsTask;
 
-            await ProcessCoursesAsync(email, ruppinetCourses, result);
-            await CleanupDuplicateCoursesAsync(email);
-            await ProcessScheduleAsync(email, scheduleEvents, result);
-            await ProcessExamsAsync(email, ruppinetExams, result);
+            ProcessCourses(email, ruppinetCourses, result);
+            CleanupDuplicateCourses(email);
+            ProcessSchedule(email, scheduleEvents, result);
+            ProcessExams(email, ruppinetExams, result);
 
-            await _dal.UpdateLastRuppinetSyncAsync(email, DateTime.UtcNow);
+            _dal.UpdateLastRuppinetSync(email, DateTime.UtcNow);
 
             // Run the scheduling engine to place tasks into calendar slots
-            await _scheduling.ScheduleAllTasksAsync(email);
+            SmartStudy.Models.StudentTask.ScheduleAll(email);
 
             result.Success = true;
             result.Message = $"Synced {result.CoursesCreated} new courses, {result.ClassEventsCreated} class events, {result.ExamsCreated} exams";
@@ -132,7 +128,7 @@ public class RuppinetSyncService
         }
     }
 
-    private async Task ProcessCoursesAsync(string email, List<RuppinetCourse> ruppinetCourses, RuppinetSyncResultDto result)
+    private void ProcessCourses(string email, List<RuppinetCourse> ruppinetCourses, RuppinetSyncResultDto result)
     {
         foreach (var rc in ruppinetCourses)
         {
@@ -141,26 +137,26 @@ public class RuppinetSyncService
                 var courseId = rc.Nmrtr;
                 if (courseId == 0) continue;
 
-                var course = await _dal.GetCourseByIdAsync(courseId);
+                var course = _dal.GetCourseById(courseId);
                 if (course == null)
                 {
-                    var instructorId = await FindOrCreateInstructorAsync(rc.Instructors);
-                    await _dal.CreateCourseAsync(courseId, Truncate(rc.Name, 200), rc.WeeklyHours, rc.Credits,
+                    var instructorId = FindOrCreateInstructor(rc.Instructors);
+                    _dal.CreateCourse(courseId, Truncate(rc.Name, 200), rc.WeeklyHours, rc.Credits,
                         TruncateNullable($"{rc.Semester}-{rc.SemesterCode}", 50), instructorId);
                     result.CoursesCreated++;
                 }
                 else
                 {
                     if (!string.IsNullOrWhiteSpace(rc.Name))
-                        await _dal.UpdateCourseAsync(courseId, courseName: Truncate(rc.Name, 200),
+                        _dal.UpdateCourse(courseId, courseName: Truncate(rc.Name, 200),
                             credits: rc.Credits > 0 ? rc.Credits : null,
                             weeklyHours: rc.WeeklyHours > 0 ? rc.WeeklyHours : null);
                     result.CoursesUpdated++;
                 }
 
-                if (!await _dal.UserCourseExistsAsync(email, courseId))
+                if (!_dal.UserCourseExists(email, courseId))
                 {
-                    await _dal.CreateUserCourseAsync(email, courseId);
+                    _dal.CreateUserCourse(email, courseId);
                 }
             }
             catch (Exception ex)
@@ -171,9 +167,9 @@ public class RuppinetSyncService
         }
     }
 
-    private async Task ProcessScheduleAsync(string email, List<RuppinetScheduleEvent> events, RuppinetSyncResultDto result)
+    private void ProcessSchedule(string email, List<RuppinetScheduleEvent> events, RuppinetSyncResultDto result)
     {
-        var courseMap = await BuildCourseMapAsync(email);
+        var courseMap = BuildCourseMap(email);
 
         foreach (var evt in events)
         {
@@ -186,21 +182,21 @@ public class RuppinetSyncService
                 var courseId = FindCourseId(evt.Title, courseMap);
                 if (courseId == null)
                 {
-                    courseId = await CreateCourseFromSchedule(email, evt);
+                    courseId = CreateCourseFromSchedule(email, evt);
                     if (courseId != null)
                         courseMap[evt.Title.ToLower().Trim()] = courseId.Value;
                     else
                         continue;
                 }
 
-                if (await _dal.ClassEventExistsAsync(email, courseId.Value, eventFrom, eventTo))
+                if (_dal.ClassEventExists(email, courseId.Value, eventFrom, eventTo))
                 {
                     result.ClassEventsSkipped++;
                     continue;
                 }
 
                 var duration = (decimal)(eventTo - eventFrom).TotalHours;
-                await _dal.CreateClassEventAsync(email, eventFrom, eventTo, false, null,
+                _dal.CreateClassEvent(email, eventFrom, eventTo, false, null,
                     courseId.Value, TruncateNullable(evt.Location, 200), duration);
                 result.ClassEventsCreated++;
             }
@@ -212,9 +208,9 @@ public class RuppinetSyncService
         }
     }
 
-    private async Task ProcessExamsAsync(string email, List<RuppinetExam> ruppinetExams, RuppinetSyncResultDto result)
+    private void ProcessExams(string email, List<RuppinetExam> ruppinetExams, RuppinetSyncResultDto result)
     {
-        var courseMap = await BuildCourseMapAsync(email);
+        var courseMap = BuildCourseMap(email);
 
         foreach (var re in ruppinetExams)
         {
@@ -223,15 +219,15 @@ public class RuppinetSyncService
                 var courseId = re.CourseNmrtr > 0 ? re.CourseNmrtr : FindCourseId(re.CourseName, courseMap);
                 if (courseId == null)
                 {
-                    var id = await CreateCourseFromExam(email, re);
+                    var id = CreateCourseFromExam(email, re);
                     if (id == null) continue;
                     courseId = id;
                 }
                 else
                 {
-                    if (!await _dal.CourseExistsAsync(courseId.Value))
+                    if (!_dal.CourseExists(courseId.Value))
                     {
-                        var id = await CreateCourseFromExam(email, re);
+                        var id = CreateCourseFromExam(email, re);
                         if (id == null) continue;
                         courseId = id;
                     }
@@ -245,7 +241,7 @@ public class RuppinetSyncService
                     _ => "A"
                 };
 
-                var existingExam = await _dal.FindExamByCourseAndSessionAsync(email, courseId.Value, session);
+                var existingExam = _dal.FindExamByCourseAndSession(email, courseId.Value, session);
 
                 if (existingExam != null)
                 {
@@ -254,12 +250,12 @@ public class RuppinetSyncService
                         _logger.LogWarning("Exam date changed for course {CourseId} session {Session}: {OldDate} -> {NewDate}",
                             courseId.Value, session, existingExam.Date.ToString("yyyy-MM-dd"), re.Date.Date.ToString("yyyy-MM-dd"));
                     }
-                    await _dal.UpdateExamFullAsync(existingExam.ExamId, re.Date.Date, re.StartTime, (int)(re.DurationHours * 60));
+                    _dal.UpdateExamFull(existingExam.ExamId, re.Date.Date, re.StartTime, (int)(re.DurationHours * 60));
                     result.ExamsUpdated++;
                 }
                 else
                 {
-                    await _dal.CreateExamAsync(courseId.Value, re.Date.Date, re.StartTime, session,
+                    _dal.CreateExam(courseId.Value, re.Date.Date, re.StartTime, session,
                         (int)(re.DurationHours * 60), true);
                     result.ExamsCreated++;
                 }
@@ -278,58 +274,58 @@ public class RuppinetSyncService
         }
     }
 
-    private async Task<int?> CreateCourseFromExam(string email, RuppinetExam re)
+    private int? CreateCourseFromExam(string email, RuppinetExam re)
     {
-        var courseId = re.CourseNmrtr > 0 ? re.CourseNmrtr : await GenerateStableIdAsync(re.CourseName, 0);
+        var courseId = re.CourseNmrtr > 0 ? re.CourseNmrtr : GenerateStableId(re.CourseName, 0);
 
-        var existingByName = await FindCourseByNameAsync(re.CourseName);
+        var existingByName = FindCourseByName(re.CourseName);
         if (existingByName != null)
         {
-            if (!await _dal.UserCourseExistsAsync(email, existingByName.CourseId))
-                await _dal.CreateUserCourseAsync(email, existingByName.CourseId);
+            if (!_dal.UserCourseExists(email, existingByName.CourseId))
+                _dal.CreateUserCourse(email, existingByName.CourseId);
             return existingByName.CourseId;
         }
 
-        if (!await _dal.CourseExistsAsync(courseId))
+        if (!_dal.CourseExists(courseId))
         {
-            var instructorId = await FindOrCreateInstructorAsync(re.Instructor);
-            await _dal.CreateCourseAsync(courseId, Truncate(re.CourseName, 200), null, null,
+            var instructorId = FindOrCreateInstructor(re.Instructor);
+            _dal.CreateCourse(courseId, Truncate(re.CourseName, 200), null, null,
                 TruncateNullable(re.Semester, 50), instructorId);
         }
 
-        if (!await _dal.UserCourseExistsAsync(email, courseId))
-            await _dal.CreateUserCourseAsync(email, courseId);
+        if (!_dal.UserCourseExists(email, courseId))
+            _dal.CreateUserCourse(email, courseId);
 
         return courseId;
     }
 
-    private async Task<int?> CreateCourseFromSchedule(string email, RuppinetScheduleEvent evt)
+    private int? CreateCourseFromSchedule(string email, RuppinetScheduleEvent evt)
     {
         var name = evt.Title.Trim();
         if (string.IsNullOrEmpty(name)) return null;
 
-        var existingByName = await FindCourseByNameAsync(name);
+        var existingByName = FindCourseByName(name);
         if (existingByName != null)
         {
-            if (!await _dal.UserCourseExistsAsync(email, existingByName.CourseId))
-                await _dal.CreateUserCourseAsync(email, existingByName.CourseId);
+            if (!_dal.UserCourseExists(email, existingByName.CourseId))
+                _dal.CreateUserCourse(email, existingByName.CourseId);
             return existingByName.CourseId;
         }
 
-        var courseId = await GenerateStableIdAsync(name, 200000);
-        if (!await _dal.CourseExistsAsync(courseId))
+        var courseId = GenerateStableId(name, 200000);
+        if (!_dal.CourseExists(courseId))
         {
-            var instructorId = await FindOrCreateInstructorAsync(evt.Instructor);
-            await _dal.CreateCourseAsync(courseId, Truncate(name, 200), null, null, null, instructorId);
+            var instructorId = FindOrCreateInstructor(evt.Instructor);
+            _dal.CreateCourse(courseId, Truncate(name, 200), null, null, null, instructorId);
         }
 
-        if (!await _dal.UserCourseExistsAsync(email, courseId))
-            await _dal.CreateUserCourseAsync(email, courseId);
+        if (!_dal.UserCourseExists(email, courseId))
+            _dal.CreateUserCourse(email, courseId);
 
         return courseId;
     }
 
-    private async Task<int> GenerateStableIdAsync(string input, int offset)
+    private int GenerateStableId(string input, int offset)
     {
         using var sha = System.Security.Cryptography.SHA256.Create();
         var hash = sha.ComputeHash(Encoding.UTF8.GetBytes(input.ToLower().Trim()));
@@ -337,7 +333,7 @@ public class RuppinetSyncService
 
         for (int i = 0; i < 100; i++)
         {
-            var existing = await _dal.GetCourseByIdAsync(value);
+            var existing = _dal.GetCourseById(value);
             if (existing == null || existing.CourseName.ToLower().Trim() == input.ToLower().Trim())
                 return value;
             value++;
@@ -345,9 +341,9 @@ public class RuppinetSyncService
         return value;
     }
 
-    private async Task<Dictionary<string, int>> BuildCourseMapAsync(string email)
+    private Dictionary<string, int> BuildCourseMap(string email)
     {
-        var userCourses = await _dal.GetUserCoursesWithNameAsync(email);
+        var userCourses = _dal.GetUserCoursesWithName(email);
         var map = new Dictionary<string, int>();
         foreach (var (courseId, courseName) in userCourses)
         {
@@ -416,16 +412,16 @@ public class RuppinetSyncService
         return null;
     }
 
-    private async Task<Course?> FindCourseByNameAsync(string name)
+    private Course? FindCourseByName(string name)
     {
         var normalized = NormalizeName(name);
-        var candidates = await _dal.GetAllCoursesAsync();
+        var candidates = _dal.GetAllCourses();
         return candidates.FirstOrDefault(c => NormalizeName(c.CourseName) == normalized);
     }
 
-    private async Task CleanupDuplicateCoursesAsync(string email)
+    private void CleanupDuplicateCourses(string email)
     {
-        var userCourses = await _dal.GetUserCoursesWithNameAsync(email);
+        var userCourses = _dal.GetUserCoursesWithName(email);
 
         var groups = userCourses.GroupBy(uc => NormalizeName(uc.CourseName)).ToList();
 
@@ -442,21 +438,21 @@ public class RuppinetSyncService
                 _logger.LogInformation("Merging duplicate course {DupId} into {KeepId} for {Email}",
                     dupId, keepCourseId, email);
 
-                await _dal.ReassignClassEventsCourseAsync(email, dupId, keepCourseId);
-                await _dal.ReassignExamsCourseAsync(dupId, keepCourseId);
-                await _dal.ReassignTasksCourseAsync(email, dupId, keepCourseId);
+                _dal.ReassignClassEventsCourse(email, dupId, keepCourseId);
+                _dal.ReassignExamsCourse(dupId, keepCourseId);
+                _dal.ReassignTasksCourse(email, dupId, keepCourseId);
 
-                await _dal.DeleteUserCourseAsync(email, dupId);
+                _dal.DeleteUserCourse(email, dupId);
 
-                if (!await _dal.OtherUsersEnrolledAsync(dupId, email))
+                if (!_dal.OtherUsersEnrolled(dupId, email))
                 {
-                    await _dal.DeleteCourseAsync(dupId);
+                    _dal.DeleteCourse(dupId);
                 }
             }
         }
     }
 
-    private async Task<int?> FindOrCreateInstructorAsync(string? instructorNames)
+    private int? FindOrCreateInstructor(string? instructorNames)
     {
         if (string.IsNullOrWhiteSpace(instructorNames)) return null;
 
@@ -465,10 +461,10 @@ public class RuppinetSyncService
         if (string.IsNullOrEmpty(name)) return null;
 
         var truncatedName = Truncate(name, 200);
-        var instructor = await _dal.FindInstructorByNameAsync(truncatedName);
+        var instructor = _dal.FindInstructorByName(truncatedName);
         if (instructor != null) return instructor.InstructorId;
 
-        return await _dal.CreateInstructorAsync(truncatedName);
+        return _dal.CreateInstructor(truncatedName);
     }
 
     private static string Truncate(string? value, int maxLength)

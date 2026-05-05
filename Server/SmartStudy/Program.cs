@@ -4,15 +4,15 @@ using System.Text;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.Extensions.FileProviders;
 using Microsoft.IdentityModel.Tokens;
-using SmartStudy.DAL;
 using SmartStudy.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// ADO.NET DAL (stored procedures). The schema must already exist in the database —
-// run Schema.sql once against the target SQL Server before starting the app.
-builder.Services.AddSingleton<SqlHelper>();
-builder.Services.AddScoped<DBservices>();
+// DAL (stored procedures) and Models with folded-in BLL/internal-service
+// methods instantiate DBservices themselves (new DBservices()). No DI for DAL
+// or internal services — controllers call Model.StaticMethod(...) directly.
+// The schema must already exist in the database — run Schema.sql once against
+// the target SQL Server before starting the app.
 
 // JWT Authentication
 var jwtKey = builder.Configuration["Jwt:Key"] ?? "SmartStudySuperSecretKey2026ForJwtTokenGeneration!";
@@ -32,12 +32,9 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     });
 
 builder.Services.AddAuthorization();
-builder.Services.AddScoped<StressService>();
-builder.Services.AddScoped<SchedulingService>();
-builder.Services.AddScoped<ScheduleImportService>();
-builder.Services.AddScoped<SafeZoneService>();
-builder.Services.AddScoped<NotificationService>();
-builder.Services.AddScoped<WeeklySuggestionService>();
+
+// External services (HTTP clients + email) remain DI-registered because they
+// depend on IConfiguration / IHttpClientFactory / ILogger.
 builder.Services.AddHttpClient();
 builder.Services.AddScoped<ComposioService>();
 builder.Services.AddScoped<GoogleCalendarService>();
@@ -46,9 +43,12 @@ builder.Services.AddScoped<RuppinetApiClient>();
 builder.Services.AddScoped<RuppinetSyncService>();
 builder.Services.AddScoped<MoodleApiClient>();
 builder.Services.AddScoped<MoodleSyncService>();
+
+// Background services stay hosted.
 builder.Services.AddHostedService<NotificationBackgroundService>();
 builder.Services.AddHostedService<RuppinetBackgroundSyncService>();
 builder.Services.AddHostedService<MoodleBackgroundSyncService>();
+
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();

@@ -1,9 +1,9 @@
 using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using SmartStudy.DAL;
-using SmartStudy.DTOs;
-using SmartStudy.Services;
+using SmartStudy.Models;
+using UserModel = SmartStudy.Models.User;
+using SchedPrefsModel = SmartStudy.Models.SchedulingPreferences;
 
 namespace SmartStudy.Controllers;
 
@@ -12,35 +12,21 @@ namespace SmartStudy.Controllers;
 [Authorize]
 public class DashboardController : ControllerBase
 {
-    private readonly DBservices _dal;
-    private readonly StressService _stressService;
-    private readonly SchedulingService _schedulingService;
-    private readonly WeeklySuggestionService _weeklySuggestionService;
-
-    public DashboardController(DBservices dal, StressService stressService, SchedulingService schedulingService, WeeklySuggestionService weeklySuggestionService)
-    {
-        _dal = dal;
-        _stressService = stressService;
-        _schedulingService = schedulingService;
-        _weeklySuggestionService = weeklySuggestionService;
-    }
-
     private string GetEmail() => User.FindFirst(ClaimTypes.Email)!.Value;
 
     [HttpGet]
-    public async Task<IActionResult> Get()
+    public IActionResult Get()
     {
         var email = GetEmail();
         var now = DateTime.Now;
         var today = now.Date;
         var tomorrow = today.AddDays(1);
 
-        var stress = await _stressService.GetStressScoreAsync(email);
+        var stress = UserModel.GetStressScore(email);
 
-        var courseIds = await _dal.GetCourseIdsByEmailAsync(email);
+        var courseIds = Dashboard.GetCourseIdsByEmail(email);
 
-        // Get all tasks for the user (completed and incomplete)
-        var allTasks = await _dal.GetTasksByUserAsync(email);
+        var allTasks = StudentTask.GetByUser(email);
 
         var upcomingDeadlines = allTasks
             .Where(t => !t.IsCompleted && t.DueDate.HasValue && t.DueDate > now)
@@ -60,7 +46,7 @@ public class DashboardController : ControllerBase
             })
             .ToList();
 
-        var exams = (await _dal.GetUpcomingExamsAsync(email, today))
+        var exams = Dashboard.GetUpcomingExams(email, today)
             .OrderBy(e => e.Date)
             .Take(3)
             .Select(e => new ExamDto
@@ -76,8 +62,7 @@ public class DashboardController : ControllerBase
             })
             .ToList();
 
-        // Today's events via typed events
-        var todayTypedEvents = await _dal.GetAllTypedEventsInRangeAsync(email, today, tomorrow);
+        var todayTypedEvents = Event.GetAllTypedEventsInRange(email, today, tomorrow);
         var todayEventDtos = todayTypedEvents
             .OrderBy(e => e.From)
             .Select(e => new EventDto
@@ -101,28 +86,20 @@ public class DashboardController : ControllerBase
             })
             .ToList();
 
-        // Scheduling data
-        var schedulingStatus = await _schedulingService.GetSchedulingStatusAsync(email);
+        var schedulingStatus = StudentTask.GetSchedulingStatus(email);
 
-        // Get incomplete tasks with their events
-        var (incompleteTasks, taskEventsForTasks) = await _dal.GetIncompleteTasksWithEventsAsync(email);
+        var (incompleteTasks, taskEventsForTasks) = Dashboard.GetIncompleteTasksWithEvents(email);
         var taskEventsByTaskId = taskEventsForTasks.GroupBy(te => te.TaskId).ToDictionary(g => g.Key, g => g.ToList());
 
         var unscheduledCount = incompleteTasks.Count(t => !taskEventsByTaskId.ContainsKey(t.TaskId) || !taskEventsByTaskId[t.TaskId].Any());
 
-        // Today's workload
         var todayWorkload = schedulingStatus.DailyWorkload
             .FirstOrDefault(d => d.Date.Date == today);
 
-        // Weekly workload (next 7 days)
         var weeklyWorkload = schedulingStatus.DailyWorkload
             .Where(d => d.Date >= today && d.Date < today.AddDays(7))
             .Sum(d => d.ScheduledHours);
 
-        // Needs Review: overdue tasks (due date in the past) and tasks with
-        // past scheduled events OR shared tasks awaiting review. Overdue tasks
-        // surface here with SchedulingStatus="Overdue" so the UI can offer
-        // "Mark complete" or "Reschedule".
         var needsReviewTasks = incompleteTasks
             .Where(t =>
             {
@@ -166,14 +143,12 @@ public class DashboardController : ControllerBase
             })
             .ToList();
 
-        // Kept populated for legacy clients; the Dashboard UI reads NeedsReviewTasks.
         var overdueTasks = needsReviewTasks
             .Where(t => t.SchedulingStatus == "Overdue")
             .ToList();
 
-        // Next suggested task
-        var prefs = await _dal.GetSchedPrefsByEmailAsync(email);
-        var completedForML = await _dal.GetCompletedTasksForMLAsync(email);
+        var prefs = SchedPrefsModel.GetByEmail(email);
+        var completedForML = Dashboard.GetCompletedTasksForML(email);
         var courseRatios = completedForML
             .GroupBy(t => t.CourseId)
             .Where(g => g.Count() >= 2)
@@ -247,10 +222,10 @@ public class DashboardController : ControllerBase
     }
 
     [HttpGet("weekly-suggestions")]
-    public async Task<IActionResult> GetWeeklySuggestions()
+    public IActionResult GetWeeklySuggestions()
     {
         var email = GetEmail();
-        var suggestions = await _weeklySuggestionService.GetWeeklySuggestionsAsync(email);
+        var suggestions = StudentTask.GetWeeklySuggestions(email);
         return Ok(suggestions);
     }
 }

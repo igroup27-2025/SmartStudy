@@ -5,6 +5,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>SmartStudy - Dashboard</title>
     <link rel="stylesheet" href="../CSS/app.css">
+    <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+    <script src="../Scripts/ajaxCall.js"></script>
+    <script src="../Scripts/appShell.js"></script>
 </head>
 <body data-page="dashboard">
     <div id="pageRoot">
@@ -12,20 +15,706 @@
             <div class="skeleton skeleton-text" style="width:60%;height:28px"></div>
             <div class="skeleton skeleton-text" style="width:40%;height:16px;margin-top:8px"></div>
         </div>
-        <div id="dashMotivation" class="dash-motivation"></div>
         <div id="dashProgress" class="dash-progress"></div>
         <div id="dashAlerts" class="dash-alerts"></div>
         <div id="dashStats" class="dash-stats"></div>
+        <div id="dashSharedTasks"></div>
+        <div id="dashRelocationSuggestions"></div>
         <div id="dashWorkload" class="dash-workload"></div>
-        <div id="dashRelocationSuggestions" class="dash-relocations"></div>
-        <div id="dashSharedTasks" class="dash-shared-tasks"></div>
-        <div id="dashWeeklyInsights" class="dash-weekly-insights"></div>
+        <div id="dashCalendar"></div>
+        <div id="dashWeeklyInsights"></div>
         <div id="dashSuggestion" class="dash-suggestion"></div>
-        <div id="dashCalendar" class="dash-calendar"></div>
-        <div id="dashOverdue" class="dash-overdue"></div>
         <div id="dashReview" class="dash-review"></div>
+        <div id="dashOverdue"></div>
     </div>
-    <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
-    <script type="module" src="../Script/main.js"></script>
+
+    <script>
+        // ---- API endpoints -----------------------------------------------
+        var DashboardApi       = API_BASE + "/dashboard";
+        var WeeklySuggestApi   = API_BASE + "/dashboard/weekly-suggestions";
+        var ApproveApi         = function (taskId) { return API_BASE + "/scheduling/approve/" + taskId; };
+        var SharedTasksApi     = API_BASE + "/shared-tasks";
+        var SharedTaskRespondApi = function (taskId) { return API_BASE + "/shared-tasks/" + taskId + "/respond"; };
+        var EventsApi          = API_BASE + "/events";
+        var TaskCompleteApi    = function (id) { return API_BASE + "/tasks/" + id + "/complete"; };
+        var SchedulingRunApi   = API_BASE + "/scheduling/run";
+
+        var miniCalStart = new Date();
+        var cachedDashboard = null;
+
+        var MINI_CAL_COLORS = {
+            "class":    { bg: "#E3EEF9", border: "#4A90D9", text: "#2D5A8A" },
+            "task":     { bg: "#FFF3E0", border: "#F28D35", text: "#A06020" },
+            "work":     { bg: "#F3E5F5", border: "#9B76FF", text: "#5E3DBF" },
+            "personal": { bg: "#E6F5EE", border: "#43B88C", text: "#2A7A5A" },
+            "exam":     { bg: "#FCE4EC", border: "#E84B6A", text: "#A03050" }
+        };
+
+        $(document).ready(function () {
+            if (!requireAuth()) return;
+            SmartStudy.initShell("dashboard");
+            LoadDashboard();
+        });
+
+        function escapeHtml(s) {
+            if (s == null) return "";
+            return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+        }
+
+        function toLocalISO(d) {
+            function pad(n) { return String(n).padStart(2, "0"); }
+            return d.getFullYear() + "-" + pad(d.getMonth() + 1) + "-" + pad(d.getDate()) + "T" +
+                   pad(d.getHours()) + ":" + pad(d.getMinutes()) + ":" + pad(d.getSeconds());
+        }
+
+        function LoadDashboard() {
+            ajaxCall("GET", DashboardApi, null, function (data) {
+                cachedDashboard = data;
+                RenderHero(data);
+                RenderProgress(data);
+                RenderAlerts(data);
+                RenderStats(data);
+                RenderWorkload(data);
+                RenderRelocationSuggestions(data);
+                LoadSharedTasks(data);
+                RenderSuggestion(data);
+                RenderReview(data);
+                LoadWeeklySuggestions();
+                RenderMiniCalendar();
+            }, function () {
+                $("#dashHero").text("Failed to load dashboard.");
+            });
+        }
+
+        // ---- Hero ---------------------------------------------------------
+        function RenderHero(data) {
+            var user = getUser() || {};
+            var firstName = user.firstName || "Student";
+            var hour = new Date().getHours();
+            var greeting = hour < 12 ? "Good morning" : hour < 18 ? "Good afternoon" : "Good evening";
+            var dateStr = new Date().toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" });
+
+            var score = (data.stress && data.stress.score) || 0;
+            var motivation;
+            if (score <= 25)      motivation = "You're in great shape! Enjoy the calm.";
+            else if (score <= 40) motivation = "You're balancing things well. Stay focused!";
+            else if (score <= 60) motivation = "Things are picking up. Prioritize your top tasks!";
+            else if (score <= 80) motivation = "Your workload is heavy. Consider what can wait.";
+            else                  motivation = "You're under high pressure. Focus on essentials only!";
+
+            $("#dashHero").html(
+                '<h1 class="dash-hero__title">' + greeting + ", " + escapeHtml(firstName) + '</h1>' +
+                '<p class="dash-hero__date">' + dateStr + '</p>' +
+                '<p class="dash-hero__motivation">' + motivation + '</p>'
+            );
+        }
+
+        function RenderProgress(data) {
+            var completed = data.completedTasks || 0;
+            var total = data.totalTasks || 0;
+            var pct = total > 0 ? Math.round(completed / total * 100) : 0;
+            $("#dashProgress").html(
+                '<div class="dash-progress__header">' +
+                    '<span class="dash-progress__label">Semester Progress</span>' +
+                    '<span class="dash-progress__count">' + completed + '/' + total + ' tasks</span>' +
+                '</div>' +
+                '<div class="dash-progress__track"><div class="dash-progress__fill" style="width:' + pct + '%"></div></div>'
+            );
+        }
+
+        function RenderAlerts(data) {
+            var pills = [];
+            var pending = data.pendingTasks || 0;
+            if (pending > 0) pills.push('<span class="dash-pill dash-pill--warning">' + pending + ' task' + (pending > 1 ? 's' : '') + ' need review</span>');
+
+            (data.nextExams || []).forEach(function (exam) {
+                if (exam.daysUntil <= 7) {
+                    pills.push('<span class="dash-pill dash-pill--danger">Exam in ' + exam.daysUntil + ' day' + (exam.daysUntil !== 1 ? 's' : '') + ': ' + escapeHtml(exam.courseName) + '</span>');
+                }
+            });
+
+            var overloaded = data.overloadedDays || [];
+            if (overloaded.length > 0) {
+                pills.push('<span class="dash-pill dash-pill--danger">' + overloaded.length + ' overloaded day' + (overloaded.length > 1 ? 's' : '') + ' this week</span>');
+            }
+
+            var unscheduled = data.unscheduledTaskCount || 0;
+            if (unscheduled > 0) {
+                pills.push('<span class="dash-pill dash-pill--warning">' + unscheduled + ' task' + (unscheduled > 1 ? 's' : '') + ' not scheduled</span>');
+            }
+
+            var overdueCount = (data.overdueTasks || []).length;
+            if (overdueCount > 0) pills.push('<span class="dash-pill dash-pill--danger">' + overdueCount + ' overdue task' + (overdueCount > 1 ? 's' : '') + '</span>');
+
+            $("#dashAlerts").html(pills.join(""));
+        }
+
+        function RenderStats(data) {
+            var today = new Date(); today.setHours(0, 0, 0, 0);
+            var tomorrow = new Date(today); tomorrow.setDate(tomorrow.getDate() + 1);
+            var dueToday = (data.upcomingDeadlines || []).filter(function (t) {
+                var d = new Date(t.dueDate);
+                return d >= today && d < tomorrow;
+            }).length;
+            var pending = data.pendingTasks || 0;
+            var completed = data.completedTasks || 0;
+            var total = data.totalTasks || 0;
+            var pct = total > 0 ? Math.round(completed / total * 100) : 0;
+
+            $("#dashStats").html(
+                '<div class="dash-stat dash-stat--coral"><span class="dash-stat__value">' + dueToday + '</span><span class="dash-stat__label">Due Today</span></div>' +
+                '<div class="dash-stat dash-stat--amber"><span class="dash-stat__value">' + pending + '</span><span class="dash-stat__label">Pending</span></div>' +
+                '<div class="dash-stat dash-stat--green"><span class="dash-stat__value">' + pct + '%</span><span class="dash-stat__label">Progress</span></div>'
+            );
+        }
+
+        function RenderWorkload(data) {
+            var workload = data.dailyWorkload || [];
+            if (!workload.length) { $("#dashWorkload").empty(); return; }
+
+            var today = new Date(); today.setHours(0, 0, 0, 0);
+            var week = workload.filter(function (d) {
+                var date = new Date(d.date);
+                return date >= today && date < new Date(today.getTime() + 7 * 24 * 60 * 60 * 1000);
+            }).slice(0, 7);
+            if (!week.length) { $("#dashWorkload").empty(); return; }
+
+            var html = '<div class="dash-workload__header"><h3 class="dash-workload__title">Workload Overview</h3>' +
+                       '<div class="dash-workload__summary"><span>Today: ' + (data.todayWorkloadHours || 0) + 'h</span> <span>Week: ' + (data.weeklyWorkloadHours || 0) + 'h</span></div></div>' +
+                       '<div class="dash-workload__chart">';
+
+            week.forEach(function (d) {
+                var date = new Date(d.date);
+                var isToday = date.getTime() === today.getTime();
+                var dayName = date.toLocaleDateString("en", { weekday: "short" });
+                var totalH = d.totalHours != null ? d.totalHours : d.scheduledHours;
+                var pct = Math.min(100, (totalH / 10) * 100);
+                var colorClass = d.isOverloaded ? "overloaded" : totalH > 6 ? "heavy" : totalH > 3 ? "moderate" : "light";
+                html += '<div class="dash-workload__bar-group ' + (isToday ? 'today' : '') + '">' +
+                        '<div class="dash-workload__bar-track"><div class="dash-workload__bar dash-workload__bar--' + colorClass + '" style="height:' + pct + '%"></div></div>' +
+                        '<span class="dash-workload__bar-label">' + dayName + '</span>' +
+                        '<span class="dash-workload__bar-value">' + totalH + 'h</span>' +
+                        '</div>';
+            });
+
+            html += '</div>';
+            $("#dashWorkload").html(html);
+        }
+
+        // ---- Relocation suggestions --------------------------------------
+        function RenderRelocationSuggestions(data) {
+            var $el = $("#dashRelocationSuggestions");
+            var suggestions = data.relocationSuggestions || [];
+            if (!suggestions.length) { $el.empty(); return; }
+
+            var cards = suggestions.map(function (s, i) {
+                var d = new Date(s.currentFrom);
+                var dateStr = d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0");
+                return '<div class="relocation-card" data-index="' + i + '">' +
+                    '<div class="relocation-card__icon">&#128161;</div>' +
+                    '<div class="relocation-card__body">' +
+                        '<div class="relocation-card__title">No room for "' + escapeHtml(s.blockedTaskTitle) + '"</div>' +
+                        '<div class="relocation-card__message">' + escapeHtml(s.message) + '</div>' +
+                    '</div>' +
+                    '<div class="relocation-card__actions">' +
+                        '<a href="' + BASE_PATH + '/Pages/Calendar.html?date=' + dateStr + '" class="btn btn-sm btn-primary">Move</a>' +
+                        '<button class="btn btn-sm btn-ghost relocation-dismiss" data-index="' + i + '">&times;</button>' +
+                    '</div>' +
+                    '</div>';
+            }).join("");
+
+            $el.html(
+                '<div class="dash-relocations__card">' +
+                    '<div class="dash-relocations__header">' +
+                        '<span class="dash-relocations__icon">&#9888;</span>' +
+                        '<h3 class="dash-relocations__title">Scheduling Suggestions</h3>' +
+                    '</div>' + cards +
+                '</div>'
+            );
+
+            $el.find(".relocation-dismiss").on("click", function () {
+                $(this).closest(".relocation-card").remove();
+                if (!$el.find(".relocation-card").length) $el.empty();
+            });
+        }
+
+        // ---- Shared Tasks -------------------------------------------------
+        function LoadSharedTasks(dashboardData) {
+            ajaxCall("GET", SharedTasksApi, null, function (sharedTasks) {
+                RenderSharedTasks(dashboardData, sharedTasks || []);
+            }, function () {
+                RenderSharedTasks(dashboardData, []);
+            });
+        }
+
+        function formatSlotRange(from, to) {
+            var f = new Date(from), t = new Date(to);
+            var dateStr = f.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
+            function pad(n) { return String(n).padStart(2, "0"); }
+            return dateStr + " " + pad(f.getHours()) + ":" + pad(f.getMinutes()) + "-" + pad(t.getHours()) + ":" + pad(t.getMinutes());
+        }
+
+        function RenderSharedTasks(dashboardData, sharedTasks) {
+            var $el = $("#dashSharedTasks");
+            var user = getUser() || {};
+            var myEmail = (user.email || "").toLowerCase();
+
+            var invitations = (sharedTasks || []).filter(function (t) {
+                if (t.sharedStatus !== "Pending") return false;
+                var me = (t.members || []).find(function (m) { return m.email && m.email.toLowerCase() === myEmail; });
+                return me && me.responseStatus === "Pending";
+            });
+
+            var proposedSlotTasks = (dashboardData.needsReviewTasks || []).filter(function (t) {
+                return t.isShared && t.schedulingStatus === "NeedReview" && (t.scheduledSlots || []).length > 0;
+            });
+
+            if (!invitations.length && !proposedSlotTasks.length) { $el.empty(); return; }
+
+            var html = '<div class="dash-shared-tasks__card">';
+
+            if (invitations.length) {
+                html += '<div class="dash-shared-tasks__header">' +
+                        '<span class="dash-shared-tasks__icon">&#128101;</span>' +
+                        '<h3 class="dash-shared-tasks__title">Shared Task Invitations</h3>' +
+                        '<span class="badge badge-medium">' + invitations.length + '</span>' +
+                        '</div>' +
+                        '<div class="dash-shared-tasks__list">' +
+                        invitations.map(function (t) {
+                            var partner = (t.members || []).find(function (m) { return m.email && m.email.toLowerCase() !== myEmail; }) || {};
+                            return '<div class="shared-task-card" data-task-id="' + t.taskId + '">' +
+                                '<div class="shared-task-card__body">' +
+                                    '<div class="shared-task-card__title">' + escapeHtml(t.taskTitle || "Untitled Task") + '</div>' +
+                                    '<div class="shared-task-card__meta">' +
+                                        (t.courseName ? '<span>' + escapeHtml(t.courseName) + '</span> ' : '') +
+                                        '<span>From: ' + escapeHtml(partner.name || partner.email || "") + '</span>' +
+                                    '</div>' +
+                                '</div>' +
+                                '<div class="shared-task-card__actions">' +
+                                    '<button class="btn btn-primary btn-sm dash-shared-accept" data-task-id="' + t.taskId + '">Accept</button>' +
+                                    '<button class="btn btn-secondary btn-sm dash-shared-decline" data-task-id="' + t.taskId + '">Decline</button>' +
+                                '</div>' +
+                                '</div>';
+                        }).join("") +
+                        '</div>';
+            }
+
+            if (proposedSlotTasks.length) {
+                html += '<div class="dash-shared-tasks__header" style="margin-top:var(--space-4)">' +
+                        '<span class="dash-shared-tasks__icon">&#128197;</span>' +
+                        '<h3 class="dash-shared-tasks__title">Proposed Study Times</h3>' +
+                        '<span class="badge badge-medium">' + proposedSlotTasks.length + '</span>' +
+                        '</div>' +
+                        '<div class="dash-shared-tasks__list">' +
+                        proposedSlotTasks.map(function (t) {
+                            var slots = (t.scheduledSlots || []).slice(0, 3);
+                            var slotsHtml = slots.map(function (s) {
+                                return '<li>' + escapeHtml(formatSlotRange(s.from, s.to)) + '</li>';
+                            }).join("");
+                            return '<div class="shared-task-card shared-task-card--proposed" data-task-id="' + t.taskId + '">' +
+                                '<div class="shared-task-card__body">' +
+                                    '<div class="shared-task-card__title">' + escapeHtml(t.title) + '</div>' +
+                                    (t.courseName ? '<div class="shared-task-card__meta">' + escapeHtml(t.courseName) + '</div>' : '') +
+                                    '<ul class="shared-task-card__slots">' + slotsHtml + '</ul>' +
+                                '</div>' +
+                                '<div class="shared-task-card__actions">' +
+                                    '<button class="btn btn-primary btn-sm dash-slot-confirm" data-task-id="' + t.taskId + '">Confirm slot</button>' +
+                                    '<a href="' + BASE_PATH + '/Pages/Calendar.html" class="btn btn-ghost btn-sm">View on calendar</a>' +
+                                '</div>' +
+                                '</div>';
+                        }).join("") +
+                        '</div>';
+            }
+
+            html += '</div>';
+            $el.html(html);
+
+            $el.find(".dash-shared-accept").on("click", function () { RespondSharedTask(parseInt($(this).data("task-id")), true); });
+            $el.find(".dash-shared-decline").on("click", function () { RespondSharedTask(parseInt($(this).data("task-id")), false); });
+            $el.find(".dash-slot-confirm").on("click", function () {
+                var $btn = $(this);
+                var taskId = parseInt($btn.data("task-id"));
+                $btn.prop("disabled", true);
+                ajaxCall("POST", ApproveApi(taskId), null,
+                    function () { LoadDashboard(); },
+                    function () { $btn.prop("disabled", false); alert("Failed to confirm slot"); });
+            });
+        }
+
+        function RespondSharedTask(taskId, accept) {
+            ajaxCall("POST", SharedTaskRespondApi(taskId), JSON.stringify({ accept: accept }),
+                function () { LoadDashboard(); },
+                function () { alert("Failed to respond"); });
+        }
+
+        // ---- Suggestion --------------------------------------------------
+        function RenderSuggestion(data) {
+            var task = data.nextSuggestedTask;
+            if (!task) { $("#dashSuggestion").empty(); return; }
+
+            var priorityClass = (task.priority || "medium").toLowerCase();
+            var dueStr = task.dueDate ? new Date(task.dueDate).toLocaleDateString("en-US", { month: "short", day: "numeric" }) : "";
+
+            $("#dashSuggestion").html(
+                '<div class="dash-suggestion__card">' +
+                    '<div class="dash-suggestion__header"><span class="dash-suggestion__label">Next task to work on</span></div>' +
+                    '<div class="dash-suggestion__body">' +
+                        '<div class="dash-suggestion__title">' + escapeHtml(task.title) + '</div>' +
+                        '<div class="dash-suggestion__meta">' +
+                            '<span class="dash-suggestion__course">' + escapeHtml(task.courseName) + '</span>' +
+                            '<span class="badge badge-priority-' + priorityClass + '">' + escapeHtml(task.priority || "Medium") + '</span>' +
+                            (dueStr ? '<span class="dash-suggestion__due">Due: ' + dueStr + '</span>' : '') +
+                            (task.estimatedHours ? '<span class="dash-suggestion__hours">' + task.estimatedHours + 'h</span>' : '') +
+                        '</div>' +
+                    '</div>' +
+                    '<a href="' + BASE_PATH + '/Pages/Tasks.html" class="btn btn-sm btn-primary">View Tasks</a>' +
+                '</div>'
+            );
+        }
+
+        // ---- Review list --------------------------------------------------
+        function RenderReview(data) {
+            var tasks = (data.needsReviewTasks || []).slice(0, 20);
+            var header = '<div class="dash-review__header"><h2 class="dash-review__title">Needs Review</h2><span class="dash-review__badge">' + tasks.length + '</span></div>';
+
+            if (!tasks.length) {
+                $("#dashReview").html(header + '<p class="dash-review__empty">No tasks to review right now.</p>');
+                return;
+            }
+
+            function formatSlotTime(d) { return String(d.getHours()).padStart(2, "0") + ":" + String(d.getMinutes()).padStart(2, "0"); }
+            function formatSlotDate(d) { return d.toLocaleDateString("en-US", { month: "short", day: "numeric" }); }
+
+            var cards = tasks.map(function (t) {
+                var due = t.dueDate ? new Date(t.dueDate) : null;
+                var dateStr = due ? due.toLocaleDateString("en-US", { month: "short", day: "numeric" }) : "";
+                var priorityClass = (t.priority || "medium").toLowerCase();
+
+                var isOverdue = t.schedulingStatus === "Overdue";
+                var isNeedReview = t.schedulingStatus === "NeedReview";
+                var isUnscheduled = t.schedulingStatus === "Unscheduled" || t.schedulingStatus === "Partial";
+
+                var slotsHtml = "";
+                var slots = t.scheduledSlots || [];
+                if (slots.length) {
+                    var byDay = {};
+                    slots.forEach(function (s) {
+                        var from = new Date(s.from), to = new Date(s.to);
+                        var key = from.toDateString();
+                        if (!byDay[key]) byDay[key] = { from: from, to: to };
+                        else {
+                            if (from < byDay[key].from) byDay[key].from = from;
+                            if (to > byDay[key].to) byDay[key].to = to;
+                        }
+                    });
+                    var items = Object.keys(byDay).map(function (k) {
+                        var s = byDay[k];
+                        return '<span class="dash-review-slot">' + formatSlotDate(s.from) + ", " + formatSlotTime(s.from) + "-" + formatSlotTime(s.to) + '</span>';
+                    }).join("");
+                    slotsHtml = '<div class="dash-review-slots">' + items + '</div>';
+                }
+
+                var scheduleInfo = "";
+                if (isOverdue) {
+                    var daysOverdue = due ? Math.ceil((Date.now() - due.getTime()) / 86400000) : 0;
+                    scheduleInfo = '<span class="badge badge-overdue">Overdue &middot; ' + daysOverdue + ' day' + (daysOverdue !== 1 ? 's' : '') + '</span>';
+                } else if (isNeedReview) {
+                    scheduleInfo = '<span class="badge badge-review">Pending Review</span>';
+                } else if (t.schedulingStatus === "Scheduled") {
+                    scheduleInfo = '<span class="badge badge-scheduled">Scheduled</span>';
+                } else if (t.schedulingStatus === "Partial") {
+                    scheduleInfo = '<span class="badge badge-partial">Partially Scheduled</span>';
+                } else if (isUnscheduled) {
+                    scheduleInfo = '<span class="badge badge-unscheduled">Not Scheduled</span>';
+                }
+
+                var sharedBadge = "";
+                if (t.isShared) {
+                    var pending = t.sharedStatus === "Pending";
+                    sharedBadge = '<span class="badge ' + (pending ? 'badge-shared-pending' : 'badge-shared') + '">' + (pending ? 'Shared &middot; Pending' : 'Shared') + '</span>';
+                }
+
+                var firstSlot = slots.length ? new Date(slots[0].from) : null;
+                var calDateParam = firstSlot ? "?date=" + firstSlot.getFullYear() + "-" + String(firstSlot.getMonth() + 1).padStart(2, "0") + "-" + String(firstSlot.getDate()).padStart(2, "0") : "";
+                var editHref = BASE_PATH + "/Pages/Calendar.html" + calDateParam;
+
+                var actions;
+                if (isOverdue) {
+                    actions = '<button class="btn btn-sm btn-primary dash-complete-overdue-btn" data-task-id="' + t.taskId + '" data-title="' + escapeHtml(t.title) + '" data-est-hours="' + (t.estimatedHours || '') + '">Mark Complete</button>' +
+                              '<button class="btn btn-sm btn-ghost dash-reschedule-btn" data-task-id="' + t.taskId + '">Reschedule</button>' +
+                              '<a href="' + editHref + '" class="btn btn-sm btn-ghost">Edit in Calendar</a>';
+                } else if (isUnscheduled) {
+                    actions = '<a href="' + BASE_PATH + '/Pages/Calendar.html" class="btn btn-sm btn-primary">Schedule Manually</a>' +
+                              '<a href="' + editHref + '" class="btn btn-sm btn-ghost">Edit in Calendar</a>';
+                } else {
+                    actions = '<button class="btn btn-sm btn-primary dash-approve-btn" data-task-id="' + t.taskId + '">Approve</button>' +
+                              '<a href="' + editHref + '" class="btn btn-sm btn-ghost">Edit in Calendar</a>';
+                }
+
+                return '<div class="dash-task-card ' + (isOverdue ? 'dash-task-card--overdue' : '') + '">' +
+                    '<div class="dash-task-card__body">' +
+                        '<div class="dash-task-card__top">' +
+                            '<span class="dash-task-card__title">' + escapeHtml(t.title) + '</span>' +
+                            '<span class="dash-task-card__priority dash-task-card__priority--' + priorityClass + '">' + escapeHtml(t.priority || "Medium") + '</span>' +
+                        '</div>' +
+                        '<div class="dash-task-card__bottom">' +
+                            '<span class="dash-task-card__status ' + (isOverdue ? 'dash-task-card__status--overdue' : '') + '">' +
+                                (isOverdue ? "Overdue - needs review" : (dateStr ? "Due: " + dateStr : "")) +
+                            '</span>' +
+                            scheduleInfo + sharedBadge +
+                            (isUnscheduled ? '<span class="dash-task-card__reason">Could not fit in schedule</span>' : '') +
+                        '</div>' + slotsHtml +
+                    '</div>' +
+                    '<div class="dash-task-card__actions">' + actions + '</div>' +
+                '</div>';
+            }).join("");
+
+            $("#dashReview").html(header + '<div class="dash-review__list">' + cards + '</div>');
+
+            $(".dash-approve-btn").on("click", function () {
+                var $btn = $(this);
+                var taskId = $btn.data("task-id");
+                $btn.prop("disabled", true).text("Approving...");
+                ajaxCall("POST", ApproveApi(taskId), null,
+                    function () { LoadDashboard(); },
+                    function () { alert("Failed to approve"); $btn.prop("disabled", false).text("Approve"); });
+            });
+
+            $(".dash-complete-overdue-btn").on("click", function () {
+                var $btn = $(this);
+                ShowCompletionModal(parseInt($btn.data("task-id")), $btn.data("title"), $btn.data("est-hours"));
+            });
+
+            $(".dash-reschedule-btn").on("click", function () {
+                var $btn = $(this);
+                $btn.prop("disabled", true).text("Scheduling...");
+                ajaxCall("POST", SchedulingRunApi, null,
+                    function () { LoadDashboard(); },
+                    function () { $btn.prop("disabled", false).text("Reschedule"); alert("Failed to reschedule"); });
+            });
+        }
+
+        // ---- Overdue completion modal ------------------------------------
+        function ShowCompletionModal(taskId, taskTitle, estHours) {
+            $("#dashCompleteModal").remove();
+            var estDisplay = estHours ? (estHours + "h estimated") : "No estimate";
+
+            var html =
+                '<div id="dashCompleteModal" class="modal-overlay">' +
+                    '<div class="modal" style="max-width:420px">' +
+                        '<div class="modal-header">' +
+                            '<h3>Complete Task</h3>' +
+                            '<button class="modal-close" id="dashCompleteClose">&times;</button>' +
+                        '</div>' +
+                        '<div class="modal-body">' +
+                            '<p style="font-weight:600;margin-bottom:var(--space-2)">' + escapeHtml(taskTitle) + '</p>' +
+                            '<p style="color:var(--text-secondary);margin-bottom:var(--space-4)">' + escapeHtml(estDisplay) + '</p>' +
+                            '<label class="form-label">How long did this actually take? (hours)</label>' +
+                            '<input type="number" id="dashCompleteHours" class="form-input" min="0" step="0.5" placeholder="e.g. 3.5" style="margin-bottom:var(--space-4)">' +
+                            '<div style="display:flex;gap:var(--space-3)">' +
+                                '<button class="btn btn-primary" id="dashCompleteConfirm" style="flex:1">Mark Complete</button>' +
+                                '<button class="btn btn-ghost" id="dashCompleteCancel" style="flex:1">Cancel</button>' +
+                            '</div>' +
+                        '</div>' +
+                    '</div>' +
+                '</div>';
+
+            $("body").append(html);
+            requestAnimationFrame(function () { $("#dashCompleteModal").addClass("open"); });
+
+            $("#dashCompleteClose, #dashCompleteCancel").on("click", function () { $("#dashCompleteModal").remove(); });
+            $("#dashCompleteModal").on("click", function (e) { if (e.target.id === "dashCompleteModal") $(this).remove(); });
+
+            $("#dashCompleteConfirm").on("click", function () {
+                var actualHours = parseFloat($("#dashCompleteHours").val()) || null;
+                ajaxCall("POST", TaskCompleteApi(taskId), JSON.stringify({ actualHours: actualHours }),
+                    function (result) {
+                        $("#dashCompleteModal").remove();
+                        if (actualHours && estHours && parseFloat(estHours) > 0) {
+                            var ratio = actualHours / parseFloat(estHours);
+                            if (ratio > 1.3 || ratio < 0.7) {
+                                var direction = ratio > 1 ? "longer" : "shorter";
+                                alert("Tip: This task took " + direction + " than estimated (" + ratio.toFixed(1) + "x). Future estimates will improve.");
+                            }
+                        }
+                        LoadDashboard();
+                    },
+                    function () { alert("Failed to complete task"); });
+            });
+        }
+
+        // ---- Weekly suggestions ------------------------------------------
+        function LoadWeeklySuggestions() {
+            ajaxCall("GET", WeeklySuggestApi, null, RenderWeeklySuggestions, function () { $("#dashWeeklyInsights").empty(); });
+        }
+
+        function RenderWeeklySuggestions(data) {
+            var $el = $("#dashWeeklyInsights");
+            if (!data || (!(data.suggestions || []).length && !(data.focusTasks || []).length)) { $el.empty(); return; }
+
+            var typeIcons = { warning: "&#9888;", overload: "&#128293;", positive: "&#9989;", danger: "&#128680;", urgent: "&#9200;", info: "&#128161;" };
+            var typeClasses = { warning: "suggestion--warning", overload: "suggestion--danger", positive: "suggestion--success", danger: "suggestion--danger", urgent: "suggestion--warning", info: "suggestion--info" };
+
+            var html = '<div class="card"><div class="card-header"><h3 class="card-title">Weekly Insights</h3></div><div class="card-body">';
+
+            if (data.totalStudyHours !== undefined) {
+                html += '<div class="weekly-summary">' +
+                    '<span>Available study time: <strong>' + (data.availableHours || 0) + 'h</strong></span>' +
+                    '<span>Needed: <strong>' + (data.totalStudyHours || 0) + 'h</strong></span>' +
+                    '</div>';
+            }
+
+            if ((data.suggestions || []).length) {
+                html += '<div class="suggestion-list">';
+                data.suggestions.forEach(function (s) {
+                    var icon = typeIcons[s.type] || typeIcons.info;
+                    var cls = typeClasses[s.type] || "suggestion--info";
+                    html += '<div class="suggestion-card ' + cls + '">' +
+                        '<span class="suggestion-card__icon">' + icon + '</span>' +
+                        '<span class="suggestion-card__text">' + escapeHtml(s.message) + '</span>' +
+                        '</div>';
+                });
+                html += '</div>';
+            }
+
+            if ((data.focusTasks || []).length) {
+                html += '<h4 class="weekly-focus-title">Top Focus Tasks</h4><div class="focus-task-list">';
+                data.focusTasks.forEach(function (t) {
+                    var priorityClass = (t.priority || "medium").toLowerCase();
+                    html += '<div class="focus-task-item">' +
+                        '<span class="focus-task-item__title">' + escapeHtml(t.title) + '</span>' +
+                        '<span class="badge badge-priority-' + priorityClass + '">' + escapeHtml(t.priority || "Medium") + '</span>' +
+                        (t.dueDate ? '<span class="focus-task-item__due">Due ' + new Date(t.dueDate).toLocaleDateString("en", { month: "short", day: "numeric" }) + '</span>' : '') +
+                        (t.estimatedHours ? '<span class="focus-task-item__hours">' + t.estimatedHours + 'h</span>' : '') +
+                        '</div>';
+                });
+                html += '</div>';
+            }
+
+            html += '</div></div>';
+            $el.html(html);
+        }
+
+        // ---- Mini 3-day calendar -----------------------------------------
+        function RenderMiniCalendar() {
+            var $el = $("#dashCalendar");
+
+            var from = new Date(miniCalStart); from.setHours(0, 0, 0, 0);
+            var to = new Date(from); to.setDate(to.getDate() + 3);
+
+            var url = EventsApi + "?from=" + encodeURIComponent(toLocalISO(from)) + "&to=" + encodeURIComponent(toLocalISO(to));
+            ajaxCall("GET", url, null, function (events) {
+                DrawMiniCalendar($el, from, events || []);
+            }, function () {
+                DrawMiniCalendar($el, from, []);
+            });
+        }
+
+        function DrawMiniCalendar($el, from, events) {
+            var today = new Date(); today.setHours(0, 0, 0, 0);
+            var days = [];
+            for (var i = 0; i < 3; i++) {
+                var d = new Date(from); d.setDate(d.getDate() + i);
+                days.push(d);
+            }
+
+            var startSlot = 8, endSlot = 17;
+            events.forEach(function (e) {
+                var fh = new Date(e.from).getHours();
+                var t = new Date(e.to);
+                var th = t.getHours() + (t.getMinutes() > 0 ? 1 : 0);
+                if (fh < startSlot) startSlot = Math.max(0, fh);
+                if (th > endSlot) endSlot = Math.min(23, th);
+            });
+            var totalHours = endSlot - startSlot;
+            var cellHeight = 40;
+
+            var html = '<div class="mini-cal">' +
+                '<div class="mini-cal__header">' +
+                    '<div class="mini-cal__header-left">' +
+                        '<span class="mini-cal__title">Next 3 Days</span>' +
+                        '<div class="mini-cal__legend-inline">' +
+                            '<span class="legend-dot" style="background:#4A90D9"></span>' +
+                            '<span class="legend-dot" style="background:#F28D35"></span>' +
+                            '<span class="legend-dot" style="background:#9B76FF"></span>' +
+                            '<span class="legend-dot" style="background:#43B88C"></span>' +
+                            '<span class="legend-dot" style="background:#E84B6A"></span>' +
+                        '</div>' +
+                    '</div>' +
+                    '<div class="mini-cal__header-right">' +
+                        '<div class="mini-cal__nav">' +
+                            '<button id="miniCalPrev">&larr;</button>' +
+                            '<button id="miniCalNext">&rarr;</button>' +
+                        '</div>' +
+                        '<a href="' + BASE_PATH + '/Pages/Calendar.html" class="mini-cal__link">Full Calendar</a>' +
+                        '<button id="miniCalAdd" class="mini-cal__add" title="Add event">+</button>' +
+                    '</div>' +
+                '</div>';
+
+            html += '<div class="mini-cal__grid">';
+            html += '<div class="mini-cal__time-col">';
+            html += '<div class="mini-cal__day-header mini-cal__time-header"><span class="mini-cal__day-name" style="visibility:hidden">&nbsp;</span><span class="mini-cal__day-num" style="visibility:hidden">&nbsp;</span></div>';
+            for (var h = startSlot; h < endSlot; h++) {
+                html += '<div class="mini-cal__time-label" style="height:' + cellHeight + 'px">' + String(h).padStart(2, "0") + ':00</div>';
+            }
+            html += '</div>';
+
+            days.forEach(function (day) {
+                var isToday = day.getTime() === today.getTime();
+                var dayName = day.toLocaleDateString("en", { weekday: "short" });
+                var dateStr = day.getFullYear() + "-" + String(day.getMonth() + 1).padStart(2, "0") + "-" + String(day.getDate()).padStart(2, "0");
+
+                var dayEvents = events.filter(function (e) {
+                    var ed = new Date(e.from);
+                    return ed.getDate() === day.getDate() && ed.getMonth() === day.getMonth() && ed.getFullYear() === day.getFullYear();
+                });
+
+                html += '<div class="mini-cal__day-col" data-date="' + dateStr + '">';
+                html += '<div class="mini-cal__day-header ' + (isToday ? 'mini-cal__day-header--today' : '') + '">' +
+                    '<span class="mini-cal__day-name">' + dayName + '</span>' +
+                    '<span class="mini-cal__day-num ' + (isToday ? 'today' : '') + '">' + day.getDate() + '</span>' +
+                    '</div>';
+                html += '<div class="mini-cal__day-body" style="height:' + (totalHours * cellHeight) + 'px">';
+                for (var hh = startSlot; hh < endSlot; hh++) {
+                    html += '<div class="mini-cal__cell" style="height:' + cellHeight + 'px"></div>';
+                }
+
+                dayEvents.forEach(function (e) {
+                    var fromT = new Date(e.from), toT = new Date(e.to);
+                    var sh = fromT.getHours() + fromT.getMinutes() / 60;
+                    var eh = toT.getHours() + toT.getMinutes() / 60;
+                    var cs = Math.max(sh, startSlot), ce = Math.min(eh, endSlot);
+                    if (ce <= cs) return;
+                    var top = (cs - startSlot) * cellHeight;
+                    var height = Math.max(18, (ce - cs) * cellHeight);
+                    var colors = MINI_CAL_COLORS[e.eventType] || MINI_CAL_COLORS.personal;
+                    var label = e.courseName || e.taskTitle || e.workPlace || e.description || e.type || "Event";
+                    var timeStr = String(fromT.getHours()).padStart(2, "0") + ":" + String(fromT.getMinutes()).padStart(2, "0");
+                    html += '<div class="mini-cal__event" style="top:' + top + 'px;height:' + height + 'px;background:' + colors.bg + ';border-left:3px solid ' + colors.border + ';color:' + colors.text + '">' +
+                        '<span class="mini-cal__event-time">' + timeStr + '</span> ' + escapeHtml(label) +
+                        '</div>';
+                });
+                html += '</div></div>';
+            });
+
+            html += '</div></div>';
+            $el.html(html);
+
+            $("#miniCalPrev").on("click", function () { miniCalStart.setDate(miniCalStart.getDate() - 3); RenderMiniCalendar(); });
+            $("#miniCalNext").on("click", function () { miniCalStart.setDate(miniCalStart.getDate() + 3); RenderMiniCalendar(); });
+            $("#miniCalAdd").on("click", function () {
+                var t = new Date();
+                var dateStr = t.getFullYear() + "-" + String(t.getMonth() + 1).padStart(2, "0") + "-" + String(t.getDate()).padStart(2, "0");
+                window.location.href = BASE_PATH + "/Pages/Calendar.html?date=" + dateStr + "&add=1";
+            });
+            $el.find(".mini-cal__day-col").each(function () {
+                var $col = $(this);
+                $col.find(".mini-cal__day-header").on("click", function () {
+                    var dateStr = $col.data("date");
+                    if (dateStr) window.location.href = BASE_PATH + "/Pages/Calendar.html?date=" + dateStr;
+                });
+            });
+        }
+    </script>
 </body>
 </html>

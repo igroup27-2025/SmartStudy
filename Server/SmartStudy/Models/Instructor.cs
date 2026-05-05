@@ -1,3 +1,5 @@
+using SmartStudy.DAL;
+
 namespace SmartStudy.Models;
 
 public class Instructor
@@ -7,4 +9,10 @@ public class Instructor
 
     // Navigation property
     public ICollection<Course> Courses { get; set; } = new List<Course>();
+
+    public static List<Instructor> GetAll()
+    {
+        DBservices db = new DBservices();
+        return db.GetAllInstructors();
+    }
 }

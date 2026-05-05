@@ -3,9 +3,7 @@ using System.Security.Claims;
 using System.Text.Json;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using SmartStudy.DAL;
-using SmartStudy.DTOs;
-using SmartStudy.Services;
+using SmartStudy.Models;
 
 namespace SmartStudy.Controllers;
 
@@ -14,19 +12,10 @@ namespace SmartStudy.Controllers;
 [Authorize]
 public class ScheduleImportController : ControllerBase
 {
-    private readonly ScheduleImportService _importService;
-    private readonly DBservices _dal;
-
-    public ScheduleImportController(ScheduleImportService importService, DBservices dal)
-    {
-        _importService = importService;
-        _dal = dal;
-    }
-
     private string GetEmail() => User.FindFirst(ClaimTypes.Email)!.Value;
 
     [HttpPost("import")]
-    public async Task<IActionResult> ImportSchedule(IFormFile file)
+    public IActionResult ImportSchedule(IFormFile file)
     {
         if (file == null || file.Length == 0)
             return BadRequest(new { message = "No file uploaded" });
@@ -42,19 +31,19 @@ public class ScheduleImportController : ControllerBase
         switch (ext)
         {
             case ".pdf":
-                var pdfResult = await _importService.ImportScheduleAsync(stream, email);
+                var pdfResult = Course.ImportSchedule(stream, email);
                 return Ok(pdfResult);
 
             case ".csv":
-                var csvResult = await ImportFromCsvAsync(stream, email);
+                var csvResult = ImportFromCsv(stream, email);
                 return Ok(csvResult);
 
             case ".xlsx":
-                var excelResult = await ImportFromExcelAsync(stream, email);
+                var excelResult = ImportFromExcel(stream, email);
                 return Ok(excelResult);
 
             case ".json":
-                var jsonResult = await ImportFromJsonAsync(stream, email);
+                var jsonResult = ImportFromJson(stream, email);
                 return Ok(jsonResult);
 
             default:
@@ -62,16 +51,17 @@ public class ScheduleImportController : ControllerBase
         }
     }
 
-    private async Task<ScheduleImportResultDto> ImportFromCsvAsync(Stream stream, string email)
+    private ScheduleImportResultDto ImportFromCsv(Stream stream, string email)
     {
         var result = new ScheduleImportResultDto();
         using var reader = new StreamReader(stream);
-        var header = await reader.ReadLineAsync();
+        var header = reader.ReadLine();
         if (header == null) return result;
 
         var cols = header.Split(',').Select(c => c.Trim().ToLower()).ToList();
 
-        while (await reader.ReadLineAsync() is { } line)
+        string? line;
+        while ((line = reader.ReadLine()) != null)
         {
             var values = ParseCsvLine(line);
             if (values.Count < cols.Count) continue;
@@ -88,7 +78,7 @@ public class ScheduleImportController : ControllerBase
                     Location = GetCol(cols, values, "location"),
                     InstructorName = GetCol(cols, values, "instructorname")
                 };
-                await SaveImportEntry(entry, email, result);
+                SaveImportEntry(entry, email, result);
             }
             catch (Exception ex)
             {
@@ -98,7 +88,7 @@ public class ScheduleImportController : ControllerBase
         return result;
     }
 
-    private async Task<ScheduleImportResultDto> ImportFromExcelAsync(Stream stream, string email)
+    private ScheduleImportResultDto ImportFromExcel(Stream stream, string email)
     {
         var result = new ScheduleImportResultDto();
         OfficeOpenXml.ExcelPackage.LicenseContext = OfficeOpenXml.LicenseContext.NonCommercial;
@@ -133,7 +123,7 @@ public class ScheduleImportController : ControllerBase
                     Location = GetCol(cols, values, "location"),
                     InstructorName = GetCol(cols, values, "instructorname")
                 };
-                await SaveImportEntry(entry, email, result);
+                SaveImportEntry(entry, email, result);
             }
             catch (Exception ex)
             {
@@ -143,10 +133,12 @@ public class ScheduleImportController : ControllerBase
         return result;
     }
 
-    private async Task<ScheduleImportResultDto> ImportFromJsonAsync(Stream stream, string email)
+    private ScheduleImportResultDto ImportFromJson(Stream stream, string email)
     {
         var result = new ScheduleImportResultDto();
-        var entries = await JsonSerializer.DeserializeAsync<List<ImportEntry>>(stream, new JsonSerializerOptions
+        using var reader = new StreamReader(stream);
+        var json = reader.ReadToEnd();
+        var entries = JsonSerializer.Deserialize<List<ImportEntry>>(json, new JsonSerializerOptions
         {
             PropertyNameCaseInsensitive = true
         });
@@ -157,7 +149,7 @@ public class ScheduleImportController : ControllerBase
         {
             try
             {
-                await SaveImportEntry(entry, email, result);
+                SaveImportEntry(entry, email, result);
             }
             catch (Exception ex)
             {
@@ -167,14 +159,13 @@ public class ScheduleImportController : ControllerBase
         return result;
     }
 
-    private async Task SaveImportEntry(ImportEntry entry, string email, ScheduleImportResultDto result)
+    private void SaveImportEntry(ImportEntry entry, string email, ScheduleImportResultDto result)
     {
         if (string.IsNullOrEmpty(entry.CourseName) && string.IsNullOrEmpty(entry.CourseCode)) return;
 
         var courseName = entry.CourseName ?? entry.CourseCode ?? "Unknown";
         var courseCode = entry.CourseCode ?? "";
 
-        // Parse or generate course ID
         int courseId;
         if (!string.IsNullOrEmpty(courseCode) && courseCode.Contains('-'))
         {
@@ -186,36 +177,32 @@ public class ScheduleImportController : ControllerBase
             courseId = Math.Abs(courseName.GetHashCode()) % 100000000;
         }
 
-        // Find or create course
-        var course = await _dal.GetCourseByIdAsync(courseId);
+        var course = Course.GetById(courseId);
         if (course == null)
         {
-            await _dal.CreateCourseAsync(courseId, courseName, null, null, GetCurrentSemester(), null);
+            Course.Create(courseId, courseName, null, null, GetCurrentSemester(), null);
             result.CoursesCreated++;
         }
 
-        // Instructor
         if (!string.IsNullOrEmpty(entry.InstructorName))
         {
-            var instructor = await _dal.FindInstructorByNameAsync(entry.InstructorName);
+            var instructor = Course.FindInstructorByName(entry.InstructorName);
             if (instructor == null)
             {
-                var instructorId = await _dal.CreateInstructorAsync(entry.InstructorName);
-                await _dal.UpdateCourseInstructorAsync(courseId, instructorId);
+                var instructorId = Course.CreateInstructor(entry.InstructorName);
+                Course.UpdateCourseInstructor(courseId, instructorId);
             }
             else
             {
-                await _dal.UpdateCourseInstructorAsync(courseId, instructor.InstructorId);
+                Course.UpdateCourseInstructor(courseId, instructor.InstructorId);
             }
         }
 
-        // Enroll
-        if (!await _dal.UserCourseExistsAsync(email, courseId))
+        if (!Course.UserCourseExists(email, courseId))
         {
-            await _dal.CreateUserCourseAsync(email, courseId);
+            Course.CreateUserCourse(email, courseId);
         }
 
-        // Parse date and times
         if (!DateTime.TryParse(entry.Date, CultureInfo.InvariantCulture, DateTimeStyles.None, out var date)) return;
         if (!TimeSpan.TryParse(entry.StartTime, out var startTime)) return;
         if (!TimeSpan.TryParse(entry.EndTime, out var endTime)) return;
@@ -223,14 +210,13 @@ public class ScheduleImportController : ControllerBase
         var from = date.Date + startTime;
         var to = date.Date + endTime;
 
-        // Check for duplicate
-        if (await _dal.ClassEventExistsAsync(email, courseId, from, to))
+        if (Course.ClassEventExists(email, courseId, from, to))
         {
             result.EntriesSkipped++;
             return;
         }
 
-        await _dal.CreateClassEventAsync(email, from, to, true, null, courseId, entry.Location,
+        Course.CreateClassEvent(email, from, to, true, null, courseId, entry.Location,
             (decimal)(to - from).TotalHours);
         result.EventsCreated++;
 

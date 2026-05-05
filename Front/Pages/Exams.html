@@ -5,6 +5,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>SmartStudy - Exams</title>
     <link rel="stylesheet" href="../CSS/app.css">
+    <script src="https://code.jquery.com/jquery-3.7.1.min.js" integrity="sha256-/JqT3SQfawRcv/BIHPThkBvs0OEvtFFmqPF/lYI/Cxo=" crossorigin="anonymous"></script>
+    <script src="../Scripts/ajaxCall.js"></script>
+    <script src="../Scripts/appShell.js"></script>
 </head>
 <body data-page="exams">
     <div id="pageRoot">
@@ -22,7 +25,7 @@
             <div class="modal">
                 <div class="modal-header">
                     <h3 id="examModalTitle">Add Exam</h3>
-                    <button class="modal-close" data-close-modal>&times;</button>
+                    <button type="button" class="modal-close" id="examModalClose">&times;</button>
                 </div>
                 <form id="examForm">
                     <input type="hidden" id="examId">
@@ -58,7 +61,7 @@
                             </div>
                         </div>
                         <div class="form-section-divider">
-                            <small class="form-hint">Study time for this course — applies to every exam in the course (same setting as on the Courses page).</small>
+                            <small class="form-hint">Study time for this course — applies to every exam in the course.</small>
                         </div>
                         <div class="form-row">
                             <div class="form-group">
@@ -72,14 +75,192 @@
                         </div>
                     </div>
                     <div class="modal-footer">
-                        <button type="button" class="btn btn-secondary" data-close-modal>Cancel</button>
+                        <button type="button" class="btn btn-secondary" id="examModalCancel">Cancel</button>
                         <button type="submit" class="btn btn-primary">Save Exam</button>
                     </div>
                 </form>
             </div>
         </div>
     </div>
-    <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
-    <script type="module" src="../Script/main.js"></script>
+
+    <script>
+        // ---- API endpoints -----------------------------------------------
+        var ExamsApi   = API_BASE + "/exams";
+        var ExamApi    = function (id) { return API_BASE + "/exams/" + id; };
+        var ExamToggleApi = function (id) { return API_BASE + "/exams/" + id + "/toggle-taking"; };
+        var CoursesApi = API_BASE + "/courses";
+
+        var exams = [];
+        var courses = [];
+        var editingId = null;
+
+        function escapeHtml(s) {
+            if (s == null) return "";
+            return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+        }
+
+        function formatTime(t) {
+            if (!t) return "";
+            if (typeof t === "string" && t.indexOf(":") !== -1) return t.substring(0, 5);
+            return t;
+        }
+
+        $(document).ready(function () {
+            if (!requireAuth()) return;
+            SmartStudy.initShell("exams");
+
+            $("#addExamBtn").on("click", OpenAddExam);
+            $("#examModalClose, #examModalCancel").on("click", CloseExamModal);
+            $("#examModal").on("click", function (e) {
+                if (e.target.id === "examModal") CloseExamModal();
+            });
+            $("#examForm").on("submit", SubmitExam);
+
+            $("#examCourseId").on("change", function () {
+                if ($("#examId").val()) return; // editing existing — don't overwrite
+                var cid = parseInt($(this).val());
+                var c = courses.find(function (x) { return x.courseId === cid; });
+                $("#examPrepHoursPerDay").val(c && c.examPrepHoursPerDay ? c.examPrepHoursPerDay : "");
+                $("#examPrepDays").val(c && c.examPrepDays ? c.examPrepDays : "");
+            });
+
+            LoadAll();
+        });
+
+        function LoadAll() {
+            ajaxCall("GET", CoursesApi, null, function (data) {
+                courses = data || [];
+                PopulateCourseSelect();
+                LoadExams();
+            }, function () {
+                alert("Failed to load courses");
+            });
+        }
+
+        function LoadExams() {
+            ajaxCall("GET", ExamsApi, null, function (data) {
+                exams = data || [];
+                RenderExams();
+            }, function () {
+                $("#examList").html('<p>Failed to load exams.</p>');
+            });
+        }
+
+        function PopulateCourseSelect() {
+            var sel = $("#examCourseId");
+            sel.find("option:not(:first)").remove();
+            courses.forEach(function (c) {
+                sel.append('<option value="' + c.courseId + '">' + escapeHtml(c.courseName) + '</option>');
+            });
+        }
+
+        function RenderExams() {
+            if (!exams.length) {
+                $("#examList").html('<div class="empty-state"><div class="empty-state-icon">&#128221;</div><h3>No exams scheduled</h3><p>Add your first exam to track deadlines</p></div>');
+                return;
+            }
+            var html = exams.map(function (e) {
+                var date = new Date(e.date);
+                var urgency = e.daysUntil <= 3 ? "imminent" : e.daysUntil <= 7 ? "soon" : "far";
+                var notTaking = e.isTakingExam === false;
+                return '<div class="exam-card ' + (notTaking ? 'exam-card--not-taking' : '') + '" data-id="' + e.examId + '">' +
+                    '<div class="exam-card-left">' +
+                        '<div class="exam-date-block">' +
+                            '<span class="exam-date-day">' + date.getDate() + '</span>' +
+                            '<span class="exam-date-month">' + date.toLocaleDateString("en", { month: "short" }) + '</span>' +
+                        '</div>' +
+                    '</div>' +
+                    '<div class="exam-card-info">' +
+                        '<h3 class="exam-card-title">' + escapeHtml(e.courseName || "") + '</h3>' +
+                        '<div class="exam-card-details">' +
+                            '<span>Session ' + escapeHtml(e.session || "") + '</span>' +
+                            '<span>' + (e.time ? formatTime(e.time) : '') + '</span>' +
+                            '<span>' + (e.duration ? e.duration + ' min' : '') + '</span>' +
+                        '</div>' +
+                        '<label class="exam-taking-toggle">' +
+                            '<input type="checkbox" class="exam-taking-check" data-id="' + e.examId + '" ' + (!notTaking ? 'checked' : '') + '>' +
+                            '<span>Taking this exam</span>' +
+                        '</label>' +
+                    '</div>' +
+                    '<div class="exam-card-right">' +
+                        '<div class="exam-countdown ' + urgency + '">' + (e.daysUntil <= 0 ? 'Today!' : e.daysUntil + ' days') + '</div>' +
+                        '<div class="exam-actions">' +
+                            '<button class="btn btn-ghost btn-sm exam-edit" data-id="' + e.examId + '">&#9998;</button>' +
+                            '<button class="btn btn-ghost btn-sm exam-delete" data-id="' + e.examId + '">&#128465;</button>' +
+                        '</div>' +
+                    '</div>' +
+                '</div>';
+            }).join("");
+            $("#examList").html(html);
+
+            $(".exam-edit").on("click",   function () { OpenEditExam(parseInt($(this).data("id"))); });
+            $(".exam-delete").on("click", function () { DeleteExam(parseInt($(this).data("id"))); });
+            $(".exam-taking-check").on("change", function () { ToggleTaking(parseInt($(this).data("id")), $(this)); });
+        }
+
+        function OpenAddExam() {
+            editingId = null;
+            $("#examModalTitle").text("Add Exam");
+            $("#examForm")[0].reset();
+            $("#examId").val("");
+            $("#examModal").addClass("open");
+        }
+
+        function OpenEditExam(id) {
+            var e = exams.find(function (x) { return x.examId === id; });
+            if (!e) return;
+            editingId = id;
+            $("#examModalTitle").text("Edit Exam");
+            $("#examId").val(e.examId);
+            $("#examCourseId").val(e.courseId);
+            $("#examDate").val(e.date ? e.date.split("T")[0] : "");
+            $("#examTime").val(formatTime(e.time));
+            $("#examSession").val(e.session || "A");
+            $("#examDuration").val(e.duration || "");
+            $("#examPrepHoursPerDay").val(e.examPrepHoursPerDay || "");
+            $("#examPrepDays").val(e.examPrepDays || "");
+            $("#examModal").addClass("open");
+        }
+
+        function CloseExamModal() { $("#examModal").removeClass("open"); }
+
+        function SubmitExam(e) {
+            e.preventDefault();
+            var durationRaw = $("#examDuration").val();
+            var duration = durationRaw ? parseInt(durationRaw) : null;
+            if (duration !== null && duration <= 0) { alert("Duration must be a positive number"); return; }
+
+            var data = {
+                courseId: parseInt($("#examCourseId").val()),
+                date:     $("#examDate").val(),
+                time:     $("#examTime").val(),
+                session:  $("#examSession").val(),
+                duration: duration,
+                examPrepHoursPerDay: parseFloat($("#examPrepHoursPerDay").val()) || null,
+                examPrepDays:        parseInt($("#examPrepDays").val()) || null
+            };
+
+            if (editingId) {
+                ajaxCall("PUT", ExamApi(editingId), JSON.stringify(data), ExamSaveSC, ExamSaveEC);
+            } else {
+                ajaxCall("POST", ExamsApi, JSON.stringify(data), ExamSaveSC, ExamSaveEC);
+            }
+        }
+        function ExamSaveSC() { CloseExamModal(); LoadAll(); }
+        function ExamSaveEC(xhr) { alert((xhr.responseJSON && xhr.responseJSON.message) || "Failed to save exam"); }
+
+        function DeleteExam(id) {
+            if (!confirm("Delete this exam?")) return;
+            ajaxCall("DELETE", ExamApi(id), null,
+                function () { LoadExams(); },
+                function () { alert("Failed to delete exam"); });
+        }
+
+        function ToggleTaking(id, cb) {
+            ajaxCall("PUT", ExamToggleApi(id), null,
+                function () { LoadExams(); },
+                function () { alert("Failed to update exam"); cb.prop("checked", !cb.is(":checked")); });
+        }
+    </script>
 </body>
 </html>

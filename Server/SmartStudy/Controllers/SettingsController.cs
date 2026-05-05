@@ -1,10 +1,11 @@
 using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using SmartStudy.DAL;
-using SmartStudy.DTOs;
 using SmartStudy.Models;
 using SmartStudy.Services;
+using UserModel = SmartStudy.Models.User;
+using NotifSettingsModel = SmartStudy.Models.NotificationSettings;
+using SchedPrefsModel = SmartStudy.Models.SchedulingPreferences;
 
 namespace SmartStudy.Controllers;
 
@@ -13,13 +14,11 @@ namespace SmartStudy.Controllers;
 [Authorize]
 public class SettingsController : ControllerBase
 {
-    private readonly DBservices _db;
     private readonly RuppinetSyncService _ruppinetSync;
     private readonly MoodleSyncService _moodleSync;
 
-    public SettingsController(DBservices db, RuppinetSyncService ruppinetSync, MoodleSyncService moodleSync)
+    public SettingsController(RuppinetSyncService ruppinetSync, MoodleSyncService moodleSync)
     {
-        _db = db;
         _ruppinetSync = ruppinetSync;
         _moodleSync = moodleSync;
     }
@@ -31,13 +30,13 @@ public class SettingsController : ControllerBase
     public IActionResult GetVersion() => Ok(new { version = "2.1-moodle", timestamp = "2026-04-06T18:00:00" });
 
     [HttpGet("profile")]
-    public async Task<IActionResult> GetProfile()
+    public IActionResult GetProfile()
     {
         var email = GetEmail();
-        var user = await _db.GetUserByEmailAsync(email);
+        var user = UserModel.GetByEmail(email);
         if (user == null) return NotFound();
 
-        var notifSettings = await _db.GetNotifSettingsByEmailAsync(email);
+        var notifSettings = NotifSettingsModel.GetByEmail(email);
 
         return Ok(new UserProfileDto
         {
@@ -57,13 +56,13 @@ public class SettingsController : ControllerBase
     }
 
     [HttpPut("profile")]
-    public async Task<IActionResult> UpdateProfile([FromBody] UpdateProfileDto dto)
+    public IActionResult UpdateProfile([FromBody] UpdateProfileDto dto)
     {
         var email = GetEmail();
-        var user = await _db.GetUserByEmailAsync(email);
+        var user = UserModel.GetByEmail(email);
         if (user == null) return NotFound();
 
-        await _db.UpdateUserProfileAsync(email, dto.FirstName, dto.LastName);
+        UserModel.UpdateProfile(email, dto.FirstName, dto.LastName);
 
         return Ok(new
         {
@@ -74,7 +73,7 @@ public class SettingsController : ControllerBase
     }
 
     [HttpPut("notifications")]
-    public async Task<IActionResult> UpdateNotifications([FromBody] NotificationSettingsDto dto)
+    public IActionResult UpdateNotifications([FromBody] NotificationSettingsDto dto)
     {
         var email = GetEmail();
 
@@ -82,17 +81,17 @@ public class SettingsController : ControllerBase
         if (dto.QuietHoursStart != null && TimeSpan.TryParse(dto.QuietHoursStart, out var qs)) qStart = qs;
         if (dto.QuietHoursEnd != null && TimeSpan.TryParse(dto.QuietHoursEnd, out var qe)) qEnd = qe;
 
-        await _db.UpsertNotifSettingsAsync(email, dto.NotifyBeforeTask, dto.DailyMorningSummary,
+        NotifSettingsModel.Upsert(email, dto.NotifyBeforeTask, dto.DailyMorningSummary,
             dto.WeeklyPlanReminder, dto.EnablePushNotification, qStart, qEnd);
 
         return Ok(dto);
     }
 
     [HttpGet("scheduling")]
-    public async Task<IActionResult> GetSchedulingPrefs()
+    public IActionResult GetSchedulingPrefs()
     {
         var email = GetEmail();
-        var prefs = await _db.GetSchedPrefsByEmailAsync(email);
+        var prefs = SchedPrefsModel.GetByEmail(email);
 
         return Ok(new SchedulingPreferencesDto
         {
@@ -112,11 +111,11 @@ public class SettingsController : ControllerBase
     }
 
     [HttpPut("scheduling")]
-    public async Task<IActionResult> UpdateSchedulingPrefs([FromBody] SchedulingPreferencesDto dto)
+    public IActionResult UpdateSchedulingPrefs([FromBody] SchedulingPreferencesDto dto)
     {
         var email = GetEmail();
 
-        var prefs = new SchedulingPreferences
+        var prefs = new SchedPrefsModel
         {
             Email = email,
             MaxDailyStudyHours = Math.Clamp(dto.MaxDailyStudyHours, 2, 12),
@@ -136,22 +135,21 @@ public class SettingsController : ControllerBase
         if (dto.LunchBreakEnd != null && TimeSpan.TryParse(dto.LunchBreakEnd, out var lEnd))
             prefs.LunchBreakEnd = lEnd;
 
-        await _db.UpsertSchedPrefsAsync(prefs);
+        SchedPrefsModel.Upsert(prefs);
         return Ok(dto);
     }
 
     [HttpPut("onboarding")]
-    public async Task<IActionResult> SaveOnboarding([FromBody] OnboardingDto dto)
+    public IActionResult SaveOnboarding([FromBody] OnboardingDto dto)
     {
         var email = GetEmail();
-        var user = await _db.GetUserByEmailAsync(email);
+        var user = UserModel.GetByEmail(email);
         if (user == null) return NotFound();
 
-        // Save scheduling preferences
         if (dto.SchedulingPreferences != null)
         {
             var p = dto.SchedulingPreferences;
-            var prefs = new SchedulingPreferences
+            var prefs = new SchedPrefsModel
             {
                 Email = email,
                 MaxDailyStudyHours = Math.Clamp(p.MaxDailyStudyHours, 2, 12),
@@ -170,10 +168,9 @@ public class SettingsController : ControllerBase
             if (p.LunchBreakEnd != null && TimeSpan.TryParse(p.LunchBreakEnd, out var lEnd))
                 prefs.LunchBreakEnd = lEnd;
 
-            await _db.UpsertSchedPrefsAsync(prefs);
+            SchedPrefsModel.Upsert(prefs);
         }
 
-        // Save notification settings
         if (dto.NotificationSettings != null)
         {
             var ns = dto.NotificationSettings;
@@ -181,11 +178,10 @@ public class SettingsController : ControllerBase
             if (ns.QuietHoursStart != null && TimeSpan.TryParse(ns.QuietHoursStart, out var qs)) qStart = qs;
             if (ns.QuietHoursEnd != null && TimeSpan.TryParse(ns.QuietHoursEnd, out var qe)) qEnd = qe;
 
-            await _db.UpsertNotifSettingsAsync(email, ns.NotifyBeforeTask, ns.DailyMorningSummary,
+            NotifSettingsModel.Upsert(email, ns.NotifyBeforeTask, ns.DailyMorningSummary,
                 ns.WeeklyPlanReminder, ns.EnablePushNotification, qStart, qEnd);
         }
 
-        // Create recurring constraint events
         if (dto.Constraints != null)
         {
             foreach (var c in dto.Constraints)
@@ -202,30 +198,28 @@ public class SettingsController : ControllerBase
                     var eventTo = eventDate.Add(cEnd);
 
                     if (c.Type == "work")
-                        await _db.CreateWorkEventAsync(email, eventFrom, eventTo, true, null, c.Name);
+                        Event.CreateWork(email, eventFrom, eventTo, true, null, c.Name);
                     else
-                        await _db.CreatePersonalEventAsync(email, eventFrom, eventTo, true, null, "Constraint", c.Name);
+                        Event.CreatePersonal(email, eventFrom, eventTo, true, null, "Constraint", c.Name);
                 }
             }
         }
 
-        await _db.SetOnboardingCompleteAsync(email);
+        UserModel.SetOnboardingComplete(email);
 
-        // Trigger rescheduling
-        var scheduler = HttpContext.RequestServices.GetRequiredService<SchedulingService>();
-        await scheduler.ScheduleAllTasksAsync(email);
+        StudentTask.ScheduleAll(email);
 
         return Ok(new { message = "Onboarding completed" });
     }
 
     [HttpGet("ruppinet")]
-    public async Task<IActionResult> GetRuppinetStatus()
+    public IActionResult GetRuppinetStatus()
     {
         var email = GetEmail();
-        var user = await _db.GetUserByEmailAsync(email);
+        var user = UserModel.GetByEmail(email);
         if (user == null) return NotFound();
 
-        return Ok(new DTOs.RuppinetStatusDto
+        return Ok(new RuppinetStatusDto
         {
             IsConnected = !string.IsNullOrEmpty(user.RuppinetId),
             RuppinetId = user.RuppinetId,
@@ -234,19 +228,19 @@ public class SettingsController : ControllerBase
     }
 
     [HttpPost("ruppinet/connect")]
-    public async Task<IActionResult> ConnectRuppinet([FromBody] DTOs.RuppinetConnectDto dto)
+    public IActionResult ConnectRuppinet([FromBody] RuppinetConnectDto dto)
     {
         var email = GetEmail();
-        var user = await _db.GetUserByEmailAsync(email);
+        var user = UserModel.GetByEmail(email);
         if (user == null) return NotFound();
 
-        var valid = await _ruppinetSync.TestConnectionAsync(dto.RuppinetId, dto.RuppinetPassword);
+        var valid = _ruppinetSync.TestConnectionAsync(dto.RuppinetId, dto.RuppinetPassword).GetAwaiter().GetResult();
         if (!valid)
             return BadRequest(new { message = "Failed to authenticate with Ruppinet. Check your credentials." });
 
-        await _db.UpdateRuppinetFieldsAsync(email, dto.RuppinetId, _ruppinetSync.EncryptPassword(dto.RuppinetPassword));
+        UserModel.UpdateRuppinetFields(email, dto.RuppinetId, _ruppinetSync.EncryptPassword(dto.RuppinetPassword));
 
-        var syncResult = await _ruppinetSync.SyncAllAsync(email);
+        var syncResult = _ruppinetSync.SyncAllAsync(email).GetAwaiter().GetResult();
 
         return Ok(new
         {
@@ -256,23 +250,23 @@ public class SettingsController : ControllerBase
     }
 
     [HttpPost("ruppinet/sync")]
-    public async Task<IActionResult> SyncRuppinet()
+    public IActionResult SyncRuppinet()
     {
         var email = GetEmail();
-        var result = await _ruppinetSync.SyncAllAsync(email);
+        var result = _ruppinetSync.SyncAllAsync(email).GetAwaiter().GetResult();
         if (!result.Success)
             return BadRequest(result);
         return Ok(result);
     }
 
     [HttpDelete("ruppinet")]
-    public async Task<IActionResult> DisconnectRuppinet()
+    public IActionResult DisconnectRuppinet()
     {
         var email = GetEmail();
-        var user = await _db.GetUserByEmailAsync(email);
+        var user = UserModel.GetByEmail(email);
         if (user == null) return NotFound();
 
-        await _db.ClearRuppinetAsync(email);
+        UserModel.ClearRuppinet(email);
 
         return Ok(new { message = "Ruppinet disconnected" });
     }
@@ -280,13 +274,13 @@ public class SettingsController : ControllerBase
     // ── Moodle Integration ─────────────────────────────────
 
     [HttpGet("moodle")]
-    public async Task<IActionResult> GetMoodleStatus()
+    public IActionResult GetMoodleStatus()
     {
         var email = GetEmail();
-        var user = await _db.GetUserByEmailAsync(email);
+        var user = UserModel.GetByEmail(email);
         if (user == null) return NotFound();
 
-        return Ok(new DTOs.MoodleStatusDto
+        return Ok(new MoodleStatusDto
         {
             IsAvailable = !string.IsNullOrEmpty(user.RuppinetId) && !string.IsNullOrEmpty(user.RuppinetPassword),
             LastSync = user.LastMoodleSync
@@ -294,39 +288,39 @@ public class SettingsController : ControllerBase
     }
 
     [HttpGet("moodle/debug")]
-    public async Task<IActionResult> DebugMoodle()
+    public IActionResult DebugMoodle()
     {
         var email = GetEmail();
-        var result = await _moodleSync.DebugFetchAsync(email);
+        var result = _moodleSync.DebugFetchAsync(email).GetAwaiter().GetResult();
         return Ok(result);
     }
 
     [HttpPost("moodle/sync")]
-    public async Task<IActionResult> SyncMoodle()
+    public IActionResult SyncMoodle()
     {
         var email = GetEmail();
-        var result = await _moodleSync.SyncAllAsync(email);
+        var result = _moodleSync.SyncAllAsync(email).GetAwaiter().GetResult();
         if (!result.Success)
             return BadRequest(result);
         return Ok(result);
     }
 
     [HttpDelete("moodle")]
-    public async Task<IActionResult> DisconnectMoodle()
+    public IActionResult DisconnectMoodle()
     {
         var email = GetEmail();
-        var user = await _db.GetUserByEmailAsync(email);
+        var user = UserModel.GetByEmail(email);
         if (user == null) return NotFound();
 
-        await _db.ClearMoodleAsync(email);
+        UserModel.ClearMoodle(email);
 
         return Ok(new { message = "Moodle disconnected" });
     }
 
     [HttpGet("instructors")]
-    public async Task<IActionResult> GetInstructors()
+    public IActionResult GetInstructors()
     {
-        var instructors = await _db.GetAllInstructorsAsync();
+        var instructors = Instructor.GetAll();
         return Ok(instructors.Select(i => new { i.InstructorId, i.InstructorName }));
     }
 }

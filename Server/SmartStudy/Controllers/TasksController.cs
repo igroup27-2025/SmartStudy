@@ -2,8 +2,7 @@ using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using SmartStudy.DAL;
-using SmartStudy.DTOs;
-using SmartStudy.Services;
+using SmartStudy.Models;
 
 namespace SmartStudy.Controllers;
 
@@ -12,43 +11,34 @@ namespace SmartStudy.Controllers;
 [Authorize]
 public class TasksController : ControllerBase
 {
-    private readonly DBservices _db;
-    private readonly SchedulingService _scheduling;
-
-    public TasksController(DBservices db, SchedulingService scheduling)
-    {
-        _db = db;
-        _scheduling = scheduling;
-    }
-
     private string GetEmail() => User.FindFirst(ClaimTypes.Email)!.Value;
 
     [HttpGet]
-    public async Task<IActionResult> GetAll([FromQuery] int? courseId, [FromQuery] bool? completed)
+    public IActionResult GetAll([FromQuery] int? courseId, [FromQuery] bool? completed)
     {
         var email = GetEmail();
-        var tasks = await _db.GetTasksByUserAsync(email, courseId, completed);
+        var tasks = StudentTask.GetByUser(email, courseId, completed);
 
         var dtos = new List<TaskDto>();
         foreach (var t in tasks)
         {
-            dtos.Add(await BuildTaskDtoAsync(t));
+            dtos.Add(BuildTaskDto(t));
         }
         return Ok(dtos);
     }
 
     [HttpGet("{id}")]
-    public async Task<IActionResult> Get(int id)
+    public IActionResult Get(int id)
     {
         var email = GetEmail();
-        var task = await _db.GetTaskByIdAsync(id);
+        var task = StudentTask.GetById(id);
         if (task == null || task.Email != email) return NotFound();
 
-        return Ok(await BuildTaskDtoAsync(task));
+        return Ok(BuildTaskDto(task));
     }
 
     [HttpPost]
-    public async Task<IActionResult> Create([FromBody] CreateTaskDto dto)
+    public IActionResult Create([FromBody] CreateTaskDto dto)
     {
         var email = GetEmail();
 
@@ -66,36 +56,35 @@ public class TasksController : ControllerBase
         // If sub-task, inherit course/due date from parent
         if (dto.ParentTaskId.HasValue)
         {
-            var parent = await _db.GetTaskByIdAsync(dto.ParentTaskId.Value);
+            var parent = StudentTask.GetById(dto.ParentTaskId.Value);
             if (parent == null || parent.Email != email)
                 return BadRequest(new { message = "Parent task not found" });
             if (courseId == 0) courseId = parent.CourseId;
             if (!dueDate.HasValue) dueDate = parent.DueDate;
         }
 
-        var taskId = await _db.CreateTaskAsync(courseId, email, dto.Title, dto.Type,
+        var taskId = StudentTask.Create(courseId, email, dto.Title, dto.Type,
             dto.EstimatedHours, dueDate, dto.ParentTaskId, dto.AllowSplitting, priority, isManualPriority);
 
         string? autoSharedPartner = null;
         bool autoSharedConfirmed = false;
 
-        var userCourse = await _db.GetUserCourseAsync(email, courseId);
+        var userCourse = UserCourse.Get(email, courseId);
         if (userCourse?.SharedByDefault == true && !string.IsNullOrEmpty(userCourse.StudyPartnerEmail))
         {
-            // Creator row = Accepted immediately; creator can always run the schedule.
-            await _db.CreateSharedTaskAsync(taskId, email, "Pending");
-            await _db.CreateSharedTaskMemberAsync(taskId, email, "Accepted", DateTime.UtcNow);
+            SharedTask.Create(taskId, email, "Pending");
+            SharedTask.CreateMember(taskId, email, "Accepted", DateTime.UtcNow);
 
-            var partnerUserCourse = await _db.GetUserCourseAsync(userCourse.StudyPartnerEmail, courseId);
+            var partnerUserCourse = UserCourse.Get(userCourse.StudyPartnerEmail, courseId);
             var autoApproved = partnerUserCourse?.CourseShareApproved == true;
 
-            await _db.CreateSharedTaskMemberAsync(taskId, userCourse.StudyPartnerEmail,
+            SharedTask.CreateMember(taskId, userCourse.StudyPartnerEmail,
                 autoApproved ? "Accepted" : "Pending",
                 autoApproved ? DateTime.UtcNow : null);
 
             if (autoApproved)
             {
-                await _db.UpdateSharedTaskStatusAsync(taskId, "Confirmed");
+                SharedTask.UpdateStatus(taskId, "Confirmed");
                 autoSharedConfirmed = true;
                 autoSharedPartner = userCourse.StudyPartnerEmail;
             }
@@ -103,27 +92,24 @@ public class TasksController : ControllerBase
 
         if (autoSharedConfirmed && autoSharedPartner != null)
         {
-            // Create the partner's copy task AND place both calendars at a mutual-
-            // free slot (NeedReview) BEFORE rescheduling so the rest of each
-            // user's tasks slot around the shared block.
-            await _scheduling.EnsurePartnerCopyAndScheduleAsync(taskId, email, autoSharedPartner);
-            await _scheduling.ScheduleAllTasksAsync(email);
-            await _scheduling.ScheduleAllTasksAsync(autoSharedPartner);
+            StudentTask.EnsurePartnerCopyAndSchedule(taskId, email, autoSharedPartner);
+            StudentTask.ScheduleAll(email);
+            StudentTask.ScheduleAll(autoSharedPartner);
         }
         else
         {
-            await _scheduling.ScheduleAllTasksAsync(email);
+            StudentTask.ScheduleAll(email);
         }
 
-        var reloaded = await _db.GetTaskByIdAsync(taskId);
-        return CreatedAtAction(nameof(Get), new { id = taskId }, reloaded != null ? await BuildTaskDtoAsync(reloaded) : null);
+        var reloaded = StudentTask.GetById(taskId);
+        return CreatedAtAction(nameof(Get), new { id = taskId }, reloaded != null ? BuildTaskDto(reloaded) : null);
     }
 
     [HttpPut("{id}")]
-    public async Task<IActionResult> Update(int id, [FromBody] UpdateTaskDto dto)
+    public IActionResult Update(int id, [FromBody] UpdateTaskDto dto)
     {
         var email = GetEmail();
-        var task = await _db.GetTaskByIdAsync(id);
+        var task = StudentTask.GetById(id);
         if (task == null || task.Email != email) return NotFound();
 
         string? priority = dto.Priority;
@@ -141,41 +127,40 @@ public class TasksController : ControllerBase
             }
         }
 
-        await _db.UpdateTaskAsync(id, dto.CourseId, dto.Title, dto.Type, dto.EstimatedHours,
+        StudentTask.Update(id, dto.CourseId, dto.Title, dto.Type, dto.EstimatedHours,
             dto.DueDate, dto.IsCompleted, dto.AllowSplitting, dto.IsManuallyPinned, priority, isManualPriority);
 
-        await _scheduling.ScheduleAllTasksAsync(email);
+        StudentTask.ScheduleAll(email);
 
-        var reloaded = await _db.GetTaskByIdAsync(id);
-        return Ok(reloaded != null ? await BuildTaskDtoAsync(reloaded) : null);
+        var reloaded = StudentTask.GetById(id);
+        return Ok(reloaded != null ? BuildTaskDto(reloaded) : null);
     }
 
     [HttpPost("{id}/complete")]
-    public async Task<IActionResult> Complete(int id, [FromBody] CompleteTaskDto? dto = null)
+    public IActionResult Complete(int id, [FromBody] CompleteTaskDto? dto = null)
     {
         var email = GetEmail();
-        var task = await _db.GetTaskByIdAsync(id);
+        var task = StudentTask.GetById(id);
         if (task == null || task.Email != email) return NotFound();
 
         var newIsCompleted = !task.IsCompleted;
-        await _db.CompleteTaskAsync(id, newIsCompleted, newIsCompleted ? dto?.ActualHours : null);
+        StudentTask.Complete(id, newIsCompleted, newIsCompleted ? dto?.ActualHours : null);
 
-        // If this is a sub-task and all siblings are complete, complete parent
         if (task.ParentTaskId.HasValue && newIsCompleted)
         {
-            if (await _db.CheckAllSiblingsCompleteAsync(task.ParentTaskId.Value))
+            if (StudentTask.CheckAllSiblingsComplete(task.ParentTaskId.Value))
             {
-                await _db.CompleteTaskAsync(task.ParentTaskId.Value, true);
+                StudentTask.Complete(task.ParentTaskId.Value, true);
             }
         }
 
-        await _scheduling.ScheduleAllTasksAsync(email);
+        StudentTask.ScheduleAll(email);
 
         // Compute ML stats
         object? mlStats = null;
         if (newIsCompleted && task.CourseId > 0)
         {
-            var mlData = await _db.GetMLDataAsync(email, task.CourseId);
+            var mlData = StudentTask.GetMLData(email, task.CourseId);
             if (mlData.Any())
             {
                 var avgRatio = mlData.Average(t => (double)t.ActualHours / (double)t.EstimatedHours);
@@ -188,43 +173,43 @@ public class TasksController : ControllerBase
     }
 
     [HttpPost("{id}/split")]
-    public async Task<IActionResult> Split(int id, [FromBody] SplitTaskDto dto)
+    public IActionResult Split(int id, [FromBody] SplitTaskDto dto)
     {
         var email = GetEmail();
-        var task = await _db.GetTaskByIdAsync(id);
+        var task = StudentTask.GetById(id);
         if (task == null || task.Email != email) return NotFound();
         if (task.ParentTaskId.HasValue) return BadRequest(new { message = "Cannot split a sub-task" });
 
         foreach (var sub in dto.SubTasks)
         {
-            await _db.CreateTaskAsync(task.CourseId, email, sub.Title, task.Type,
+            StudentTask.Create(task.CourseId, email, sub.Title, task.Type,
                 sub.EstimatedHours, sub.DueDate ?? task.DueDate, task.TaskId, false, null, false);
         }
 
-        await _scheduling.ScheduleAllTasksAsync(email);
+        StudentTask.ScheduleAll(email);
 
-        var reloaded = await _db.GetTaskByIdAsync(id);
-        return Ok(reloaded != null ? await BuildTaskDtoAsync(reloaded) : null);
+        var reloaded = StudentTask.GetById(id);
+        return Ok(reloaded != null ? BuildTaskDto(reloaded) : null);
     }
 
     [HttpDelete("{id}")]
-    public async Task<IActionResult> Delete(int id)
+    public IActionResult Delete(int id)
     {
         var email = GetEmail();
-        var task = await _db.GetTaskByIdAsync(id);
+        var task = StudentTask.GetById(id);
         if (task == null || task.Email != email) return NotFound();
 
-        await _db.DeleteTaskAsync(id);
-        await _scheduling.ScheduleAllTasksAsync(email);
+        StudentTask.Delete(id);
+        StudentTask.ScheduleAll(email);
 
         return NoContent();
     }
 
     [HttpGet("suggest-hours")]
-    public async Task<IActionResult> SuggestHours([FromQuery] int courseId, [FromQuery] decimal? estimatedHours)
+    public IActionResult SuggestHours([FromQuery] int courseId, [FromQuery] decimal? estimatedHours)
     {
         var email = GetEmail();
-        var mlData = await _db.GetMLDataAsync(email, courseId);
+        var mlData = StudentTask.GetMLData(email, courseId);
 
         if (mlData.Count < 2)
             return Ok(new { hasSuggestion = false });
@@ -242,10 +227,10 @@ public class TasksController : ControllerBase
     }
 
     [HttpGet("learning-insights")]
-    public async Task<IActionResult> GetLearningInsights()
+    public IActionResult GetLearningInsights()
     {
         var email = GetEmail();
-        var insights = await _db.GetMLInsightsAsync(email);
+        var insights = StudentTask.GetMLInsights(email);
 
         return Ok(insights.Select(i => new
         {
@@ -258,9 +243,9 @@ public class TasksController : ControllerBase
         }));
     }
 
-    private async Task<TaskDto> BuildTaskDtoAsync(TaskWithCourse t)
+    private TaskDto BuildTaskDto(TaskWithCourse t)
     {
-        var taskEvents = await _db.GetTaskEventsAsync(t.TaskId);
+        var taskEvents = StudentTask.GetTaskEvents(t.TaskId);
         var scheduledEvents = taskEvents.Where(te => te.Status == "Scheduled" || te.Status == "Partial").ToList();
 
         string schedulingStatus;
@@ -269,11 +254,11 @@ public class TasksController : ControllerBase
         else if (scheduledEvents.Any(te => te.Status == "Partial")) schedulingStatus = "Partial";
         else schedulingStatus = "Scheduled";
 
-        var subTasks = await _db.GetSubTasksAsync(t.TaskId);
+        var subTasks = StudentTask.GetSubTasks(t.TaskId);
         var completedSubCount = subTasks.Count(s => s.IsCompleted);
 
         // Shared task info
-        var sharedInfo = await _db.GetSharedInfoAsync(t.TaskId);
+        var sharedInfo = StudentTask.GetSharedInfo(t.TaskId);
         var isShared = sharedInfo != null;
         string? sharedStatus = sharedInfo?.SharedStatus;
         string? sharedWithName = null;
@@ -299,7 +284,7 @@ public class TasksController : ControllerBase
             Priority = t.Priority,
             ActualHours = t.ActualHours,
             ParentTaskId = t.ParentTaskId,
-            SubTasks = subTasks.Any() ? await Task.WhenAll(subTasks.Select(async s => await BuildTaskDtoAsync(s))).ContinueWith(t => t.Result.ToList()) : null,
+            SubTasks = subTasks.Any() ? subTasks.Select(s => BuildTaskDto(s)).ToList() : null,
             SubTaskCount = subTasks.Count,
             CompletedSubTaskCount = completedSubCount,
             SubTaskProgress = subTasks.Count > 0 ? Math.Round((double)completedSubCount / subTasks.Count * 100, 0) : 0,

@@ -2,8 +2,7 @@ using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Data.SqlClient;
-using SmartStudy.DAL;
-using SmartStudy.DTOs;
+using SmartStudy.Models;
 
 namespace SmartStudy.Controllers;
 
@@ -12,31 +11,21 @@ namespace SmartStudy.Controllers;
 [Authorize]
 public class ConnectionsController : ControllerBase
 {
-    private readonly DBservices _db;
-
-    public ConnectionsController(DBservices db) => _db = db;
-
     private string GetEmail() => User.FindFirst(ClaimTypes.Email)!.Value;
 
     /// <summary>
     /// Get all connections (accepted friends + pending incoming requests) for the current user.
     /// </summary>
     [HttpGet]
-    public async Task<IActionResult> GetAll()
+    public IActionResult GetAll()
     {
         var email = GetEmail();
 
-        // Pending friend requests (incoming + sent)
-        var requests = await _db.GetFriendRequestsByUserAsync(email);
-
-        // Active friendships
-        var friendships = await _db.GetFriendshipsByUserAsync(email);
+        var requests = Friendship.GetFriendRequestsByUser(email);
+        var friendships = Friendship.GetByUser(email);
 
         var result = new List<ConnectionDto>();
 
-        // Map pending requests. Email comparison must be case-insensitive:
-        // SQL Server default collation is CI, so the SP returns rows regardless
-        // of casing, but a case-sensitive C# == would mislabel direction.
         foreach (var r in requests)
         {
             var status = string.Equals(r.AddresseeEmail, email, StringComparison.OrdinalIgnoreCase) ? "pending" : "sent";
@@ -50,7 +39,6 @@ public class ConnectionsController : ControllerBase
             });
         }
 
-        // Map active friendships → status "accepted"
         foreach (var f in friendships)
         {
             result.Add(new ConnectionDto
@@ -70,18 +58,17 @@ public class ConnectionsController : ControllerBase
     /// Send a connection invitation to another user by email.
     /// </summary>
     [HttpPost("invite")]
-    public async Task<IActionResult> Invite([FromBody] InviteConnectionDto dto)
+    public IActionResult Invite([FromBody] InviteConnectionDto dto)
     {
         var email = GetEmail();
 
         try
         {
-            var requestId = await _db.CreateFriendRequestAsync(email, dto.Email);
+            var requestId = Friendship.CreateFriendRequest(email, dto.Email);
             return CreatedAtAction(nameof(GetAll), new { }, new { requestId, status = "pending" });
         }
         catch (SqlException ex) when (ex.Number == 50000)
         {
-            // SP raises errors with specific messages
             var msg = ex.Message;
             if (msg.Contains("Cannot invite yourself"))
                 return BadRequest(new { message = "You cannot invite yourself" });
@@ -95,48 +82,38 @@ public class ConnectionsController : ControllerBase
         }
     }
 
-    /// <summary>
-    /// Accept a pending connection request. Creates a Friendship record.
-    /// </summary>
     [HttpPost("{id}/accept")]
-    public async Task<IActionResult> Accept(int id)
+    public IActionResult Accept(int id)
     {
         var email = GetEmail();
 
-        var updated = await _db.UpdateFriendRequestStatusAsync(id, email, "Accepted");
+        var updated = Friendship.UpdateFriendRequestStatus(id, email, "Accepted");
         if (updated == null || updated.Status != "Accepted")
             return NotFound(new { message = "Pending request not found" });
 
-        // Create friendship
-        var friendshipId = await _db.CreateFriendshipAsync(updated.RequesterEmail, updated.AddresseeEmail);
+        var friendshipId = Friendship.Create(updated.RequesterEmail, updated.AddresseeEmail);
 
         return Ok(new { friendshipId, status = "accepted" });
     }
 
-    /// <summary>
-    /// Decline a pending connection request.
-    /// </summary>
     [HttpPost("{id}/decline")]
-    public async Task<IActionResult> Decline(int id)
+    public IActionResult Decline(int id)
     {
         var email = GetEmail();
 
-        var updated = await _db.UpdateFriendRequestStatusAsync(id, email, "Rejected");
+        var updated = Friendship.UpdateFriendRequestStatus(id, email, "Rejected");
         if (updated == null || updated.Status != "Rejected")
             return NotFound(new { message = "Pending request not found" });
 
         return NoContent();
     }
 
-    /// <summary>
-    /// Remove an existing friendship (soft delete).
-    /// </summary>
     [HttpDelete("{id}")]
-    public async Task<IActionResult> Remove(int id)
+    public IActionResult Remove(int id)
     {
         var email = GetEmail();
 
-        var removed = await _db.DeactivateFriendshipAsync(id, email);
+        var removed = Friendship.Deactivate(id, email);
         if (!removed)
             return NotFound();
 

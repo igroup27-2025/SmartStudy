@@ -5,6 +5,7 @@ namespace SmartStudy.Services;
 public class RuppinetBackgroundSyncService : BackgroundService
 {
     private readonly IServiceScopeFactory _scopeFactory;
+    private readonly IConfiguration _config;
     private readonly ILogger<RuppinetBackgroundSyncService> _logger;
     private readonly TimeSpan _interval;
 
@@ -13,6 +14,7 @@ public class RuppinetBackgroundSyncService : BackgroundService
     {
         _scopeFactory = scopeFactory;
         _logger = logger;
+        _config = config;
         var hours = int.TryParse(config["Ruppinet:BackgroundSyncIntervalHours"], out var h) ? h : 6;
         _interval = TimeSpan.FromHours(hours);
     }
@@ -21,12 +23,11 @@ public class RuppinetBackgroundSyncService : BackgroundService
     {
         try
         {
-            // Wait before first run to let the app fully start
             await Task.Delay(TimeSpan.FromMinutes(2), stoppingToken);
         }
         catch (TaskCanceledException)
         {
-            return; // App is shutting down, exit gracefully
+            return;
         }
 
         while (!stoppingToken.IsCancellationRequested)
@@ -46,20 +47,18 @@ public class RuppinetBackgroundSyncService : BackgroundService
             }
             catch (TaskCanceledException)
             {
-                return; // App is shutting down, exit gracefully
+                return;
             }
         }
     }
 
     private async Task SyncAllUsersAsync()
     {
-        using var scope = _scopeFactory.CreateScope();
-        var dal = scope.ServiceProvider.GetRequiredService<DBservices>();
-        var config = scope.ServiceProvider.GetRequiredService<IConfiguration>();
-        var syncIntervalHours = int.TryParse(config["Ruppinet:SyncIntervalHours"], out var h) ? h : 12;
+        var dal = new DBservices();
+        var syncIntervalHours = int.TryParse(_config["Ruppinet:SyncIntervalHours"], out var h) ? h : 12;
         var cutoff = DateTime.UtcNow.AddHours(-syncIntervalHours);
 
-        var usersToSync = await dal.GetUsersForRuppinetSyncAsync(cutoff);
+        var usersToSync = dal.GetUsersForRuppinetSync(cutoff);
 
         if (usersToSync.Count == 0) return;
 
@@ -69,7 +68,6 @@ public class RuppinetBackgroundSyncService : BackgroundService
         {
             try
             {
-                // Create a fresh scope per user so one failure doesn't affect others
                 using var userScope = _scopeFactory.CreateScope();
                 var syncService = userScope.ServiceProvider.GetRequiredService<RuppinetSyncService>();
                 var result = await syncService.SyncAllAsync(email);

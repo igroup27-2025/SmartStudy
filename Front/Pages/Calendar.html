@@ -5,6 +5,10 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>SmartStudy - Calendar</title>
     <link rel="stylesheet" href="../CSS/app.css">
+    <script src="https://code.jquery.com/jquery-3.7.1.min.js" integrity="sha256-/JqT3SQfawRcv/BIHPThkBvs0OEvtFFmqPF/lYI/Cxo=" crossorigin="anonymous"></script>
+    <script src="https://accounts.google.com/gsi/client" async defer></script>
+    <script src="../Scripts/ajaxCall.js"></script>
+    <script src="../Scripts/appShell.js"></script>
 </head>
 <body data-page="calendar">
     <div id="pageRoot">
@@ -17,10 +21,9 @@
             <div class="cal-header-actions">
                 <button class="btn btn-sm" id="calToday">Today</button>
                 <button class="btn btn-sm btn-primary" id="calAddEvent">+ Event</button>
-                <button class="btn btn-sm btn-ghost" id="calAddConstraint">+ Constraint</button>
-                <button class="btn btn-sm btn-secondary" id="calSyncRuppinet" title="Sync courses, schedule & exams from Ruppinet">Sync Ruppinet</button>
-                <button class="btn btn-sm btn-secondary" id="calSyncMoodle" title="Sync assignments & quizzes from Moodle">Sync Moodle</button>
                 <button class="btn btn-sm btn-secondary" id="calSyncGoogle" title="Sync Google Calendar">Sync Google</button>
+                <button class="btn btn-sm btn-secondary" id="calSyncRuppinet" title="Sync Ruppinet">Sync Ruppinet</button>
+                <button class="btn btn-sm btn-secondary" id="calSyncMoodle" title="Sync Moodle">Sync Moodle</button>
                 <div class="cal-view-toggle">
                     <button class="cal-view-btn active" data-view="weekly">Week</button>
                     <button class="cal-view-btn" data-view="3day">3 Day</button>
@@ -47,11 +50,14 @@
         <div class="modal-overlay" id="eventModal">
             <div class="modal">
                 <div class="modal-header">
-                    <h3>Add Event</h3>
-                    <button class="modal-close" data-close-modal>&times;</button>
+                    <h3 id="eventModalTitle">Add Event</h3>
+                    <button type="button" class="modal-close" id="eventModalClose">&times;</button>
                 </div>
                 <form id="eventForm">
                     <div class="modal-body">
+                        <!-- Conflict Warning (hidden until a conflict is detected) -->
+                        <div id="conflictWarning" class="conflict-warning" style="display:none;background:#FFF3E0;border-left:4px solid #F28D35;padding:var(--space-3);border-radius:var(--radius-sm);margin-bottom:var(--space-3);gap:var(--space-3);align-items:flex-start"></div>
+
                         <div class="form-group">
                             <label for="eventTypeSelect">Event Type</label>
                             <select id="eventTypeSelect" class="form-input">
@@ -63,297 +69,908 @@
                             </select>
                         </div>
                         <div class="form-row">
-                            <div class="form-group">
-                                <label for="eventFromDate">Start Date *</label>
-                                <input type="date" id="eventFromDate" class="form-input" required>
-                            </div>
-                            <div class="form-group">
-                                <label for="eventFromTime">Start Time *</label>
-                                <input type="time" id="eventFromTime" class="form-input" required>
-                            </div>
+                            <div class="form-group"><label for="eventFromDate">Start Date *</label><input type="date" id="eventFromDate" class="form-input" required></div>
+                            <div class="form-group"><label for="eventFromTime">Start Time *</label><input type="time" id="eventFromTime" class="form-input" required></div>
                         </div>
-                        <div class="form-row">
-                            <div class="form-group">
-                                <label for="eventToDate">End Date *</label>
-                                <input type="date" id="eventToDate" class="form-input" required>
-                            </div>
-                            <div class="form-group">
-                                <label for="eventToTime">End Time *</label>
-                                <input type="time" id="eventToTime" class="form-input" required>
-                            </div>
+                        <div class="form-row" id="eventEndRow">
+                            <div class="form-group"><label for="eventToDate">End Date *</label><input type="date" id="eventToDate" class="form-input"></div>
+                            <div class="form-group"><label for="eventToTime">End Time *</label><input type="time" id="eventToTime" class="form-input"></div>
                         </div>
-                        <div class="form-group">
+                        <div class="form-group" id="eventRecurringRow">
                             <label class="toggle-label">
                                 <input type="checkbox" id="eventRecurring" class="toggle-input">
-                                <span class="toggle-switch"></span>
-                                Recurring weekly
+                                <span class="toggle-switch"></span> Recurring weekly
                             </label>
                         </div>
-                        <div class="form-group hidden" id="recurrenceEndDateGroup">
-                            <label for="eventRecurrenceEndDate">Recurrence End Date</label>
-                            <input type="date" id="eventRecurrenceEndDate" class="form-input">
-                            <span class="form-hint">Leave empty for no end date</span>
-                        </div>
 
-                        <!-- Class-specific fields -->
+                        <!-- Class fields -->
                         <div id="eventClassFields" class="hidden">
-                            <div class="form-group">
-                                <label for="eventCourseId">Course</label>
-                                <select id="eventCourseId" class="form-input">
-                                    <option value="">Select course...</option>
-                                </select>
-                            </div>
-                            <div class="form-group">
-                                <label for="eventLocation">Location</label>
-                                <input type="text" id="eventLocation" class="form-input" placeholder="e.g. Room 101">
-                            </div>
+                            <div class="form-group"><label for="eventCourseId">Course</label><select id="eventCourseId" class="form-input"><option value="">Select course...</option></select></div>
+                            <div class="form-group"><label for="eventLocation">Location</label><input type="text" id="eventLocation" class="form-input" placeholder="e.g. Room 101"></div>
                         </div>
 
-                        <!-- Work-specific fields -->
+                        <!-- Work fields -->
                         <div id="eventWorkFields" class="hidden">
-                            <div class="form-group">
-                                <label for="eventWorkPlace">Workplace</label>
-                                <input type="text" id="eventWorkPlace" class="form-input" placeholder="e.g. Tech Startup Inc.">
-                            </div>
-                            <div class="form-group">
-                                <label for="eventTravelTime">Travel Time (min)</label>
-                                <input type="number" id="eventTravelTime" class="form-input" min="0">
-                                <small class="form-hint">Event will start earlier to include commute time</small>
-                            </div>
+                            <div class="form-group"><label for="eventWorkPlace">Workplace</label><input type="text" id="eventWorkPlace" class="form-input" placeholder="e.g. Startup Inc."></div>
+                            <div class="form-group"><label for="eventTravelTime">Travel Time (min)</label><input type="number" id="eventTravelTime" class="form-input" min="0"></div>
                         </div>
 
-                        <!-- Personal-specific fields -->
+                        <!-- Personal fields -->
                         <div id="eventPersonalFields">
-                            <div class="form-group">
-                                <label for="eventPersonalType">Category</label>
+                            <div class="form-group"><label for="eventPersonalType">Category</label>
                                 <select id="eventPersonalType" class="form-input">
-                                    <option value="Exercise">Exercise</option>
-                                    <option value="Social">Social</option>
-                                    <option value="Errand">Errand</option>
-                                    <option value="Other">Other</option>
+                                    <option value="Exercise">Exercise</option><option value="Social">Social</option>
+                                    <option value="Errand">Errand</option><option value="Other">Other</option>
                                 </select>
                             </div>
-                            <div class="form-group">
-                                <label for="eventDescription">Description</label>
-                                <input type="text" id="eventDescription" class="form-input" placeholder="What is this event?">
-                            </div>
+                            <div class="form-group"><label for="eventDescription">Description</label><input type="text" id="eventDescription" class="form-input"></div>
                         </div>
 
-                        <!-- Task-specific fields -->
+                        <!-- Task fields with source toggle -->
                         <div id="eventTaskFields" class="hidden">
                             <div class="form-group">
                                 <label>Task Source</label>
-                                <div class="task-source-toggle">
-                                    <button type="button" class="btn btn-sm task-source-btn active" data-source="existing">Existing Task</button>
-                                    <button type="button" class="btn btn-sm task-source-btn" data-source="new">New Task</button>
+                                <div style="display:flex;gap:var(--space-2)">
+                                    <button type="button" class="btn btn-sm task-source-btn active" data-source="existing">Existing task</button>
+                                    <button type="button" class="btn btn-sm task-source-btn" data-source="new">New task</button>
                                 </div>
                             </div>
-
-                            <!-- Existing task selector -->
                             <div id="taskExistingFields">
-                                <div class="form-group">
-                                    <label for="eventTaskId">Select Task</label>
-                                    <select id="eventTaskId" class="form-input">
-                                        <option value="">Select a task...</option>
-                                    </select>
-                                </div>
-                                <div id="taskInfoCard" class="task-info-card hidden">
-                                    <span id="taskInfoHours"></span>
-                                    <span id="taskInfoDue"></span>
-                                    <span id="taskInfoPriority"></span>
+                                <div class="form-group"><label for="eventTaskId">Select Task</label>
+                                    <select id="eventTaskId" class="form-input"><option value="">Select a task...</option></select>
                                 </div>
                             </div>
-
-                            <!-- New task inline form -->
                             <div id="taskNewFields" class="hidden">
-                                <div class="form-group">
-                                    <label for="eventTaskTitle">Task Title *</label>
-                                    <input type="text" id="eventTaskTitle" class="form-input" placeholder="e.g. Finish homework ch.5">
-                                </div>
-                                <div class="form-group">
-                                    <label for="eventTaskCourseId">Course *</label>
-                                    <select id="eventTaskCourseId" class="form-input">
-                                        <option value="">Select course...</option>
-                                    </select>
-                                </div>
+                                <div class="form-group"><label for="eventTaskTitle">Task Title *</label><input type="text" id="eventTaskTitle" class="form-input" placeholder="e.g. Study chapter 4"></div>
                                 <div class="form-row">
-                                    <div class="form-group">
-                                        <label for="eventTaskType">Task Type</label>
+                                    <div class="form-group"><label for="eventTaskCourseId">Course *</label>
+                                        <select id="eventTaskCourseId" class="form-input"><option value="">Select course...</option></select>
+                                    </div>
+                                    <div class="form-group"><label for="eventTaskType">Type</label>
                                         <select id="eventTaskType" class="form-input">
                                             <option value="Assignment">Assignment</option>
                                             <option value="Project">Project</option>
-                                            <option value="Lab">Lab</option>
                                             <option value="Reading">Reading</option>
                                             <option value="Study for exam">Study for exam</option>
                                             <option value="Other">Other</option>
                                         </select>
                                     </div>
-                                    <div class="form-group">
-                                        <label for="eventTaskPriority">Priority</label>
-                                        <select id="eventTaskPriority" class="form-input">
-                                            <option value="">None</option>
-                                            <option value="High">High</option>
-                                            <option value="Medium">Medium</option>
-                                            <option value="Low">Low</option>
-                                        </select>
-                                    </div>
                                 </div>
                                 <div class="form-row">
-                                    <div class="form-group">
-                                        <label for="eventTaskDueDate">Due Date</label>
-                                        <input type="date" id="eventTaskDueDate" class="form-input">
-                                    </div>
-                                    <div class="form-group">
-                                        <label for="eventTaskHours">Est. Hours</label>
-                                        <input type="number" id="eventTaskHours" class="form-input" min="0" step="0.5" placeholder="e.g. 3">
-                                    </div>
+                                    <div class="form-group"><label for="eventTaskDueDate">Due Date</label><input type="date" id="eventTaskDueDate" class="form-input"></div>
+                                    <div class="form-group"><label for="eventTaskHours">Est. Hours</label><input type="number" id="eventTaskHours" class="form-input" step="0.5" min="0"></div>
                                 </div>
                             </div>
                         </div>
 
-                        <!-- Exam-specific fields -->
+                        <!-- Exam fields -->
                         <div id="eventExamFields" class="hidden">
-                            <div class="form-group">
-                                <label for="eventExamCourseId">Course *</label>
-                                <select id="eventExamCourseId" class="form-input">
-                                    <option value="">Select course...</option>
-                                </select>
+                            <div class="form-group"><label for="eventExamCourseId">Course *</label>
+                                <select id="eventExamCourseId" class="form-input"><option value="">Select course...</option></select>
                             </div>
                             <div class="form-row">
-                                <div class="form-group">
-                                    <label for="eventExamSession">Session *</label>
-                                    <select id="eventExamSession" class="form-input">
-                                        <option value="A">A</option>
-                                        <option value="B">B</option>
-                                        <option value="C">C</option>
-                                    </select>
+                                <div class="form-group"><label for="eventExamSession">Session *</label>
+                                    <select id="eventExamSession" class="form-input"><option value="A">A</option><option value="B">B</option><option value="C">C</option></select>
                                 </div>
-                                <div class="form-group">
-                                    <label for="eventExamDuration">Duration (min)</label>
-                                    <input type="number" id="eventExamDuration" class="form-input" min="0" placeholder="e.g. 120">
+                                <div class="form-group"><label for="eventExamDuration">Duration (min)</label>
+                                    <input type="number" id="eventExamDuration" class="form-input" min="0" placeholder="120">
                                 </div>
                             </div>
                         </div>
                     </div>
-                    <div id="conflictWarning" class="conflict-warning" style="display:none"></div>
                     <div class="modal-footer">
-                        <button type="button" class="btn btn-secondary" data-close-modal>Cancel</button>
+                        <button type="button" class="btn btn-ghost btn-danger" id="eventDeleteBtn" style="display:none;margin-right:auto">Delete</button>
+                        <button type="button" class="btn btn-secondary" id="eventModalCancel">Cancel</button>
                         <button type="submit" class="btn btn-primary" id="eventSubmitBtn">Create Event</button>
                     </div>
                 </form>
             </div>
         </div>
-        <!-- Constraint Modal -->
-        <div class="modal-overlay" id="constraintModal">
-            <div class="modal modal-lg">
-                <div class="modal-header">
-                    <h3>Manage Constraints</h3>
-                    <button class="modal-close" data-close-modal>&times;</button>
-                </div>
-                <div class="modal-body">
-                    <!-- Tab Bar -->
-                    <div class="constraint-tabs">
-                        <button class="constraint-tab active" data-tab="blocks">Time Blocks</button>
-                        <button class="constraint-tab" data-tab="limits">Study Limits</button>
-                    </div>
-
-                    <!-- Time Blocks Tab -->
-                    <div class="constraint-tab-content" id="constraintTabBlocks">
-                        <div id="calConstraintsList" class="constraint-list"></div>
-                        <button class="btn btn-sm btn-primary" id="calAddTimeBlock" style="margin-top:var(--space-3)">+ Add Time Block</button>
-
-                        <div class="constraint-form hidden" id="calConstraintForm">
-                            <div class="form-group">
-                                <label for="constraintName">Name *</label>
-                                <input type="text" id="constraintName" class="form-input" placeholder="e.g. Family Dinner, Gym">
-                            </div>
-                            <div class="form-group">
-                                <label for="constraintType">Type</label>
-                                <select id="constraintType" class="form-input">
-                                    <option value="personal">Personal</option>
-                                    <option value="work">Work</option>
-                                </select>
-                            </div>
-                            <div class="form-group">
-                                <label>Days *</label>
-                                <div class="constraint-day-picker" id="constraintDays">
-                                    <label class="constraint-day-chip"><input type="checkbox" value="0"><span>Sun</span></label>
-                                    <label class="constraint-day-chip"><input type="checkbox" value="1"><span>Mon</span></label>
-                                    <label class="constraint-day-chip"><input type="checkbox" value="2"><span>Tue</span></label>
-                                    <label class="constraint-day-chip"><input type="checkbox" value="3"><span>Wed</span></label>
-                                    <label class="constraint-day-chip"><input type="checkbox" value="4"><span>Thu</span></label>
-                                    <label class="constraint-day-chip"><input type="checkbox" value="5"><span>Fri</span></label>
-                                    <label class="constraint-day-chip"><input type="checkbox" value="6"><span>Sat</span></label>
-                                </div>
-                            </div>
-                            <div class="form-row">
-                                <div class="form-group">
-                                    <label for="constraintStartTime">Start Time *</label>
-                                    <input type="time" id="constraintStartTime" class="form-input" value="18:00">
-                                </div>
-                                <div class="form-group">
-                                    <label for="constraintEndTime">End Time *</label>
-                                    <input type="time" id="constraintEndTime" class="form-input" value="20:00">
-                                </div>
-                            </div>
-                            <div class="form-row" style="justify-content:flex-end;gap:var(--space-2)">
-                                <button type="button" class="btn btn-sm btn-secondary" id="calConstraintCancel">Cancel</button>
-                                <button type="button" class="btn btn-sm btn-primary" id="calConstraintSave">Save Block</button>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Study Limits Tab -->
-                    <div class="constraint-tab-content hidden" id="constraintTabLimits">
-                        <div class="form-group">
-                            <label>Max Daily Study Hours</label>
-                            <div class="constraint-range-row">
-                                <input type="range" id="limitsMaxDaily" class="form-range" min="2" max="12" step="0.5" value="6">
-                                <span class="constraint-range-value" id="limitsMaxDailyVal">6h</span>
-                            </div>
-                        </div>
-                        <div class="form-group">
-                            <label for="limitsMaxContinuous">Max Continuous Study</label>
-                            <select id="limitsMaxContinuous" class="form-input">
-                                <option value="30">30 minutes</option>
-                                <option value="60">1 hour</option>
-                                <option value="90" selected>1.5 hours</option>
-                                <option value="120">2 hours</option>
-                            </select>
-                        </div>
-                        <div class="form-row">
-                            <div class="form-group">
-                                <label for="limitsStartHour">Study Window Start</label>
-                                <select id="limitsStartHour" class="form-input">
-                                    <option value="6">6:00 AM</option>
-                                    <option value="7">7:00 AM</option>
-                                    <option value="8" selected>8:00 AM</option>
-                                    <option value="9">9:00 AM</option>
-                                    <option value="10">10:00 AM</option>
-                                </select>
-                            </div>
-                            <div class="form-group">
-                                <label for="limitsEndHour">Study Window End</label>
-                                <select id="limitsEndHour" class="form-input">
-                                    <option value="18">6:00 PM</option>
-                                    <option value="19">7:00 PM</option>
-                                    <option value="20">8:00 PM</option>
-                                    <option value="21">9:00 PM</option>
-                                    <option value="22" selected>10:00 PM</option>
-                                    <option value="23">11:00 PM</option>
-                                </select>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                <div class="modal-footer" style="padding:var(--space-4) var(--space-6)">
-                    <button type="button" class="btn btn-secondary" data-close-modal>Close</button>
-                    <button type="button" class="btn btn-primary hidden" id="calSaveLimits">Save Limits</button>
-                </div>
-            </div>
-        </div>
     </div>
-    <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
-    <script type="module" src="../Script/main.js"></script>
+
+    <script>
+        // ---- API endpoints -----------------------------------------------
+        var EventsApi           = API_BASE + "/events";
+        var EventByIdApi        = function (id) { return API_BASE + "/events/" + id; };
+        var ClassEventsApi      = API_BASE + "/events/class";
+        var TaskEventsApi       = API_BASE + "/events/task";
+        var WorkEventsApi       = API_BASE + "/events/work";
+        var PersonalEventsApi   = API_BASE + "/events/personal";
+        var ClassEventApi       = function (id) { return API_BASE + "/events/class/" + id; };
+        var TaskEventApi        = function (id) { return API_BASE + "/events/task/" + id; };
+        var WorkEventApi        = function (id) { return API_BASE + "/events/work/" + id; };
+        var PersonalEventApi    = function (id) { return API_BASE + "/events/personal/" + id; };
+        var ConflictCheckApi    = API_BASE + "/events/check-conflicts";
+
+        var CoursesApi          = API_BASE + "/courses";
+        var TasksApi            = API_BASE + "/tasks";
+        var TasksOpenApi        = API_BASE + "/tasks?completed=false";
+        var ExamsApi            = API_BASE + "/exams";
+        var ExamApi             = function (id) { return API_BASE + "/exams/" + id; };
+        var RuppinetSyncApi     = API_BASE + "/settings/ruppinet/sync";
+        var MoodleSyncApi       = API_BASE + "/settings/moodle/sync";
+        var SchedulingStatusApi = API_BASE + "/scheduling/status";
+        var CalendarSyncStatusApi = API_BASE + "/calendar-sync/status";
+        var CalendarSyncGoogleApi = API_BASE + "/calendar-sync/google";
+        var AuthConfigApi       = API_BASE + "/auth/config";
+
+        var EVENT_COLORS = {
+            "class":    { bg: "#E3EEF9", border: "#4A90D9", text: "#2D5A8A" },
+            "task":     { bg: "#FFF3E0", border: "#F28D35", text: "#A06020" },
+            "work":     { bg: "#F3E5F5", border: "#9B76FF", text: "#5E3DBF" },
+            "personal": { bg: "#E6F5EE", border: "#43B88C", text: "#2A7A5A" },
+            "exam":     { bg: "#FCE4EC", border: "#E84B6A", text: "#A03050" }
+        };
+
+        var currentView = window.innerWidth <= 768 ? "3day" : "weekly";
+        var currentDate = new Date();
+        var cachedEvents = [];
+        var cachedCourses = [];
+        var cachedTasks = [];
+        var overloadedDays = new Set();
+        var editingEventId = null;
+        var editingEventType = null;
+        var conflictsConfirmed = false;
+        var highlightTaskId = null;
+
+        function escapeHtml(s) {
+            if (s == null) return "";
+            return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+        }
+
+        function toLocalISO(d) {
+            function pad(n) { return String(n).padStart(2, "0"); }
+            return d.getFullYear() + "-" + pad(d.getMonth() + 1) + "-" + pad(d.getDate()) + "T" +
+                   pad(d.getHours()) + ":" + pad(d.getMinutes()) + ":" + pad(d.getSeconds());
+        }
+
+        function formatTime(date) {
+            function pad(n) { return String(n).padStart(2, "0"); }
+            return pad(date.getHours()) + ":" + pad(date.getMinutes());
+        }
+
+        function getSunday(date) {
+            var d = new Date(date);
+            d.setDate(d.getDate() - d.getDay());
+            d.setHours(0, 0, 0, 0);
+            return d;
+        }
+
+        $(document).ready(function () {
+            if (!requireAuth()) return;
+            SmartStudy.initShell("calendar");
+
+            // Deep-linking: ?date=YYYY-MM-DD
+            var params = new URLSearchParams(window.location.search);
+            var dateParam = params.get("date");
+            if (dateParam) {
+                var parsed = new Date(dateParam + "T00:00:00");
+                if (!isNaN(parsed)) currentDate = parsed;
+            }
+            var highlight = params.get("highlight");
+            if (highlight) highlightTaskId = parseInt(highlight);
+
+            $(".cal-view-btn").on("click", function () {
+                $(".cal-view-btn").removeClass("active");
+                $(this).addClass("active");
+                currentView = $(this).data("view");
+                Navigate();
+            });
+            $(".cal-view-btn").removeClass("active");
+            $('.cal-view-btn[data-view="' + currentView + '"]').addClass("active");
+
+            $("#calPrev").on("click", function () { ShiftDate(-1); Navigate(); });
+            $("#calNext").on("click", function () { ShiftDate(1); Navigate(); });
+            $("#calToday").on("click", function () { currentDate = new Date(); Navigate(); });
+            $("#calAddEvent").on("click", function () { OpenEventModal(null, null, null); });
+            $("#calSyncRuppinet").on("click", SyncRuppinet);
+            $("#calSyncMoodle").on("click", SyncMoodle);
+            $("#calSyncGoogle").on("click", SyncGoogleCalendar);
+
+            $("#eventModalClose, #eventModalCancel").on("click", CloseEventModal);
+            $("#eventModal").on("click", function (e) {
+                if (e.target.id === "eventModal") CloseEventModal();
+            });
+            $("#eventTypeSelect").on("change", function () { UpdateEventFormFields($(this).val()); });
+            $("#eventForm").on("submit", SubmitEvent);
+            $("#eventDeleteBtn").on("click", DeleteCurrentEvent);
+
+            // Task source toggle inside the task fields
+            $(".task-source-btn").on("click", function () {
+                $(".task-source-btn").removeClass("active");
+                $(this).addClass("active");
+                var source = $(this).data("source");
+                $("#taskExistingFields").toggleClass("hidden", source !== "existing");
+                $("#taskNewFields").toggleClass("hidden", source !== "new");
+            });
+
+            LoadCoursesCache();
+            Navigate();
+
+            if (params.get("add") === "1") {
+                OpenEventModal(dateParam || null, null, null);
+            }
+        });
+
+        function LoadCoursesCache() {
+            ajaxCall("GET", CoursesApi, null, function (data) { cachedCourses = data || []; PopulateCourseSelects(); }, function () { });
+        }
+
+        function PopulateCourseSelects() {
+            var opts = '<option value="">Select course...</option>' +
+                cachedCourses.map(function (c) { return '<option value="' + c.courseId + '">' + escapeHtml(c.courseName) + '</option>'; }).join("");
+            $("#eventCourseId").html(opts);
+            $("#eventExamCourseId").html(opts);
+            $("#eventTaskCourseId").html(opts);
+        }
+
+        function LoadTasksCache() {
+            ajaxCall("GET", TasksOpenApi, null, function (data) {
+                cachedTasks = data || [];
+                var opts = '<option value="">Select a task...</option>' +
+                    cachedTasks.map(function (t) { return '<option value="' + t.taskId + '">' + escapeHtml(t.title) + (t.courseName ? ' (' + escapeHtml(t.courseName) + ')' : '') + '</option>'; }).join("");
+                $("#eventTaskId").html(opts);
+            }, function () { });
+        }
+
+        function ShiftDate(direction) {
+            if (currentView === "monthly") {
+                currentDate.setMonth(currentDate.getMonth() + direction);
+            } else if (currentView === "weekly") {
+                currentDate.setDate(currentDate.getDate() + 7 * direction);
+            } else {
+                currentDate.setDate(currentDate.getDate() + 3 * direction);
+            }
+        }
+
+        function GetDateRange() {
+            if (currentView === "monthly") {
+                var first = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1);
+                var last = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0);
+                var gridStart = getSunday(first);
+                var gridEnd = new Date(last);
+                var daysToSat = gridEnd.getDay() === 6 ? 0 : 6 - gridEnd.getDay();
+                gridEnd.setDate(gridEnd.getDate() + daysToSat);
+                gridEnd.setHours(23, 59, 59, 999);
+                return { from: gridStart, to: gridEnd };
+            } else if (currentView === "weekly") {
+                var from = getSunday(currentDate);
+                var to = new Date(from); to.setDate(to.getDate() + 7);
+                return { from: from, to: to };
+            } else {
+                var from3 = new Date(currentDate); from3.setHours(0, 0, 0, 0);
+                var to3 = new Date(from3); to3.setDate(to3.getDate() + 3);
+                return { from: from3, to: to3 };
+            }
+        }
+
+        function Navigate() {
+            RenderHeader();
+            var range = GetDateRange();
+            var url = EventsApi + "?from=" + encodeURIComponent(toLocalISO(range.from)) + "&to=" + encodeURIComponent(toLocalISO(range.to));
+
+            // Parallel: events, exams, scheduling-status
+            var eventsLoaded = false, examsLoaded = false, statusLoaded = false;
+            var rawEvents = [], rawExams = [], schedStatus = null;
+
+            function finish() {
+                if (!(eventsLoaded && examsLoaded && statusLoaded)) return;
+                var examEvents = (rawExams || []).filter(function (ex) {
+                    var d = new Date(ex.date);
+                    return d >= range.from && d <= range.to;
+                }).map(function (ex) {
+                    var d = new Date(ex.date);
+                    var t = (ex.time || "09:00:00").split(":");
+                    var from = new Date(d); from.setHours(parseInt(t[0]) || 9, parseInt(t[1]) || 0, 0, 0);
+                    var to = new Date(from.getTime() + (ex.duration || 120) * 60000);
+                    return {
+                        eventId: "exam-" + ex.examId, eventType: "exam",
+                        from: toLocalISO(from), to: toLocalISO(to), recurring: false,
+                        courseName: ex.courseName, courseId: ex.courseId, examId: ex.examId,
+                        session: ex.session, duration: ex.duration, isExam: true
+                    };
+                });
+                cachedEvents = (rawEvents || []).concat(examEvents);
+
+                overloadedDays = new Set();
+                if (schedStatus && schedStatus.dailyWorkload) {
+                    schedStatus.dailyWorkload.forEach(function (d) {
+                        if (d.isOverloaded) {
+                            var date = new Date(d.date);
+                            overloadedDays.add(date.getFullYear() + "-" + String(date.getMonth() + 1).padStart(2, "0") + "-" + String(date.getDate()).padStart(2, "0"));
+                        }
+                    });
+                }
+                RenderGrid(range);
+                if (highlightTaskId) HighlightTaskEvents(highlightTaskId);
+            }
+
+            ajaxCall("GET", url, null, function (events) { rawEvents = events || []; eventsLoaded = true; finish(); },
+                function () { $("#calendarGrid").html('<p class="text-muted">Failed to load events.</p>'); });
+            ajaxCall("GET", ExamsApi, null, function (exams) { rawExams = exams || []; examsLoaded = true; finish(); },
+                function () { examsLoaded = true; finish(); });
+            ajaxCall("GET", SchedulingStatusApi, null, function (st) { schedStatus = st; statusLoaded = true; finish(); },
+                function () { statusLoaded = true; finish(); });
+        }
+
+        function RenderHeader() {
+            if (currentView === "monthly") {
+                $("#calendarHeader").text(currentDate.toLocaleDateString("en", { month: "long", year: "numeric" }));
+            } else {
+                var r = GetDateRange();
+                var end = new Date(r.to); end.setDate(end.getDate() - 1);
+                var fmt = function (d) { return d.toLocaleDateString("en", { month: "short", day: "numeric" }); };
+                $("#calendarHeader").text(fmt(r.from) + " - " + fmt(end) + ", " + end.getFullYear());
+            }
+        }
+
+        function RenderGrid(range) {
+            if (currentView === "monthly") {
+                RenderMonthlyGrid(range.from, range.to);
+            } else if (currentView === "weekly") {
+                RenderTimeGrid(range.from, 7);
+            } else {
+                RenderTimeGrid(range.from, 3);
+            }
+        }
+
+        function RenderTimeGrid(startDate, dayCount) {
+            var $grid = $("#calendarGrid");
+            $grid.attr("class", "calendar-grid" + (dayCount === 3 ? " cal-grid--3day" : ""));
+
+            var days = [];
+            for (var i = 0; i < dayCount; i++) {
+                var d = new Date(startDate); d.setDate(d.getDate() + i);
+                days.push(d);
+            }
+            var today = new Date(); today.setHours(0, 0, 0, 0);
+            var dayNames = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+
+            var html = '<div class="cal-time-col"><div class="cal-day-header"></div>';
+            for (var h = 7; h <= 22; h++) {
+                html += '<div class="cal-time-label">' + String(h).padStart(2, "0") + ':00</div>';
+            }
+            html += '</div>';
+
+            days.forEach(function (day) {
+                var isToday = day.getTime() === today.getTime();
+                var dateStr = day.getFullYear() + "-" + String(day.getMonth() + 1).padStart(2, "0") + "-" + String(day.getDate()).padStart(2, "0");
+                var isOverloaded = overloadedDays.has(dateStr);
+
+                var dayEvents = cachedEvents.filter(function (e) {
+                    var ed = new Date(e.from);
+                    return ed.getDate() === day.getDate() && ed.getMonth() === day.getMonth() && ed.getFullYear() === day.getFullYear();
+                });
+                var taskHours = dayEvents.filter(function (e) { return e.eventType === "task"; })
+                    .reduce(function (sum, e) { return sum + (new Date(e.to) - new Date(e.from)) / 3600000; }, 0);
+
+                html += '<div class="cal-day-col ' + (isToday ? 'today' : '') + (isOverloaded ? ' cal-day-col--overloaded' : '') + '">';
+                html += '<div class="cal-day-header ' + (isToday ? 'today' : '') + '">' +
+                    '<span class="cal-day-name">' + dayNames[day.getDay()] + '</span>' +
+                    '<span class="cal-day-num">' + day.getDate() + '</span>' +
+                    (isOverloaded ? '<span class="cal-overload-badge">!</span>' : '') +
+                    '</div>';
+                html += '<div class="cal-day-body">';
+
+                for (var hh = 7; hh <= 22; hh++) {
+                    html += '<div class="cal-cell" data-date="' + dateStr + '" data-hour="' + hh + '"></div>';
+                }
+
+                dayEvents.forEach(function (e) {
+                    var from = new Date(e.from), to = new Date(e.to);
+                    var startHour = from.getHours() + from.getMinutes() / 60;
+                    var endHour = to.getHours() + to.getMinutes() / 60;
+                    var top = (startHour - 7) * 50;
+                    var height = Math.max(25, (endHour - startHour) * 50);
+                    var colors = EVENT_COLORS[e.eventType] || EVENT_COLORS.personal;
+                    var label = e.isExam ? ("Exam: " + (e.courseName || "Exam")) : (e.courseName || e.taskTitle || e.workPlace || e.description || e.type || "Event");
+
+                    // Status / shared badges
+                    var isNeedReview = e.eventType === "task" && (e.status === "NeedReview" || e.status === "PartiallyApproved");
+                    var isPartial = e.eventType === "task" && e.status === "Partial";
+                    var badges = "";
+                    if (isNeedReview) badges += '<span class="cal-event-review-badge">NeedReview</span>';
+                    if (isPartial) badges += '<span class="cal-event-review-badge">Partial</span>';
+                    if (e.eventType === "task" && e.isShared) badges += '<span class="cal-event-shared-badge" title="Shared task">&#128101;</span>';
+
+                    var extraClass = "";
+                    if (isNeedReview) extraClass += " cal-event--need-review";
+                    if (e.eventType === "task" && e.isShared) extraClass += " cal-event--shared";
+                    if (highlightTaskId && e.taskId === highlightTaskId) extraClass += " cal-event--highlighted";
+
+                    html += '<div class="cal-event ' + extraClass + '" data-event-id="' + e.eventId + '" data-event-type="' + e.eventType + '" ' +
+                        'style="top:' + top + 'px;height:' + height + 'px;background:' + colors.bg +
+                        ';border-left:3px solid ' + colors.border + ';color:' + colors.text + '">' +
+                        '<div class="cal-event-title">' + badges + escapeHtml(label) + '</div>' +
+                        '<div class="cal-event-time">' + formatTime(from) + ' - ' + formatTime(to) + '</div>' +
+                        '</div>';
+                });
+
+                if (isToday) {
+                    var now = new Date();
+                    var nh = now.getHours() + now.getMinutes() / 60;
+                    if (nh >= 7 && nh <= 23) {
+                        html += '<div class="cal-now-line" style="top:' + ((nh - 7) * 50) + 'px"></div>';
+                    }
+                }
+
+                if (isOverloaded) {
+                    html += '<div class="cal-overload-bar">Overloaded: ' + taskHours.toFixed(1) + 'h scheduled</div>';
+                }
+
+                html += '</div></div>';
+            });
+
+            $grid.html(html);
+
+            $grid.find(".cal-cell").on("click", function () {
+                OpenEventModal($(this).data("date"), parseInt($(this).attr("data-hour")), null);
+            });
+            $grid.find(".cal-event").on("click", function (e) {
+                e.stopPropagation();
+                var rawId = $(this).data("event-id");
+                var eid = String(rawId).indexOf("exam-") === 0 ? rawId : parseInt(rawId);
+                OpenEventModalForEdit(eid);
+            });
+        }
+
+        function RenderMonthlyGrid(gridStart, gridEnd) {
+            var $grid = $("#calendarGrid");
+            $grid.attr("class", "calendar-grid cal-grid--month");
+
+            var today = new Date(); today.setHours(0, 0, 0, 0);
+            var thisMonth = currentDate.getMonth();
+            var dayNames = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+
+            var html = '<div class="cal-month"><div class="cal-month-header">';
+            dayNames.forEach(function (d) { html += '<span>' + d + '</span>'; });
+            html += '</div>';
+
+            var cursor = new Date(gridStart);
+            while (cursor <= gridEnd) {
+                html += '<div class="cal-month-week">';
+                for (var i = 0; i < 7; i++) {
+                    var day = new Date(cursor);
+                    var isOutside = day.getMonth() !== thisMonth;
+                    var isToday = day.getTime() === today.getTime();
+                    var dateStr = day.getFullYear() + "-" + String(day.getMonth() + 1).padStart(2, "0") + "-" + String(day.getDate()).padStart(2, "0");
+                    var isOverloaded = overloadedDays.has(dateStr);
+
+                    var dayEvents = cachedEvents.filter(function (e) {
+                        var ed = new Date(e.from);
+                        return ed.getDate() === day.getDate() && ed.getMonth() === day.getMonth() && ed.getFullYear() === day.getFullYear();
+                    });
+
+                    var classes = ["cal-month-day"];
+                    if (isOutside) classes.push("outside");
+                    if (isToday) classes.push("today");
+                    if (isOverloaded) classes.push("cal-month-day--overloaded");
+
+                    html += '<div class="' + classes.join(" ") + '" data-date="' + dateStr + '">';
+                    html += '<div class="cal-month-day__num">' + day.getDate() + (isOverloaded ? ' <span class="cal-overload-badge">!</span>' : '') + '</div>';
+
+                    dayEvents.slice(0, 3).forEach(function (e) {
+                        var colors = EVENT_COLORS[e.eventType] || EVENT_COLORS.personal;
+                        var label = e.isExam ? ("Exam: " + (e.courseName || "Exam")) : (e.courseName || e.taskTitle || e.workPlace || e.description || e.type || "Event");
+                        html += '<div class="cal-month-event" style="background:' + colors.bg + ';border-left-color:' + colors.border + ';color:' + colors.text + '">' + escapeHtml(label) + '</div>';
+                    });
+                    if (dayEvents.length > 3) {
+                        html += '<div class="cal-month-more">+' + (dayEvents.length - 3) + ' more</div>';
+                    }
+                    html += '</div>';
+                    cursor.setDate(cursor.getDate() + 1);
+                }
+                html += '</div>';
+            }
+            html += '</div>';
+            $grid.html(html);
+
+            $grid.find(".cal-month-day").on("click", function () {
+                var dateStr = $(this).data("date");
+                if (!dateStr) return;
+                currentDate = new Date(dateStr + "T00:00:00");
+                currentView = "weekly";
+                $(".cal-view-btn").removeClass("active");
+                $('.cal-view-btn[data-view="weekly"]').addClass("active");
+                Navigate();
+            });
+        }
+
+        function HighlightTaskEvents(taskId) {
+            setTimeout(function () {
+                var $matches = $(".cal-event").filter(function () {
+                    var raw = $(this).data("event-id");
+                    if (String(raw).indexOf("exam-") === 0) return false;
+                    var evt = cachedEvents.find(function (e) { return e.eventId === parseInt(raw); });
+                    return evt && evt.taskId === taskId;
+                });
+                $matches.addClass("cal-event--highlighted");
+                var first = $matches[0];
+                if (first && first.scrollIntoView) first.scrollIntoView({ behavior: "smooth", block: "center" });
+            }, 300);
+        }
+
+        // ---- Event modal (create/edit) ----------------------------------
+        function OpenEventModal(dateStr, hour, endHour) {
+            editingEventId = null;
+            editingEventType = null;
+            conflictsConfirmed = false;
+            $("#eventForm")[0].reset();
+            $("#eventModalTitle").text("Add Event");
+            $("#eventSubmitBtn").text("Create Event");
+            $("#eventDeleteBtn").hide();
+            $("#eventTypeSelect").prop("disabled", false).val("personal");
+            $("#conflictWarning").hide();
+
+            // Reset task source toggle to existing
+            $(".task-source-btn").removeClass("active");
+            $('.task-source-btn[data-source="existing"]').addClass("active");
+            $("#taskExistingFields").removeClass("hidden");
+            $("#taskNewFields").addClass("hidden");
+
+            if (dateStr) {
+                $("#eventFromDate").val(dateStr);
+                $("#eventToDate").val(dateStr);
+            }
+            if (hour != null) {
+                $("#eventFromTime").val(String(hour).padStart(2, "0") + ":00");
+                var end = endHour != null ? endHour : (hour + 1);
+                $("#eventToTime").val(String(end).padStart(2, "0") + ":00");
+            }
+
+            UpdateEventFormFields("personal");
+            LoadTasksCache();
+            $("#eventModal").addClass("open");
+        }
+
+        function OpenEventModalForEdit(eventId) {
+            var event = cachedEvents.find(function (e) { return e.eventId === eventId; });
+            if (!event) return;
+
+            editingEventId = event.eventId;
+            editingEventType = event.eventType;
+            conflictsConfirmed = false;
+
+            $("#eventForm")[0].reset();
+            $("#eventModalTitle").text(event.isExam ? "Edit Exam" : "Edit Event");
+            $("#eventSubmitBtn").text("Save Changes");
+            $("#eventDeleteBtn").show();
+            $("#conflictWarning").hide();
+
+            $("#eventTypeSelect").val(event.eventType);
+            var canChangeType = event.eventType === "work" || event.eventType === "personal";
+            $("#eventTypeSelect").prop("disabled", !canChangeType);
+
+            var from = new Date(event.from), to = new Date(event.to);
+            function pad(n) { return String(n).padStart(2, "0"); }
+            var dateStr = function (d) { return d.getFullYear() + "-" + pad(d.getMonth() + 1) + "-" + pad(d.getDate()); };
+            var timeStr = function (d) { return pad(d.getHours()) + ":" + pad(d.getMinutes()); };
+            $("#eventFromDate").val(dateStr(from));
+            $("#eventFromTime").val(timeStr(from));
+            $("#eventToDate").val(dateStr(to));
+            $("#eventToTime").val(timeStr(to));
+            $("#eventRecurring").prop("checked", !!event.recurring);
+
+            // Edit always uses existing-task source
+            $(".task-source-btn").removeClass("active");
+            $('.task-source-btn[data-source="existing"]').addClass("active");
+            $("#taskExistingFields").removeClass("hidden");
+            $("#taskNewFields").addClass("hidden");
+
+            UpdateEventFormFields(event.eventType);
+
+            if (event.eventType === "class") {
+                $("#eventCourseId").val(event.courseId || "");
+                $("#eventLocation").val(event.location || "");
+            } else if (event.eventType === "work") {
+                $("#eventWorkPlace").val(event.workPlace || "");
+                $("#eventTravelTime").val(event.travelTime || "");
+            } else if (event.eventType === "personal") {
+                $("#eventPersonalType").val(event.type || "Other");
+                $("#eventDescription").val(event.description || "");
+            } else if (event.eventType === "task") {
+                LoadTasksCache();
+                $("#eventTaskId").val(event.taskId || "");
+            } else if (event.eventType === "exam") {
+                $("#eventExamCourseId").val(event.courseId || "");
+                $("#eventExamSession").val(event.session || "A");
+                $("#eventExamDuration").val(event.duration || 120);
+            }
+
+            $("#eventModal").addClass("open");
+        }
+
+        function CloseEventModal() {
+            $("#eventModal").removeClass("open");
+            editingEventId = null;
+            editingEventType = null;
+            conflictsConfirmed = false;
+            $("#conflictWarning").hide();
+        }
+
+        function UpdateEventFormFields(type) {
+            $("#eventClassFields").toggleClass("hidden", type !== "class");
+            $("#eventWorkFields").toggleClass("hidden", type !== "work");
+            $("#eventPersonalFields").toggleClass("hidden", type !== "personal");
+            $("#eventTaskFields").toggleClass("hidden", type !== "task");
+            $("#eventExamFields").toggleClass("hidden", type !== "exam");
+            $("#eventEndRow").toggle(type !== "exam");
+            $("#eventRecurringRow").toggle(type !== "exam");
+            $("#eventToDate").prop("required", type !== "exam");
+            $("#eventToTime").prop("required", type !== "exam");
+        }
+
+        function ShowConflictWarning(conflicts) {
+            var listHtml = conflicts.map(function (c) {
+                var from = new Date(c.from), to = new Date(c.to);
+                var label = c.courseName || c.taskTitle || c.workPlace || c.description || c.type || "Event";
+                return '<li>' + escapeHtml(label) + ' (' + formatTime(from) + ' - ' + formatTime(to) + ')</li>';
+            }).join("");
+
+            $("#conflictWarning").html(
+                '<div class="conflict-warning__icon" style="font-size:1.5em">&#9888;</div>' +
+                '<div class="conflict-warning__body" style="flex:1">' +
+                    '<strong>Time conflict detected!</strong>' +
+                    '<ul style="margin:var(--space-2) 0">' + listHtml + '</ul>' +
+                    '<div class="conflict-warning__actions" style="display:flex;gap:var(--space-2)">' +
+                        '<button type="button" class="btn btn-sm btn-primary" id="conflictCreateAnyway">Proceed Anyway</button>' +
+                        '<button type="button" class="btn btn-sm btn-secondary" id="conflictCancel">Cancel</button>' +
+                    '</div>' +
+                '</div>'
+            ).css("display", "flex");
+
+            $("#conflictCreateAnyway").on("click", function () {
+                conflictsConfirmed = true;
+                $("#conflictWarning").hide();
+                $("#eventForm").trigger("submit");
+            });
+            $("#conflictCancel").on("click", function () { $("#conflictWarning").hide(); });
+        }
+
+        function SubmitEvent(ev) {
+            ev.preventDefault();
+            var type = $("#eventTypeSelect").val();
+            var fromDate = $("#eventFromDate").val();
+            var fromTime = $("#eventFromTime").val();
+            var toDate = $("#eventToDate").val();
+            var toTime = $("#eventToTime").val();
+            var recurring = $("#eventRecurring").is(":checked");
+
+            if (!fromDate || !fromTime) { alert("Please fill in start date/time"); return; }
+            if (type !== "exam" && (!toDate || !toTime)) { alert("Please fill in end date/time"); return; }
+
+            var from = new Date(fromDate + "T" + fromTime);
+            var to;
+            if (type === "exam") {
+                var examDur = parseInt($("#eventExamDuration").val()) || 120;
+                to = new Date(from.getTime() + examDur * 60000);
+            } else {
+                to = new Date(toDate + "T" + toTime);
+                if (to <= from) { alert("End time must be after start time"); return; }
+            }
+
+            // Conflict check (only for new events, and skip if exam or already confirmed)
+            if (!conflictsConfirmed && !editingEventId && type !== "exam") {
+                ajaxCall("POST", ConflictCheckApi, JSON.stringify({ from: toLocalISO(from), to: toLocalISO(to) }),
+                    function (conflicts) {
+                        if (conflicts && conflicts.length > 0) {
+                            ShowConflictWarning(conflicts);
+                        } else {
+                            conflictsConfirmed = true;
+                            SaveEvent(type, from, to, fromDate, fromTime, recurring);
+                        }
+                    },
+                    function () {
+                        // Proceed if conflict check fails
+                        conflictsConfirmed = true;
+                        SaveEvent(type, from, to, fromDate, fromTime, recurring);
+                    });
+                return;
+            }
+
+            conflictsConfirmed = false;
+            SaveEvent(type, from, to, fromDate, fromTime, recurring);
+        }
+
+        function SaveEvent(type, from, to, fromDate, fromTime, recurring) {
+            var isEdit = editingEventId !== null;
+
+            if (type === "exam") {
+                var courseId = parseInt($("#eventExamCourseId").val());
+                if (!courseId) { alert("Please select a course"); return; }
+                var examData = {
+                    courseId: courseId,
+                    date: fromDate,
+                    time: fromTime,
+                    session: $("#eventExamSession").val() || "A",
+                    duration: parseInt($("#eventExamDuration").val()) || 120
+                };
+                if (isEdit && editingEventType === "exam") {
+                    var examId = parseInt(String(editingEventId).replace("exam-", ""));
+                    ajaxCall("PUT", ExamApi(examId), JSON.stringify(examData), EventSaveSC, EventSaveEC);
+                } else {
+                    ajaxCall("POST", ExamsApi, JSON.stringify(examData), EventSaveSC, EventSaveEC);
+                }
+                return;
+            }
+
+            var body = { from: toLocalISO(from), to: toLocalISO(to), recurring: recurring };
+
+            if (type === "class") {
+                body.courseId = parseInt($("#eventCourseId").val()) || null;
+                body.location = $("#eventLocation").val() || null;
+                body.duration = (to - from) / 3600000;
+                if (isEdit) ajaxCall("PUT", ClassEventApi(editingEventId), JSON.stringify(body), EventSaveSC, EventSaveEC);
+                else ajaxCall("POST", ClassEventsApi, JSON.stringify(body), EventSaveSC, EventSaveEC);
+            } else if (type === "work") {
+                body.workPlace = $("#eventWorkPlace").val() || null;
+                body.travelTime = parseInt($("#eventTravelTime").val()) || null;
+                if (isEdit) ajaxCall("PUT", WorkEventApi(editingEventId), JSON.stringify(body), EventSaveSC, EventSaveEC);
+                else ajaxCall("POST", WorkEventsApi, JSON.stringify(body), EventSaveSC, EventSaveEC);
+            } else if (type === "personal") {
+                body.type = $("#eventPersonalType").val() || null;
+                body.description = $("#eventDescription").val() || null;
+                if (isEdit) ajaxCall("PUT", PersonalEventApi(editingEventId), JSON.stringify(body), EventSaveSC, EventSaveEC);
+                else ajaxCall("POST", PersonalEventsApi, JSON.stringify(body), EventSaveSC, EventSaveEC);
+            } else if (type === "task") {
+                if (isEdit) {
+                    var existing = cachedEvents.find(function (e) { return e.eventId === editingEventId; });
+                    var tid = parseInt($("#eventTaskId").val()) || (existing && existing.taskId);
+                    body.taskId = tid;
+                    body.priority = (existing && existing.priority) || null;
+                    body.status = (existing && existing.status) || "Scheduled";
+                    ajaxCall("PUT", TaskEventApi(editingEventId), JSON.stringify(body), EventSaveSC, EventSaveEC);
+                } else {
+                    // Which source: existing or new?
+                    var activeSource = $(".task-source-btn.active").data("source") || "existing";
+                    if (activeSource === "existing") {
+                        var taskId = parseInt($("#eventTaskId").val());
+                        if (!taskId) { alert("Please select a task"); return; }
+                        body.taskId = taskId;
+                        body.priority = null;
+                        body.status = "Scheduled";
+                        ajaxCall("POST", TaskEventsApi, JSON.stringify(body), EventSaveSC, EventSaveEC);
+                    } else {
+                        // Create new task first, then create task-event
+                        var title = $.trim($("#eventTaskTitle").val());
+                        var courseId = parseInt($("#eventTaskCourseId").val());
+                        if (!title || !courseId) { alert("Task title and course are required"); return; }
+                        var taskPayload = {
+                            title: title,
+                            courseId: courseId,
+                            taskType: $("#eventTaskType").val() || "Other",
+                            type: $("#eventTaskType").val() || "Other",
+                            dueDate: $("#eventTaskDueDate").val() || null,
+                            estimatedHours: parseFloat($("#eventTaskHours").val()) || null,
+                            priority: "Auto"
+                        };
+                        ajaxCall("POST", TasksApi, JSON.stringify(taskPayload), function (newTask) {
+                            if (!newTask || !newTask.taskId) { alert("Task creation failed"); return; }
+                            body.taskId = newTask.taskId;
+                            body.priority = null;
+                            body.status = "Scheduled";
+                            ajaxCall("POST", TaskEventsApi, JSON.stringify(body), EventSaveSC, EventSaveEC);
+                        }, function (xhr) { alert((xhr.responseJSON && xhr.responseJSON.message) || "Failed to create task"); });
+                    }
+                }
+            }
+        }
+
+        function EventSaveSC() { CloseEventModal(); Navigate(); }
+        function EventSaveEC(xhr) { alert((xhr.responseJSON && xhr.responseJSON.message) || "Failed to save event"); }
+
+        function DeleteCurrentEvent() {
+            if (editingEventId === null) return;
+            if (!confirm("Delete this event?")) return;
+            if (editingEventType === "exam") {
+                var examId = parseInt(String(editingEventId).replace("exam-", ""));
+                ajaxCall("DELETE", ExamApi(examId), null, EventSaveSC, function () { alert("Failed to delete"); });
+            } else {
+                ajaxCall("DELETE", EventByIdApi(editingEventId), null, EventSaveSC, function () { alert("Failed to delete"); });
+            }
+        }
+
+        // ---- Sync buttons -----------------------------------------------
+        function SyncRuppinet() {
+            var $btn = $("#calSyncRuppinet");
+            $btn.prop("disabled", true).text("Syncing...");
+            ajaxCall("POST", RuppinetSyncApi, null, function (res) {
+                $btn.prop("disabled", false).text("Sync Ruppinet");
+                if (res && res.errorCode) { alert(res.message || "Ruppinet sync failed"); return; }
+                var parts = [];
+                if (res.coursesCreated) parts.push(res.coursesCreated + " courses");
+                if (res.classEventsCreated) parts.push(res.classEventsCreated + " class events");
+                if (res.examsCreated) parts.push(res.examsCreated + " exams");
+                alert(parts.length ? "Ruppinet synced: " + parts.join(", ") : "Ruppinet synced - no changes");
+                Navigate();
+            }, function (xhr) {
+                $btn.prop("disabled", false).text("Sync Ruppinet");
+                alert((xhr.responseJSON && xhr.responseJSON.message) || "Connect Ruppinet first in Settings");
+            });
+        }
+
+        function SyncMoodle() {
+            var $btn = $("#calSyncMoodle");
+            $btn.prop("disabled", true).text("Syncing...");
+            ajaxCall("POST", MoodleSyncApi, null, function (res) {
+                $btn.prop("disabled", false).text("Sync Moodle");
+                if (res && res.errorCode) { alert(res.message || "Moodle sync failed"); return; }
+                var parts = [];
+                if (res.tasksCreated) parts.push(res.tasksCreated + " tasks");
+                if (res.tasksUpdated) parts.push(res.tasksUpdated + " updated");
+                alert(parts.length ? "Moodle synced: " + parts.join(", ") : "Moodle synced - no changes");
+                Navigate();
+            }, function (xhr) {
+                $btn.prop("disabled", false).text("Sync Moodle");
+                alert((xhr.responseJSON && xhr.responseJSON.message) || "Moodle sync failed");
+            });
+        }
+
+        function SyncGoogleCalendar() {
+            var $btn = $("#calSyncGoogle");
+            $btn.prop("disabled", true).text("Checking...");
+            ajaxCall("GET", CalendarSyncStatusApi, null, function (st) {
+                if (!st.isEnabled) {
+                    $btn.prop("disabled", false).text("Sync Google");
+                    alert("Google Calendar sync is not configured.");
+                    return;
+                }
+                if (st.useComposio) {
+                    if (!st.isConnected) {
+                        $btn.prop("disabled", false).text("Sync Google");
+                        alert("Connect Google Calendar first via Settings.");
+                        return;
+                    }
+                    $btn.text("Syncing...");
+                    ajaxCall("POST", CalendarSyncGoogleApi, JSON.stringify({}),
+                        function (res) {
+                            $btn.prop("disabled", false).text("Sync Google");
+                            alert((res && res.message) || "Calendar synced!");
+                            Navigate();
+                        },
+                        function () { $btn.prop("disabled", false).text("Sync Google"); alert("Sync failed"); });
+                } else {
+                    // Legacy OAuth flow
+                    ajaxCall("GET", AuthConfigApi, null, function (config) {
+                        if (!config.googleClientId || config.googleClientId === "PLACEHOLDER_GOOGLE_CLIENT_ID") {
+                            $btn.prop("disabled", false).text("Sync Google");
+                            alert("Google Calendar sync is not configured.");
+                            return;
+                        }
+                        if (typeof google === "undefined" || !google.accounts) {
+                            $btn.prop("disabled", false).text("Sync Google");
+                            alert("Google Sign-In library not loaded.");
+                            return;
+                        }
+                        var tokenClient = google.accounts.oauth2.initTokenClient({
+                            client_id: config.googleClientId,
+                            scope: "https://www.googleapis.com/auth/calendar.readonly",
+                            callback: function (tokenResponse) {
+                                if (!tokenResponse.access_token) {
+                                    $btn.prop("disabled", false).text("Sync Google");
+                                    return;
+                                }
+                                $btn.text("Syncing...");
+                                ajaxCall("POST", CalendarSyncGoogleApi, JSON.stringify({ accessToken: tokenResponse.access_token }),
+                                    function (res) {
+                                        $btn.prop("disabled", false).text("Sync Google");
+                                        alert((res && res.message) || "Calendar synced!");
+                                        Navigate();
+                                    },
+                                    function () { $btn.prop("disabled", false).text("Sync Google"); alert("Sync failed"); });
+                            }
+                        });
+                        tokenClient.requestAccessToken();
+                    }, function () {
+                        $btn.prop("disabled", false).text("Sync Google");
+                        alert("Failed to load Google config");
+                    });
+                }
+            }, function () {
+                $btn.prop("disabled", false).text("Sync Google");
+                alert("Failed to check sync status");
+            });
+        }
+    </script>
 </body>
 </html>

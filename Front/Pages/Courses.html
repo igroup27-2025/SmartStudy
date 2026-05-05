@@ -5,6 +5,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>SmartStudy - Courses</title>
     <link rel="stylesheet" href="../CSS/app.css">
+    <script src="https://code.jquery.com/jquery-3.7.1.min.js" integrity="sha256-/JqT3SQfawRcv/BIHPThkBvs0OEvtFFmqPF/lYI/Cxo=" crossorigin="anonymous"></script>
+    <script src="../Scripts/ajaxCall.js"></script>
+    <script src="../Scripts/appShell.js"></script>
 </head>
 <body data-page="courses">
     <div id="pageRoot">
@@ -23,7 +26,7 @@
             <div class="modal">
                 <div class="modal-header">
                     <h3 id="courseModalTitle">Add Course</h3>
-                    <button class="modal-close" data-close-modal>&times;</button>
+                    <button type="button" class="modal-close" id="courseModalClose">&times;</button>
                 </div>
                 <form id="courseForm">
                     <input type="hidden" id="courseId">
@@ -64,7 +67,6 @@
                         <div class="form-group">
                             <label for="courseDefaultHours">Default estimated hours per task</label>
                             <input type="number" id="courseDefaultHours" class="form-input" step="0.5" min="0.5" max="20" placeholder="Leave empty for global default">
-                            <small class="form-hint">Used until enough tasks are completed for automatic calculation</small>
                         </div>
                         <div class="form-row">
                             <div class="form-group">
@@ -82,18 +84,209 @@
                                 <span class="toggle-switch"></span>
                                 Share new tasks by default
                             </label>
-                            <small class="form-hint">When enabled, new tasks for this course will be auto-shared with your study partner</small>
                         </div>
                     </div>
                     <div class="modal-footer">
-                        <button type="button" class="btn btn-secondary" data-close-modal>Cancel</button>
+                        <button type="button" class="btn btn-secondary" id="courseModalCancel">Cancel</button>
                         <button type="submit" class="btn btn-primary">Save Course</button>
                     </div>
                 </form>
             </div>
         </div>
     </div>
-    <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
-    <script type="module" src="../Script/main.js"></script>
+
+    <script>
+        // ---- API endpoints -----------------------------------------------
+        var CoursesApi     = API_BASE + "/courses";
+        var CourseApi      = function (id) { return API_BASE + "/courses/" + id; };
+        var InstructorsApi = API_BASE + "/settings/instructors";
+        var ConnectionsApi = API_BASE + "/connections";
+        var PartnerApi     = function (id) { return API_BASE + "/courses/" + id + "/partner"; };
+
+        var COURSE_COLORS = ["#4A90D9", "#F28D35", "#9B76FF", "#43B88C", "#E84B6A", "#54BFB5"];
+        var courses = [];
+        var instructors = [];
+        var friends = [];
+        var editingId = null;
+
+        function escapeHtml(s) {
+            if (s == null) return "";
+            return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+        }
+
+        $(document).ready(function () {
+            if (!requireAuth()) return;
+            SmartStudy.initShell("courses");
+
+            $("#addCourseBtn").on("click", OpenAddCourse);
+            $("#courseModalClose, #courseModalCancel").on("click", CloseCourseModal);
+            $("#courseModal").on("click", function (e) {
+                if (e.target.id === "courseModal") CloseCourseModal();
+            });
+            $("#courseForm").on("submit", SubmitCourse);
+
+            LoadAll();
+        });
+
+        function LoadAll() {
+            ajaxCall("GET", CoursesApi, null, function (data) {
+                courses = data || [];
+                ajaxCall("GET", InstructorsApi, null, function (insData) {
+                    instructors = insData || [];
+                    ajaxCall("GET", ConnectionsApi, null, function (connData) {
+                        friends = (connData || []).filter(function (c) { return c.status === "accepted"; }).map(function (c) {
+                            var parts = (c.friendName || "").split(" ");
+                            return { email: c.friendEmail, firstName: parts[0] || "", lastName: parts.slice(1).join(" ") };
+                        });
+                        RenderCourses();
+                        PopulateInstructors();
+                        PopulatePartners();
+                    }, function () {
+                        friends = [];
+                        RenderCourses();
+                        PopulateInstructors();
+                        PopulatePartners();
+                    });
+                }, function () {
+                    instructors = [];
+                    RenderCourses();
+                    PopulatePartners();
+                });
+            }, function () {
+                alert("Failed to load courses");
+            });
+        }
+
+        function PopulateInstructors() {
+            var sel = $("#courseInstructorId");
+            sel.find("option:not(:first)").remove();
+            instructors.forEach(function (i) {
+                sel.append('<option value="' + i.instructorId + '">' + escapeHtml(i.instructorName) + '</option>');
+            });
+        }
+
+        function PopulatePartners() {
+            var sel = $("#courseStudyPartner");
+            sel.find("option:not(:first)").remove();
+            friends.forEach(function (f) {
+                sel.append('<option value="' + escapeHtml(f.email) + '">' + escapeHtml(f.firstName + ' ' + f.lastName) + '</option>');
+            });
+        }
+
+        function RenderCourses() {
+            if (!courses.length) {
+                $("#courseGrid").html('<div class="empty-state"><div class="empty-state-icon">&#128218;</div><h3>No courses yet</h3><p>Add your first course to get started</p></div>');
+                return;
+            }
+            var html = courses.map(function (c, i) {
+                var color = COURSE_COLORS[i % COURSE_COLORS.length];
+                return '<div class="course-card" data-id="' + c.courseId + '">' +
+                    '<div class="course-card-header" style="background:' + color + '"></div>' +
+                    '<div class="course-card-body">' +
+                        '<div class="course-card-title-row">' +
+                            '<h3 class="course-card-name">' + escapeHtml(c.courseName) + '</h3>' +
+                            '<div class="course-card-actions">' +
+                                '<button class="btn btn-ghost btn-sm course-edit" data-id="' + c.courseId + '" title="Edit">&#9998;</button>' +
+                                '<button class="btn btn-ghost btn-sm course-delete" data-id="' + c.courseId + '" title="Delete">&#128465;</button>' +
+                            '</div>' +
+                        '</div>' +
+                        (c.instructorName ? '<div class="course-instructor">' + escapeHtml(c.instructorName) + '</div>' : '') +
+                        '<div class="course-stats">' +
+                            '<div class="course-stat"><span class="course-stat-value">' + (c.credits || '-') + '</span><span class="course-stat-label">Credits</span></div>' +
+                            '<div class="course-stat"><span class="course-stat-value">' + (c.weeklyHours || '-') + '</span><span class="course-stat-label">Hrs/Week</span></div>' +
+                            '<div class="course-stat"><span class="course-stat-value">' + (c.taskCount || 0) + '</span><span class="course-stat-label">Tasks</span></div>' +
+                            '<div class="course-stat"><span class="course-stat-value">' + (c.examCount || 0) + '</span><span class="course-stat-label">Exams</span></div>' +
+                        '</div>' +
+                        (c.semester ? '<div class="course-semester">Semester: ' + escapeHtml(c.semester) + '</div>' : '') +
+                        (c.studyPartnerName ? '<div class="course-partner">Study Partner: ' + escapeHtml(c.studyPartnerName) + '</div>' : '') +
+                    '</div>' +
+                '</div>';
+            }).join("");
+            $("#courseGrid").html(html);
+
+            $(".course-edit").on("click",   function (e) { e.stopPropagation(); OpenEditCourse(parseInt($(this).data("id"))); });
+            $(".course-delete").on("click", function (e) { e.stopPropagation(); DeleteCourse(parseInt($(this).data("id"))); });
+        }
+
+        function OpenAddCourse() {
+            editingId = null;
+            $("#courseModalTitle").text("Add Course");
+            $("#courseForm")[0].reset();
+            $("#courseId").val("");
+            $("#courseModal").addClass("open");
+        }
+
+        function OpenEditCourse(id) {
+            var c = courses.find(function (x) { return x.courseId === id; });
+            if (!c) return;
+            editingId = id;
+            $("#courseModalTitle").text("Edit Course");
+            $("#courseId").val(c.courseId);
+            $("#courseName").val(c.courseName || "");
+            $("#courseCredits").val(c.credits || "");
+            $("#courseWeeklyHours").val(c.weeklyHours || "");
+            $("#courseSemester").val(c.semester || "");
+            $("#courseInstructorId").val(c.instructorId || "");
+            $("#courseStudyPartner").val(c.studyPartnerEmail || "");
+            $("#courseSharedByDefault").prop("checked", !!c.sharedByDefault);
+            $("#courseDefaultHours").val(c.defaultTaskEstimatedHours || "");
+            $("#courseExamPrepHours").val(c.examPrepHoursPerDay || "");
+            $("#courseExamPrepDays").val(c.examPrepDays || "");
+            $("#courseModal").addClass("open");
+        }
+
+        function CloseCourseModal() { $("#courseModal").removeClass("open"); }
+
+        function SubmitCourse(e) {
+            e.preventDefault();
+            var data = {
+                courseName:   $("#courseName").val(),
+                weeklyHours:  parseFloat($("#courseWeeklyHours").val()) || null,
+                credits:      parseFloat($("#courseCredits").val()) || null,
+                semester:     $("#courseSemester").val() || null,
+                instructorId: parseInt($("#courseInstructorId").val()) || null,
+                sharedByDefault: $("#courseSharedByDefault").is(":checked"),
+                defaultTaskEstimatedHours: parseFloat($("#courseDefaultHours").val()) || null,
+                examPrepHoursPerDay: parseFloat($("#courseExamPrepHours").val()) || null,
+                examPrepDays: parseInt($("#courseExamPrepDays").val()) || null
+            };
+            var partnerEmail = $("#courseStudyPartner").val() || null;
+
+            if (editingId) {
+                ajaxCall("PUT", CourseApi(editingId), JSON.stringify(data),
+                    function () { SetPartnerThenReload(editingId, partnerEmail); },
+                    CourseSaveEC);
+            } else {
+                ajaxCall("POST", CoursesApi, JSON.stringify(data),
+                    function (created) {
+                        var newId = created && created.courseId;
+                        SetPartnerThenReload(newId, partnerEmail);
+                    },
+                    CourseSaveEC);
+            }
+        }
+
+        function SetPartnerThenReload(courseId, email) {
+            if (courseId && email !== null && email !== undefined) {
+                ajaxCall("PUT", PartnerApi(courseId), JSON.stringify({ email: email }),
+                    function () { CloseCourseModal(); LoadAll(); },
+                    function () { CloseCourseModal(); LoadAll(); });
+            } else {
+                CloseCourseModal();
+                LoadAll();
+            }
+        }
+
+        function CourseSaveEC(xhr) {
+            alert((xhr.responseJSON && xhr.responseJSON.message) || "Failed to save course");
+        }
+
+        function DeleteCourse(id) {
+            if (!confirm("Delete this course? All tasks and exams will also be deleted.")) return;
+            ajaxCall("DELETE", CourseApi(id), null,
+                function () { LoadAll(); },
+                function () { alert("Failed to delete course"); });
+        }
+    </script>
 </body>
 </html>
