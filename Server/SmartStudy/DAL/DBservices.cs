@@ -232,28 +232,27 @@ public class DBservices
     }
 
     // Reads a SqlDataReader row into a User entity.
-    private static User MapUser(SqlDataReader r)
+    private static User MapUser(SqlDataReader dataReader)
     {
-        return new User
-        {
-            Email = r.GetString(r.GetOrdinal("Email")),
-            FirstName = r.GetString(r.GetOrdinal("FirstName")),
-            LastName = r.GetString(r.GetOrdinal("LastName")),
-            Password = r.GetString(r.GetOrdinal("Password")),
-            ResetToken = r.IsDBNull(r.GetOrdinal("ResetToken")) ? null : r.GetString(r.GetOrdinal("ResetToken")),
-            ResetTokenExpiry = r.IsDBNull(r.GetOrdinal("ResetTokenExpiry")) ? null : r.GetDateTime(r.GetOrdinal("ResetTokenExpiry")),
-            AuthProvider = r.IsDBNull(r.GetOrdinal("AuthProvider")) ? null : r.GetString(r.GetOrdinal("AuthProvider")),
-            OnboardingCompleted = Convert.ToBoolean(r.GetValue(r.GetOrdinal("OnboardingCompleted"))),
-            GoogleCalendarAccessToken = r.IsDBNull(r.GetOrdinal("GoogleCalendarAccessToken")) ? null : r.GetString(r.GetOrdinal("GoogleCalendarAccessToken")),
-            GoogleCalendarRefreshToken = r.IsDBNull(r.GetOrdinal("GoogleCalendarRefreshToken")) ? null : r.GetString(r.GetOrdinal("GoogleCalendarRefreshToken")),
-            LastCalendarSync = r.IsDBNull(r.GetOrdinal("LastCalendarSync")) ? null : r.GetDateTime(r.GetOrdinal("LastCalendarSync")),
-            ComposioConnectedAccountId = r.IsDBNull(r.GetOrdinal("ComposioConnectedAccountId")) ? null : r.GetString(r.GetOrdinal("ComposioConnectedAccountId")),
-            RuppinetId = r.IsDBNull(r.GetOrdinal("RuppinetId")) ? null : r.GetString(r.GetOrdinal("RuppinetId")),
-            RuppinetPassword = r.IsDBNull(r.GetOrdinal("RuppinetPassword")) ? null : r.GetString(r.GetOrdinal("RuppinetPassword")),
-            LastRuppinetSync = r.IsDBNull(r.GetOrdinal("LastRuppinetSync")) ? null : r.GetDateTime(r.GetOrdinal("LastRuppinetSync")),
-            MoodleToken = r.IsDBNull(r.GetOrdinal("MoodleToken")) ? null : r.GetString(r.GetOrdinal("MoodleToken")),
-            LastMoodleSync = r.IsDBNull(r.GetOrdinal("LastMoodleSync")) ? null : r.GetDateTime(r.GetOrdinal("LastMoodleSync"))
-        };
+        User u = new User();
+        u.Email = dataReader["Email"].ToString();
+        u.FirstName = dataReader["FirstName"].ToString();
+        u.LastName = dataReader["LastName"].ToString();
+        u.Password = dataReader["Password"].ToString();
+        u.ResetToken = dataReader["ResetToken"] == DBNull.Value ? null : dataReader["ResetToken"].ToString();
+        u.ResetTokenExpiry = dataReader["ResetTokenExpiry"] == DBNull.Value ? (DateTime?)null : Convert.ToDateTime(dataReader["ResetTokenExpiry"]);
+        u.AuthProvider = dataReader["AuthProvider"] == DBNull.Value ? null : dataReader["AuthProvider"].ToString();
+        u.OnboardingCompleted = Convert.ToBoolean(dataReader["OnboardingCompleted"]);
+        u.GoogleCalendarAccessToken = dataReader["GoogleCalendarAccessToken"] == DBNull.Value ? null : dataReader["GoogleCalendarAccessToken"].ToString();
+        u.GoogleCalendarRefreshToken = dataReader["GoogleCalendarRefreshToken"] == DBNull.Value ? null : dataReader["GoogleCalendarRefreshToken"].ToString();
+        u.LastCalendarSync = dataReader["LastCalendarSync"] == DBNull.Value ? (DateTime?)null : Convert.ToDateTime(dataReader["LastCalendarSync"]);
+        u.ComposioConnectedAccountId = dataReader["ComposioConnectedAccountId"] == DBNull.Value ? null : dataReader["ComposioConnectedAccountId"].ToString();
+        u.RuppinetId = dataReader["RuppinetId"] == DBNull.Value ? null : dataReader["RuppinetId"].ToString();
+        u.RuppinetPassword = dataReader["RuppinetPassword"] == DBNull.Value ? null : dataReader["RuppinetPassword"].ToString();
+        u.LastRuppinetSync = dataReader["LastRuppinetSync"] == DBNull.Value ? (DateTime?)null : Convert.ToDateTime(dataReader["LastRuppinetSync"]);
+        u.MoodleToken = dataReader["MoodleToken"] == DBNull.Value ? null : dataReader["MoodleToken"].ToString();
+        u.LastMoodleSync = dataReader["LastMoodleSync"] == DBNull.Value ? (DateTime?)null : Convert.ToDateTime(dataReader["LastMoodleSync"]);
+        return u;
     }
 
     // =====================================================
@@ -328,18 +327,17 @@ public class DBservices
     }
 
     // Reads a SqlDataReader row into a NotificationSettings entity.
-    private static NotificationSettings MapNotifSettings(SqlDataReader r)
+    private static NotificationSettings MapNotifSettings(SqlDataReader dataReader)
     {
-        return new NotificationSettings
-        {
-            Email = r.GetString(r.GetOrdinal("Email")),
-            NotifyBeforeTask = Convert.ToBoolean(r.GetValue(r.GetOrdinal("Notify_before_task"))),
-            DailyMorningSummary = Convert.ToBoolean(r.GetValue(r.GetOrdinal("Daily_morning_summary"))),
-            WeeklyPlanReminder = Convert.ToBoolean(r.GetValue(r.GetOrdinal("Weekly_plan_reminder"))),
-            EnablePushNotification = Convert.ToBoolean(r.GetValue(r.GetOrdinal("Enable_push_notification"))),
-            QuietHoursStart = r.IsDBNull(r.GetOrdinal("Quiet_hours_start")) ? null : r.GetTimeSpan(r.GetOrdinal("Quiet_hours_start")),
-            QuietHoursEnd = r.IsDBNull(r.GetOrdinal("Quiet_hours_end")) ? null : r.GetTimeSpan(r.GetOrdinal("Quiet_hours_end"))
-        };
+        NotificationSettings n = new NotificationSettings();
+        n.Email = dataReader["Email"].ToString();
+        n.NotifyBeforeTask = Convert.ToBoolean(dataReader["Notify_before_task"]);
+        n.DailyMorningSummary = Convert.ToBoolean(dataReader["Daily_morning_summary"]);
+        n.WeeklyPlanReminder = Convert.ToBoolean(dataReader["Weekly_plan_reminder"]);
+        n.EnablePushNotification = Convert.ToBoolean(dataReader["Enable_push_notification"]);
+        n.QuietHoursStart = dataReader["Quiet_hours_start"] == DBNull.Value ? (TimeSpan?)null : (TimeSpan)dataReader["Quiet_hours_start"];
+        n.QuietHoursEnd = dataReader["Quiet_hours_end"] == DBNull.Value ? (TimeSpan?)null : (TimeSpan)dataReader["Quiet_hours_end"];
+        return n;
     }
 
     // =====================================================
@@ -401,24 +399,23 @@ public class DBservices
     }
 
     // Reads a SqlDataReader row into a SchedulingPreferences entity.
-    private static SchedulingPreferences MapSchedPrefs(SqlDataReader r)
+    private static SchedulingPreferences MapSchedPrefs(SqlDataReader dataReader)
     {
-        return new SchedulingPreferences
-        {
-            Email = r.GetString(r.GetOrdinal("Email")),
-            MaxDailyStudyHours = r.GetDouble(r.GetOrdinal("MaxDailyStudyHours")),
-            MaxContinuousMinutes = r.GetInt32(r.GetOrdinal("MaxContinuousMinutes")),
-            DayStartHour = r.GetInt32(r.GetOrdinal("DayStartHour")),
-            DayEndHour = r.GetInt32(r.GetOrdinal("DayEndHour")),
-            SleepHoursPerDay = r.GetDouble(r.GetOrdinal("SleepHoursPerDay")),
-            LunchBreakStart = r.IsDBNull(r.GetOrdinal("LunchBreakStart")) ? null : r.GetTimeSpan(r.GetOrdinal("LunchBreakStart")),
-            LunchBreakEnd = r.IsDBNull(r.GetOrdinal("LunchBreakEnd")) ? null : r.GetTimeSpan(r.GetOrdinal("LunchBreakEnd")),
-            BreakDurationMinutes = r.GetInt32(r.GetOrdinal("BreakDurationMinutes")),
-            DefaultTaskEstimatedHours = r.GetDouble(r.GetOrdinal("DefaultTaskEstimatedHours")),
-            MaxDailyTotalHours = r.GetDouble(r.GetOrdinal("MaxDailyTotalHours")),
-            ExamPrepHoursPerDay = r.GetDouble(r.GetOrdinal("ExamPrepHoursPerDay")),
-            ExamPrepDays = r.GetInt32(r.GetOrdinal("ExamPrepDays"))
-        };
+        SchedulingPreferences p = new SchedulingPreferences();
+        p.Email = dataReader["Email"].ToString();
+        p.MaxDailyStudyHours = Convert.ToDouble(dataReader["MaxDailyStudyHours"]);
+        p.MaxContinuousMinutes = Convert.ToInt32(dataReader["MaxContinuousMinutes"]);
+        p.DayStartHour = Convert.ToInt32(dataReader["DayStartHour"]);
+        p.DayEndHour = Convert.ToInt32(dataReader["DayEndHour"]);
+        p.SleepHoursPerDay = Convert.ToDouble(dataReader["SleepHoursPerDay"]);
+        p.LunchBreakStart = dataReader["LunchBreakStart"] == DBNull.Value ? (TimeSpan?)null : (TimeSpan)dataReader["LunchBreakStart"];
+        p.LunchBreakEnd = dataReader["LunchBreakEnd"] == DBNull.Value ? (TimeSpan?)null : (TimeSpan)dataReader["LunchBreakEnd"];
+        p.BreakDurationMinutes = Convert.ToInt32(dataReader["BreakDurationMinutes"]);
+        p.DefaultTaskEstimatedHours = Convert.ToDouble(dataReader["DefaultTaskEstimatedHours"]);
+        p.MaxDailyTotalHours = Convert.ToDouble(dataReader["MaxDailyTotalHours"]);
+        p.ExamPrepHoursPerDay = Convert.ToDouble(dataReader["ExamPrepHoursPerDay"]);
+        p.ExamPrepDays = Convert.ToInt32(dataReader["ExamPrepDays"]);
+        return p;
     }
 
     // =====================================================
@@ -443,8 +440,8 @@ public class DBservices
             {
                 list.Add(new Instructor
                 {
-                    InstructorId = reader.GetInt32(reader.GetOrdinal("InstructorId")),
-                    InstructorName = reader.GetString(reader.GetOrdinal("InstructorName"))
+                    InstructorId = Convert.ToInt32(reader["InstructorId"]),
+                    InstructorName = reader["InstructorName"].ToString()
                 });
             }
             return list;
@@ -717,7 +714,7 @@ public class DBservices
             SqlDataReader reader = cmd.ExecuteReader(System.Data.CommandBehavior.CloseConnection);
             if (reader.Read())
             {
-                return (reader.GetDateTime(reader.GetOrdinal("From")), reader.GetDateTime(reader.GetOrdinal("To")));
+                return (Convert.ToDateTime(reader["From"]), Convert.ToDateTime(reader["To"]));
             }
             return null;
         }
@@ -940,40 +937,39 @@ public class DBservices
     }
 
     // Reads a SqlDataReader row into a TypedEvent (subtype-aware) record.
-    private static TypedEvent MapTypedEvent(SqlDataReader r)
+    private static TypedEvent MapTypedEvent(SqlDataReader dataReader)
     {
-        return new TypedEvent
-        {
-            EventId = r.GetInt32(r.GetOrdinal("EventId")),
-            Email = r.GetString(r.GetOrdinal("Email")),
-            From = r.GetDateTime(r.GetOrdinal("From")),
-            To = r.GetDateTime(r.GetOrdinal("To")),
-            Recurring = Convert.ToBoolean(r.GetValue(r.GetOrdinal("Recurring"))),
-            RecurrenceEndDate = r.IsDBNull(r.GetOrdinal("RecurrenceEndDate")) ? null : r.GetDateTime(r.GetOrdinal("RecurrenceEndDate")),
-            EventType = r.GetString(r.GetOrdinal("EventType")),
-            // ClassEvent
-            CourseId = r.IsDBNull(r.GetOrdinal("CourseId")) ? null : r.GetInt32(r.GetOrdinal("CourseId")),
-            CourseName = r.IsDBNull(r.GetOrdinal("CourseName")) ? null : r.GetString(r.GetOrdinal("CourseName")),
-            Location = r.IsDBNull(r.GetOrdinal("Location")) ? null : r.GetString(r.GetOrdinal("Location")),
-            Duration = r.IsDBNull(r.GetOrdinal("Duration")) ? null : r.GetDecimal(r.GetOrdinal("Duration")),
-            // TaskEvent
-            TaskId = r.IsDBNull(r.GetOrdinal("TaskId")) ? null : r.GetInt32(r.GetOrdinal("TaskId")),
-            TaskTitle = r.IsDBNull(r.GetOrdinal("TaskTitle")) ? null : r.GetString(r.GetOrdinal("TaskTitle")),
-            Priority = r.IsDBNull(r.GetOrdinal("Priority")) ? null : r.GetString(r.GetOrdinal("Priority")),
-            ActualHours = r.IsDBNull(r.GetOrdinal("ActualHours")) ? null : r.GetDecimal(r.GetOrdinal("ActualHours")),
-            Status = r.IsDBNull(r.GetOrdinal("Status")) ? null : r.GetString(r.GetOrdinal("Status")),
-            IsManuallyPinned = r.IsDBNull(r.GetOrdinal("IsManuallyPinned")) ? null : Convert.ToBoolean(r.GetValue(r.GetOrdinal("IsManuallyPinned"))),
-            IsShared = HasColumn(r, "IsShared") && !r.IsDBNull(r.GetOrdinal("IsShared"))
-                && Convert.ToBoolean(r.GetValue(r.GetOrdinal("IsShared"))),
-            SharedStatus = HasColumn(r, "SharedStatus") && !r.IsDBNull(r.GetOrdinal("SharedStatus"))
-                ? r.GetString(r.GetOrdinal("SharedStatus")) : null,
-            // WorkEvent
-            TravelTime = r.IsDBNull(r.GetOrdinal("TravelTime")) ? null : r.GetInt32(r.GetOrdinal("TravelTime")),
-            WorkPlace = r.IsDBNull(r.GetOrdinal("WorkPlace")) ? null : r.GetString(r.GetOrdinal("WorkPlace")),
-            // PersonalEvent
-            Type = r.IsDBNull(r.GetOrdinal("Type")) ? null : r.GetString(r.GetOrdinal("Type")),
-            Description = r.IsDBNull(r.GetOrdinal("Description")) ? null : r.GetString(r.GetOrdinal("Description"))
-        };
+        TypedEvent e = new TypedEvent();
+        e.EventId = Convert.ToInt32(dataReader["EventId"]);
+        e.Email = dataReader["Email"].ToString();
+        e.From = Convert.ToDateTime(dataReader["From"]);
+        e.To = Convert.ToDateTime(dataReader["To"]);
+        e.Recurring = Convert.ToBoolean(dataReader["Recurring"]);
+        e.RecurrenceEndDate = dataReader["RecurrenceEndDate"] == DBNull.Value ? (DateTime?)null : Convert.ToDateTime(dataReader["RecurrenceEndDate"]);
+        e.EventType = dataReader["EventType"].ToString();
+        // ClassEvent
+        e.CourseId = dataReader["CourseId"] == DBNull.Value ? (int?)null : Convert.ToInt32(dataReader["CourseId"]);
+        e.CourseName = dataReader["CourseName"] == DBNull.Value ? null : dataReader["CourseName"].ToString();
+        e.Location = dataReader["Location"] == DBNull.Value ? null : dataReader["Location"].ToString();
+        e.Duration = dataReader["Duration"] == DBNull.Value ? (decimal?)null : Convert.ToDecimal(dataReader["Duration"]);
+        // TaskEvent
+        e.TaskId = dataReader["TaskId"] == DBNull.Value ? (int?)null : Convert.ToInt32(dataReader["TaskId"]);
+        e.TaskTitle = dataReader["TaskTitle"] == DBNull.Value ? null : dataReader["TaskTitle"].ToString();
+        e.Priority = dataReader["Priority"] == DBNull.Value ? null : dataReader["Priority"].ToString();
+        e.ActualHours = dataReader["ActualHours"] == DBNull.Value ? (decimal?)null : Convert.ToDecimal(dataReader["ActualHours"]);
+        e.Status = dataReader["Status"] == DBNull.Value ? null : dataReader["Status"].ToString();
+        e.IsManuallyPinned = dataReader["IsManuallyPinned"] == DBNull.Value ? (bool?)null : Convert.ToBoolean(dataReader["IsManuallyPinned"]);
+        e.IsShared = HasColumn(dataReader, "IsShared") && dataReader["IsShared"] != DBNull.Value
+            && Convert.ToBoolean(dataReader["IsShared"]);
+        e.SharedStatus = HasColumn(dataReader, "SharedStatus") && dataReader["SharedStatus"] != DBNull.Value
+            ? dataReader["SharedStatus"].ToString() : null;
+        // WorkEvent
+        e.TravelTime = dataReader["TravelTime"] == DBNull.Value ? (int?)null : Convert.ToInt32(dataReader["TravelTime"]);
+        e.WorkPlace = dataReader["WorkPlace"] == DBNull.Value ? null : dataReader["WorkPlace"].ToString();
+        // PersonalEvent
+        e.Type = dataReader["Type"] == DBNull.Value ? null : dataReader["Type"].ToString();
+        e.Description = dataReader["Description"] == DBNull.Value ? null : dataReader["Description"].ToString();
+        return e;
     }
 
     // =====================================================
@@ -1001,21 +997,21 @@ public class DBservices
             {
                 list.Add(new CourseWithEnrollment
                 {
-                    CourseId = reader.GetInt32(reader.GetOrdinal("CourseId")),
-                    CourseName = reader.GetString(reader.GetOrdinal("CourseName")),
-                    WeeklyHours = reader.IsDBNull(reader.GetOrdinal("WeeklyHours")) ? null : reader.GetDecimal(reader.GetOrdinal("WeeklyHours")),
-                    Credits = reader.IsDBNull(reader.GetOrdinal("Credits")) ? null : reader.GetDecimal(reader.GetOrdinal("Credits")),
-                    Semester = reader.IsDBNull(reader.GetOrdinal("Semester")) ? null : reader.GetString(reader.GetOrdinal("Semester")),
-                    InstructorId = reader.IsDBNull(reader.GetOrdinal("InstructorId")) ? null : reader.GetInt32(reader.GetOrdinal("InstructorId")),
-                    InstructorName = reader.IsDBNull(reader.GetOrdinal("InstructorName")) ? null : reader.GetString(reader.GetOrdinal("InstructorName")),
-                    DefaultTaskEstimatedHours = reader.IsDBNull(reader.GetOrdinal("DefaultTaskEstimatedHours")) ? null : reader.GetDouble(reader.GetOrdinal("DefaultTaskEstimatedHours")),
-                    ExamPrepHoursPerDay = reader.IsDBNull(reader.GetOrdinal("ExamPrepHoursPerDay")) ? null : reader.GetDouble(reader.GetOrdinal("ExamPrepHoursPerDay")),
-                    ExamPrepDays = reader.IsDBNull(reader.GetOrdinal("ExamPrepDays")) ? null : reader.GetInt32(reader.GetOrdinal("ExamPrepDays")),
-                    StudyPartnerEmail = reader.IsDBNull(reader.GetOrdinal("StudyPartnerEmail")) ? null : reader.GetString(reader.GetOrdinal("StudyPartnerEmail")),
-                    SharedByDefault = Convert.ToBoolean(reader.GetValue(reader.GetOrdinal("SharedByDefault"))),
-                    CourseShareApproved = Convert.ToBoolean(reader.GetValue(reader.GetOrdinal("CourseShareApproved"))),
-                    TaskCount = reader.GetInt32(reader.GetOrdinal("TaskCount")),
-                    ExamCount = reader.GetInt32(reader.GetOrdinal("ExamCount"))
+                    CourseId = Convert.ToInt32(reader["CourseId"]),
+                    CourseName = reader["CourseName"].ToString(),
+                    WeeklyHours = reader["WeeklyHours"] == DBNull.Value ? null : Convert.ToDecimal(reader["WeeklyHours"]),
+                    Credits = reader["Credits"] == DBNull.Value ? null : Convert.ToDecimal(reader["Credits"]),
+                    Semester = reader["Semester"] == DBNull.Value ? null : reader["Semester"].ToString(),
+                    InstructorId = reader["InstructorId"] == DBNull.Value ? null : Convert.ToInt32(reader["InstructorId"]),
+                    InstructorName = reader["InstructorName"] == DBNull.Value ? null : reader["InstructorName"].ToString(),
+                    DefaultTaskEstimatedHours = reader["DefaultTaskEstimatedHours"] == DBNull.Value ? null : Convert.ToDouble(reader["DefaultTaskEstimatedHours"]),
+                    ExamPrepHoursPerDay = reader["ExamPrepHoursPerDay"] == DBNull.Value ? null : Convert.ToDouble(reader["ExamPrepHoursPerDay"]),
+                    ExamPrepDays = reader["ExamPrepDays"] == DBNull.Value ? null : Convert.ToInt32(reader["ExamPrepDays"]),
+                    StudyPartnerEmail = reader["StudyPartnerEmail"] == DBNull.Value ? null : reader["StudyPartnerEmail"].ToString(),
+                    SharedByDefault = Convert.ToBoolean(reader["SharedByDefault"]),
+                    CourseShareApproved = Convert.ToBoolean(reader["CourseShareApproved"]),
+                    TaskCount = Convert.ToInt32(reader["TaskCount"]),
+                    ExamCount = Convert.ToInt32(reader["ExamCount"])
                 });
             }
             return list;
@@ -1118,20 +1114,19 @@ public class DBservices
     }
 
     // Reads a SqlDataReader row into a Course entity.
-    private static Course MapCourse(SqlDataReader r)
+    private static Course MapCourse(SqlDataReader dataReader)
     {
-        return new Course
-        {
-            CourseId = r.GetInt32(r.GetOrdinal("CourseId")),
-            CourseName = r.GetString(r.GetOrdinal("CourseName")),
-            WeeklyHours = r.IsDBNull(r.GetOrdinal("WeeklyHours")) ? null : r.GetDecimal(r.GetOrdinal("WeeklyHours")),
-            Credits = r.IsDBNull(r.GetOrdinal("Credits")) ? null : r.GetDecimal(r.GetOrdinal("Credits")),
-            Semester = r.IsDBNull(r.GetOrdinal("Semester")) ? null : r.GetString(r.GetOrdinal("Semester")),
-            InstructorId = r.IsDBNull(r.GetOrdinal("InstructorId")) ? null : r.GetInt32(r.GetOrdinal("InstructorId")),
-            DefaultTaskEstimatedHours = r.IsDBNull(r.GetOrdinal("DefaultTaskEstimatedHours")) ? null : r.GetDouble(r.GetOrdinal("DefaultTaskEstimatedHours")),
-            ExamPrepHoursPerDay = r.IsDBNull(r.GetOrdinal("ExamPrepHoursPerDay")) ? null : r.GetDouble(r.GetOrdinal("ExamPrepHoursPerDay")),
-            ExamPrepDays = r.IsDBNull(r.GetOrdinal("ExamPrepDays")) ? null : r.GetInt32(r.GetOrdinal("ExamPrepDays"))
-        };
+        Course c = new Course();
+        c.CourseId = Convert.ToInt32(dataReader["CourseId"]);
+        c.CourseName = dataReader["CourseName"].ToString();
+        c.WeeklyHours = dataReader["WeeklyHours"] == DBNull.Value ? (decimal?)null : Convert.ToDecimal(dataReader["WeeklyHours"]);
+        c.Credits = dataReader["Credits"] == DBNull.Value ? (decimal?)null : Convert.ToDecimal(dataReader["Credits"]);
+        c.Semester = dataReader["Semester"] == DBNull.Value ? null : dataReader["Semester"].ToString();
+        c.InstructorId = dataReader["InstructorId"] == DBNull.Value ? (int?)null : Convert.ToInt32(dataReader["InstructorId"]);
+        c.DefaultTaskEstimatedHours = dataReader["DefaultTaskEstimatedHours"] == DBNull.Value ? (double?)null : Convert.ToDouble(dataReader["DefaultTaskEstimatedHours"]);
+        c.ExamPrepHoursPerDay = dataReader["ExamPrepHoursPerDay"] == DBNull.Value ? (double?)null : Convert.ToDouble(dataReader["ExamPrepHoursPerDay"]);
+        c.ExamPrepDays = dataReader["ExamPrepDays"] == DBNull.Value ? (int?)null : Convert.ToInt32(dataReader["ExamPrepDays"]);
+        return c;
     }
 
     // =====================================================
@@ -1257,7 +1252,7 @@ public class DBservices
             List<int> list = new List<int>();
             SqlDataReader reader = cmd.ExecuteReader(System.Data.CommandBehavior.CloseConnection);
             while (reader.Read())
-                list.Add(reader.GetInt32(0));
+                list.Add(Convert.ToInt32(reader[0]));
             return list;
         }
         catch (Exception) { throw; }
@@ -1425,21 +1420,20 @@ public class DBservices
     }
 
     // Reads a SqlDataReader row into an ExamWithCourse record.
-    private static ExamWithCourse MapExamWithCourse(SqlDataReader r)
+    private static ExamWithCourse MapExamWithCourse(SqlDataReader dataReader)
     {
-        return new ExamWithCourse
-        {
-            ExamId = r.GetInt32(r.GetOrdinal("ExamId")),
-            CourseId = r.GetInt32(r.GetOrdinal("CourseId")),
-            CourseName = r.GetString(r.GetOrdinal("CourseName")),
-            Date = r.GetDateTime(r.GetOrdinal("Date")),
-            Time = r.GetTimeSpan(r.GetOrdinal("Time")),
-            Session = r.GetString(r.GetOrdinal("Session")),
-            Duration = r.IsDBNull(r.GetOrdinal("Duration")) ? null : r.GetInt32(r.GetOrdinal("Duration")),
-            IsTakingExam = Convert.ToBoolean(r.GetValue(r.GetOrdinal("IsTakingExam"))),
-            ExamPrepHoursPerDay = r.IsDBNull(r.GetOrdinal("ExamPrepHoursPerDay")) ? null : r.GetDouble(r.GetOrdinal("ExamPrepHoursPerDay")),
-            ExamPrepDays = r.IsDBNull(r.GetOrdinal("ExamPrepDays")) ? null : r.GetInt32(r.GetOrdinal("ExamPrepDays"))
-        };
+        ExamWithCourse e = new ExamWithCourse();
+        e.ExamId = Convert.ToInt32(dataReader["ExamId"]);
+        e.CourseId = Convert.ToInt32(dataReader["CourseId"]);
+        e.CourseName = dataReader["CourseName"].ToString();
+        e.Date = Convert.ToDateTime(dataReader["Date"]);
+        e.Time = (TimeSpan)dataReader["Time"];
+        e.Session = dataReader["Session"].ToString();
+        e.Duration = dataReader["Duration"] == DBNull.Value ? (int?)null : Convert.ToInt32(dataReader["Duration"]);
+        e.IsTakingExam = Convert.ToBoolean(dataReader["IsTakingExam"]);
+        e.ExamPrepHoursPerDay = dataReader["ExamPrepHoursPerDay"] == DBNull.Value ? (double?)null : Convert.ToDouble(dataReader["ExamPrepHoursPerDay"]);
+        e.ExamPrepDays = dataReader["ExamPrepDays"] == DBNull.Value ? (int?)null : Convert.ToInt32(dataReader["ExamPrepDays"]);
+        return e;
     }
 
     // =====================================================
@@ -1460,6 +1454,64 @@ public class DBservices
         paramDic.Add("@Completed", (object?)completed ?? DBNull.Value);
 
         cmd = CreateCommandWithStoredProcedureGeneral("SS_Tasks_GetByUser", con, paramDic);
+
+        try
+        {
+            List<TaskWithCourse> list = new List<TaskWithCourse>();
+            SqlDataReader reader = cmd.ExecuteReader(System.Data.CommandBehavior.CloseConnection);
+            while (reader.Read())
+                list.Add(MapTaskWithCourse(reader));
+            return list;
+        }
+        catch (Exception) { throw; }
+        finally { if (con != null) con.Close(); }
+    }
+
+    // Returns total/completed/pending task counts for the user (top-level tasks only).
+    public TaskCountsRow GetTaskCounts(string email)
+    {
+        SqlConnection con;
+        SqlCommand cmd;
+        try { con = connect("SmartStudyDb"); }
+        catch (Exception) { throw; }
+
+        Dictionary<string, object> paramDic = new Dictionary<string, object>();
+        paramDic.Add("@Email", email);
+
+        cmd = CreateCommandWithStoredProcedureGeneral("SS_Tasks_GetCounts", con, paramDic);
+
+        try
+        {
+            SqlDataReader reader = cmd.ExecuteReader(System.Data.CommandBehavior.CloseConnection);
+            if (reader.Read())
+            {
+                return new TaskCountsRow
+                {
+                    TotalTasks = reader["TotalTasks"] == DBNull.Value ? 0 : Convert.ToInt32(reader["TotalTasks"]),
+                    CompletedTasks = reader["CompletedTasks"] == DBNull.Value ? 0 : Convert.ToInt32(reader["CompletedTasks"]),
+                    PendingTasks = reader["PendingTasks"] == DBNull.Value ? 0 : Convert.ToInt32(reader["PendingTasks"])
+                };
+            }
+            return new TaskCountsRow();
+        }
+        catch (Exception) { throw; }
+        finally { if (con != null) con.Close(); }
+    }
+
+    // Returns the user's next upcoming incomplete tasks (DueDate > now), ordered by due date.
+    public List<TaskWithCourse> GetUpcomingDeadlines(string email, DateTime now, int top = 5)
+    {
+        SqlConnection con;
+        SqlCommand cmd;
+        try { con = connect("SmartStudyDb"); }
+        catch (Exception) { throw; }
+
+        Dictionary<string, object> paramDic = new Dictionary<string, object>();
+        paramDic.Add("@Email", email);
+        paramDic.Add("@Now", now);
+        paramDic.Add("@Top", top);
+
+        cmd = CreateCommandWithStoredProcedureGeneral("SS_Tasks_GetUpcomingDeadlines", con, paramDic);
 
         try
         {
@@ -1647,12 +1699,12 @@ public class DBservices
             {
                 list.Add(new TaskEventInfo
                 {
-                    EventId = reader.GetInt32(reader.GetOrdinal("EventId")),
-                    From = reader.GetDateTime(reader.GetOrdinal("From")),
-                    To = reader.GetDateTime(reader.GetOrdinal("To")),
-                    Priority = reader.IsDBNull(reader.GetOrdinal("Priority")) ? null : reader.GetString(reader.GetOrdinal("Priority")),
-                    ActualHours = reader.IsDBNull(reader.GetOrdinal("ActualHours")) ? null : reader.GetDecimal(reader.GetOrdinal("ActualHours")),
-                    Status = reader.IsDBNull(reader.GetOrdinal("Status")) ? null : reader.GetString(reader.GetOrdinal("Status"))
+                    EventId = Convert.ToInt32(reader["EventId"]),
+                    From = Convert.ToDateTime(reader["From"]),
+                    To = Convert.ToDateTime(reader["To"]),
+                    Priority = reader["Priority"] == DBNull.Value ? null : reader["Priority"].ToString(),
+                    ActualHours = reader["ActualHours"] == DBNull.Value ? null : Convert.ToDecimal(reader["ActualHours"]),
+                    Status = reader["Status"] == DBNull.Value ? null : reader["Status"].ToString()
                 });
             }
             return list;
@@ -1681,13 +1733,13 @@ public class DBservices
             while (reader.Read())
             {
                 rows.Add((
-                    reader.GetInt32(reader.GetOrdinal("TaskId")),
-                    reader.GetString(reader.GetOrdinal("SharedStatus")),
-                    reader.GetString(reader.GetOrdinal("CreatedByEmail")),
-                    reader.IsDBNull(reader.GetOrdinal("MemberEmail")) ? null : reader.GetString(reader.GetOrdinal("MemberEmail")),
-                    reader.IsDBNull(reader.GetOrdinal("ResponseStatus")) ? null : reader.GetString(reader.GetOrdinal("ResponseStatus")),
-                    reader.IsDBNull(reader.GetOrdinal("FirstName")) ? null : reader.GetString(reader.GetOrdinal("FirstName")),
-                    reader.IsDBNull(reader.GetOrdinal("LastName")) ? null : reader.GetString(reader.GetOrdinal("LastName"))
+                    Convert.ToInt32(reader["TaskId"]),
+                    reader["SharedStatus"].ToString(),
+                    reader["CreatedByEmail"].ToString(),
+                    reader["MemberEmail"] == DBNull.Value ? null : reader["MemberEmail"].ToString(),
+                    reader["ResponseStatus"] == DBNull.Value ? null : reader["ResponseStatus"].ToString(),
+                    reader["FirstName"] == DBNull.Value ? null : reader["FirstName"].ToString(),
+                    reader["LastName"] == DBNull.Value ? null : reader["LastName"].ToString()
                 ));
             }
 
@@ -1754,8 +1806,8 @@ public class DBservices
             {
                 list.Add(new MLDataRow
                 {
-                    ActualHours = reader.GetDecimal(reader.GetOrdinal("ActualHours")),
-                    EstimatedHours = reader.GetDecimal(reader.GetOrdinal("EstimatedHours"))
+                    ActualHours = Convert.ToDecimal(reader["ActualHours"]),
+                    EstimatedHours = Convert.ToDecimal(reader["EstimatedHours"])
                 });
             }
             return list;
@@ -1785,12 +1837,12 @@ public class DBservices
             {
                 list.Add(new MLInsightRow
                 {
-                    CourseId = reader.GetInt32(reader.GetOrdinal("CourseId")),
-                    CourseName = reader.GetString(reader.GetOrdinal("CourseName")),
-                    TaskCount = reader.GetInt32(reader.GetOrdinal("TaskCount")),
-                    AvgEstimated = reader.GetDouble(reader.GetOrdinal("AvgEstimated")),
-                    AvgActual = reader.GetDouble(reader.GetOrdinal("AvgActual")),
-                    Accuracy = reader.GetDouble(reader.GetOrdinal("Accuracy"))
+                    CourseId = Convert.ToInt32(reader["CourseId"]),
+                    CourseName = reader["CourseName"].ToString(),
+                    TaskCount = Convert.ToInt32(reader["TaskCount"]),
+                    AvgEstimated = Convert.ToDouble(reader["AvgEstimated"]),
+                    AvgActual = Convert.ToDouble(reader["AvgActual"]),
+                    Accuracy = Convert.ToDouble(reader["Accuracy"])
                 });
             }
             return list;
@@ -1880,11 +1932,11 @@ public class DBservices
             {
                 return new UserCourse
                 {
-                    Email = reader.GetString(reader.GetOrdinal("Email")),
-                    CourseId = reader.GetInt32(reader.GetOrdinal("CourseId")),
-                    StudyPartnerEmail = reader.IsDBNull(reader.GetOrdinal("StudyPartnerEmail")) ? null : reader.GetString(reader.GetOrdinal("StudyPartnerEmail")),
-                    SharedByDefault = Convert.ToBoolean(reader.GetValue(reader.GetOrdinal("SharedByDefault"))),
-                    CourseShareApproved = Convert.ToBoolean(reader.GetValue(reader.GetOrdinal("CourseShareApproved")))
+                    Email = reader["Email"].ToString(),
+                    CourseId = Convert.ToInt32(reader["CourseId"]),
+                    StudyPartnerEmail = reader["StudyPartnerEmail"] == DBNull.Value ? null : reader["StudyPartnerEmail"].ToString(),
+                    SharedByDefault = Convert.ToBoolean(reader["SharedByDefault"]),
+                    CourseShareApproved = Convert.ToBoolean(reader["CourseShareApproved"])
                 };
             }
             return null;
@@ -1894,26 +1946,25 @@ public class DBservices
     }
 
     // Reads a SqlDataReader row into a TaskWithCourse record.
-    private static TaskWithCourse MapTaskWithCourse(SqlDataReader r)
+    private static TaskWithCourse MapTaskWithCourse(SqlDataReader dataReader)
     {
-        return new TaskWithCourse
-        {
-            TaskId = r.GetInt32(r.GetOrdinal("TaskId")),
-            CourseId = r.GetInt32(r.GetOrdinal("CourseId")),
-            CourseName = r.GetString(r.GetOrdinal("CourseName")),
-            Title = r.GetString(r.GetOrdinal("Title")),
-            Type = r.GetString(r.GetOrdinal("Type")),
-            EstimatedHours = r.IsDBNull(r.GetOrdinal("EstimatedHours")) ? null : r.GetDecimal(r.GetOrdinal("EstimatedHours")),
-            DueDate = r.IsDBNull(r.GetOrdinal("DueDate")) ? null : r.GetDateTime(r.GetOrdinal("DueDate")),
-            IsCompleted = Convert.ToBoolean(r.GetValue(r.GetOrdinal("IsCompleted"))),
-            Priority = r.IsDBNull(r.GetOrdinal("Priority")) ? null : r.GetString(r.GetOrdinal("Priority")),
-            ActualHours = r.IsDBNull(r.GetOrdinal("ActualHours")) ? null : r.GetDecimal(r.GetOrdinal("ActualHours")),
-            ParentTaskId = r.IsDBNull(r.GetOrdinal("ParentTaskId")) ? null : r.GetInt32(r.GetOrdinal("ParentTaskId")),
-            AllowSplitting = Convert.ToBoolean(r.GetValue(r.GetOrdinal("AllowSplitting"))),
-            IsManuallyPinned = Convert.ToBoolean(r.GetValue(r.GetOrdinal("IsManuallyPinned"))),
-            IsManualPriority = Convert.ToBoolean(r.GetValue(r.GetOrdinal("IsManualPriority"))),
-            Email = r.GetString(r.GetOrdinal("Email"))
-        };
+        TaskWithCourse t = new TaskWithCourse();
+        t.TaskId = Convert.ToInt32(dataReader["TaskId"]);
+        t.CourseId = Convert.ToInt32(dataReader["CourseId"]);
+        t.CourseName = dataReader["CourseName"].ToString();
+        t.Title = dataReader["Title"].ToString();
+        t.Type = dataReader["Type"].ToString();
+        t.EstimatedHours = dataReader["EstimatedHours"] == DBNull.Value ? (decimal?)null : Convert.ToDecimal(dataReader["EstimatedHours"]);
+        t.DueDate = dataReader["DueDate"] == DBNull.Value ? (DateTime?)null : Convert.ToDateTime(dataReader["DueDate"]);
+        t.IsCompleted = Convert.ToBoolean(dataReader["IsCompleted"]);
+        t.Priority = dataReader["Priority"] == DBNull.Value ? null : dataReader["Priority"].ToString();
+        t.ActualHours = dataReader["ActualHours"] == DBNull.Value ? (decimal?)null : Convert.ToDecimal(dataReader["ActualHours"]);
+        t.ParentTaskId = dataReader["ParentTaskId"] == DBNull.Value ? (int?)null : Convert.ToInt32(dataReader["ParentTaskId"]);
+        t.AllowSplitting = Convert.ToBoolean(dataReader["AllowSplitting"]);
+        t.IsManuallyPinned = Convert.ToBoolean(dataReader["IsManuallyPinned"]);
+        t.IsManualPriority = Convert.ToBoolean(dataReader["IsManualPriority"]);
+        t.Email = dataReader["Email"].ToString();
+        return t;
     }
 
     // =====================================================
@@ -1941,15 +1992,15 @@ public class DBservices
             {
                 list.Add(new FriendRequestRow
                 {
-                    RequestId = reader.GetInt32(reader.GetOrdinal("RequestId")),
-                    RequesterEmail = reader.GetString(reader.GetOrdinal("RequesterEmail")),
-                    AddresseeEmail = reader.GetString(reader.GetOrdinal("AddresseeEmail")),
-                    Status = reader.GetString(reader.GetOrdinal("Status")),
-                    RequestedAt = reader.GetDateTime(reader.GetOrdinal("RequestedAt")),
-                    RespondedAt = reader.IsDBNull(reader.GetOrdinal("RespondedAt")) ? null : reader.GetDateTime(reader.GetOrdinal("RespondedAt")),
-                    FriendEmail = reader.GetString(reader.GetOrdinal("FriendEmail")),
-                    FirstName = reader.GetString(reader.GetOrdinal("FirstName")),
-                    LastName = reader.GetString(reader.GetOrdinal("LastName"))
+                    RequestId = Convert.ToInt32(reader["RequestId"]),
+                    RequesterEmail = reader["RequesterEmail"].ToString(),
+                    AddresseeEmail = reader["AddresseeEmail"].ToString(),
+                    Status = reader["Status"].ToString(),
+                    RequestedAt = Convert.ToDateTime(reader["RequestedAt"]),
+                    RespondedAt = reader["RespondedAt"] == DBNull.Value ? null : Convert.ToDateTime(reader["RespondedAt"]),
+                    FriendEmail = reader["FriendEmail"].ToString(),
+                    FirstName = reader["FirstName"].ToString(),
+                    LastName = reader["LastName"].ToString()
                 });
             }
             return list;
@@ -2003,12 +2054,12 @@ public class DBservices
             {
                 return new FriendRequestBasic
                 {
-                    RequestId = reader.GetInt32(reader.GetOrdinal("RequestId")),
-                    RequesterEmail = reader.GetString(reader.GetOrdinal("RequesterEmail")),
-                    AddresseeEmail = reader.GetString(reader.GetOrdinal("AddresseeEmail")),
-                    Status = reader.GetString(reader.GetOrdinal("Status")),
-                    RequestedAt = reader.GetDateTime(reader.GetOrdinal("RequestedAt")),
-                    RespondedAt = reader.IsDBNull(reader.GetOrdinal("RespondedAt")) ? null : reader.GetDateTime(reader.GetOrdinal("RespondedAt"))
+                    RequestId = Convert.ToInt32(reader["RequestId"]),
+                    RequesterEmail = reader["RequesterEmail"].ToString(),
+                    AddresseeEmail = reader["AddresseeEmail"].ToString(),
+                    Status = reader["Status"].ToString(),
+                    RequestedAt = Convert.ToDateTime(reader["RequestedAt"]),
+                    RespondedAt = reader["RespondedAt"] == DBNull.Value ? null : Convert.ToDateTime(reader["RespondedAt"])
                 };
             }
             return null;
@@ -2067,14 +2118,14 @@ public class DBservices
             {
                 list.Add(new FriendshipRow
                 {
-                    FriendshipId = reader.GetInt32(reader.GetOrdinal("FriendshipId")),
-                    Email1 = reader.GetString(reader.GetOrdinal("Email1")),
-                    Email2 = reader.GetString(reader.GetOrdinal("Email2")),
-                    CreatedAt = reader.GetDateTime(reader.GetOrdinal("CreatedAt")),
-                    IsActive = Convert.ToBoolean(reader.GetValue(reader.GetOrdinal("IsActive"))),
-                    FriendEmail = reader.GetString(reader.GetOrdinal("FriendEmail")),
-                    FirstName = reader.GetString(reader.GetOrdinal("FirstName")),
-                    LastName = reader.GetString(reader.GetOrdinal("LastName"))
+                    FriendshipId = Convert.ToInt32(reader["FriendshipId"]),
+                    Email1 = reader["Email1"].ToString(),
+                    Email2 = reader["Email2"].ToString(),
+                    CreatedAt = Convert.ToDateTime(reader["CreatedAt"]),
+                    IsActive = Convert.ToBoolean(reader["IsActive"]),
+                    FriendEmail = reader["FriendEmail"].ToString(),
+                    FirstName = reader["FirstName"].ToString(),
+                    LastName = reader["LastName"].ToString()
                 });
             }
             return list;
@@ -2150,11 +2201,11 @@ public class DBservices
             {
                 return new FriendshipBasic
                 {
-                    FriendshipId = reader.GetInt32(reader.GetOrdinal("FriendshipId")),
-                    Email1 = reader.GetString(reader.GetOrdinal("Email1")),
-                    Email2 = reader.GetString(reader.GetOrdinal("Email2")),
-                    CreatedAt = reader.GetDateTime(reader.GetOrdinal("CreatedAt")),
-                    IsActive = Convert.ToBoolean(reader.GetValue(reader.GetOrdinal("IsActive")))
+                    FriendshipId = Convert.ToInt32(reader["FriendshipId"]),
+                    Email1 = reader["Email1"].ToString(),
+                    Email2 = reader["Email2"].ToString(),
+                    CreatedAt = Convert.ToDateTime(reader["CreatedAt"]),
+                    IsActive = Convert.ToBoolean(reader["IsActive"])
                 };
             }
             return null;
@@ -2307,7 +2358,7 @@ public class DBservices
             List<string> list = new List<string>();
             SqlDataReader reader = cmd.ExecuteReader(System.Data.CommandBehavior.CloseConnection);
             while (reader.Read())
-                list.Add(reader.GetString(0));
+                list.Add(reader[0].ToString());
             return list;
         }
         catch (Exception) { throw; }
@@ -2382,25 +2433,24 @@ public class DBservices
     }
 
     // Reads a SqlDataReader row into a SharedTaskFullRow record.
-    private static SharedTaskFullRow MapSharedTaskFullRow(SqlDataReader r)
+    private static SharedTaskFullRow MapSharedTaskFullRow(SqlDataReader dataReader)
     {
-        return new SharedTaskFullRow
-        {
-            TaskId = r.GetInt32(r.GetOrdinal("TaskId")),
-            TaskTitle = r.GetString(r.GetOrdinal("TaskTitle")),
-            CourseId = r.GetInt32(r.GetOrdinal("CourseId")),
-            CourseName = r.IsDBNull(r.GetOrdinal("CourseName")) ? null : r.GetString(r.GetOrdinal("CourseName")),
-            CreatedByEmail = r.GetString(r.GetOrdinal("CreatedByEmail")),
-            CreatorFirstName = r.GetString(r.GetOrdinal("CreatorFirstName")),
-            CreatorLastName = r.GetString(r.GetOrdinal("CreatorLastName")),
-            CreatedAt = r.GetDateTime(r.GetOrdinal("CreatedAt")),
-            SharedStatus = r.GetString(r.GetOrdinal("SharedStatus")),
-            MemberEmail = r.GetString(r.GetOrdinal("MemberEmail")),
-            MemberFirstName = r.GetString(r.GetOrdinal("MemberFirstName")),
-            MemberLastName = r.GetString(r.GetOrdinal("MemberLastName")),
-            ResponseStatus = r.GetString(r.GetOrdinal("ResponseStatus")),
-            RespondedAt = r.IsDBNull(r.GetOrdinal("RespondedAt")) ? null : r.GetDateTime(r.GetOrdinal("RespondedAt"))
-        };
+        SharedTaskFullRow s = new SharedTaskFullRow();
+        s.TaskId = Convert.ToInt32(dataReader["TaskId"]);
+        s.TaskTitle = dataReader["TaskTitle"].ToString();
+        s.CourseId = Convert.ToInt32(dataReader["CourseId"]);
+        s.CourseName = dataReader["CourseName"] == DBNull.Value ? null : dataReader["CourseName"].ToString();
+        s.CreatedByEmail = dataReader["CreatedByEmail"].ToString();
+        s.CreatorFirstName = dataReader["CreatorFirstName"].ToString();
+        s.CreatorLastName = dataReader["CreatorLastName"].ToString();
+        s.CreatedAt = Convert.ToDateTime(dataReader["CreatedAt"]);
+        s.SharedStatus = dataReader["SharedStatus"].ToString();
+        s.MemberEmail = dataReader["MemberEmail"].ToString();
+        s.MemberFirstName = dataReader["MemberFirstName"].ToString();
+        s.MemberLastName = dataReader["MemberLastName"].ToString();
+        s.ResponseStatus = dataReader["ResponseStatus"].ToString();
+        s.RespondedAt = dataReader["RespondedAt"] == DBNull.Value ? (DateTime?)null : Convert.ToDateTime(dataReader["RespondedAt"]);
+        return s;
     }
 
     // =====================================================
@@ -2452,12 +2502,12 @@ public class DBservices
             {
                 list.Add(new PendingMemberForCourseRow
                 {
-                    TaskId = reader.GetInt32(reader.GetOrdinal("TaskId")),
-                    Email = reader.GetString(reader.GetOrdinal("Email")),
-                    ResponseStatus = reader.GetString(reader.GetOrdinal("ResponseStatus")),
-                    RespondedAt = reader.IsDBNull(reader.GetOrdinal("RespondedAt")) ? null : reader.GetDateTime(reader.GetOrdinal("RespondedAt")),
-                    CreatedByEmail = reader.GetString(reader.GetOrdinal("CreatedByEmail")),
-                    SharedStatus = reader.GetString(reader.GetOrdinal("SharedStatus"))
+                    TaskId = Convert.ToInt32(reader["TaskId"]),
+                    Email = reader["Email"].ToString(),
+                    ResponseStatus = reader["ResponseStatus"].ToString(),
+                    RespondedAt = reader["RespondedAt"] == DBNull.Value ? null : Convert.ToDateTime(reader["RespondedAt"]),
+                    CreatedByEmail = reader["CreatedByEmail"].ToString(),
+                    SharedStatus = reader["SharedStatus"].ToString()
                 });
             }
             return list;
@@ -2523,7 +2573,7 @@ public class DBservices
             // Result set 2: unread count
             if (reader.NextResult() && reader.Read())
             {
-                unreadCount = reader.GetInt32(0);
+                unreadCount = Convert.ToInt32(reader[0]);
             }
             return (notifications, unreadCount);
         }
@@ -2662,9 +2712,9 @@ public class DBservices
             {
                 list.Add(new UpcomingDeadlineTask
                 {
-                    TaskId = reader.GetInt32(reader.GetOrdinal("TaskId")),
-                    Title = reader.GetString(reader.GetOrdinal("Title")),
-                    CourseName = reader.GetString(reader.GetOrdinal("CourseName"))
+                    TaskId = Convert.ToInt32(reader["TaskId"]),
+                    Title = reader["Title"].ToString(),
+                    CourseName = reader["CourseName"].ToString()
                 });
             }
             return list;
@@ -2694,9 +2744,9 @@ public class DBservices
             {
                 list.Add(new DailySummaryTask
                 {
-                    TaskId = reader.GetInt32(reader.GetOrdinal("TaskId")),
-                    Title = reader.GetString(reader.GetOrdinal("Title")),
-                    CourseName = reader.GetString(reader.GetOrdinal("CourseName"))
+                    TaskId = Convert.ToInt32(reader["TaskId"]),
+                    Title = reader["Title"].ToString(),
+                    CourseName = reader["CourseName"].ToString()
                 });
             }
             return list;
@@ -2724,9 +2774,9 @@ public class DBservices
 
             SqlDataReader reader = cmd.ExecuteReader(System.Data.CommandBehavior.CloseConnection);
             if (reader.Read())
-                taskCount = reader.GetInt32(0);
+                taskCount = Convert.ToInt32(reader[0]);
             if (reader.NextResult() && reader.Read())
-                examCount = reader.GetInt32(0);
+                examCount = Convert.ToInt32(reader[0]);
 
             return (taskCount, examCount);
         }
@@ -2757,20 +2807,19 @@ public class DBservices
     }
 
     // Reads a SqlDataReader row into a NotificationRow record.
-    private static NotificationRow MapNotificationRow(SqlDataReader r)
+    private static NotificationRow MapNotificationRow(SqlDataReader dataReader)
     {
-        return new NotificationRow
-        {
-            NotificationId = r.GetInt32(r.GetOrdinal("NotificationId")),
-            Email = r.GetString(r.GetOrdinal("Email")),
-            Type = r.GetString(r.GetOrdinal("Type")),
-            Title = r.GetString(r.GetOrdinal("Title")),
-            Message = r.GetString(r.GetOrdinal("Message")),
-            IsRead = Convert.ToBoolean(r.GetValue(r.GetOrdinal("IsRead"))),
-            CreatedAt = r.GetDateTime(r.GetOrdinal("CreatedAt")),
-            RelatedEntityId = r.IsDBNull(r.GetOrdinal("RelatedEntityId")) ? null : r.GetInt32(r.GetOrdinal("RelatedEntityId")),
-            RelatedEntityType = r.IsDBNull(r.GetOrdinal("RelatedEntityType")) ? null : r.GetString(r.GetOrdinal("RelatedEntityType"))
-        };
+        NotificationRow n = new NotificationRow();
+        n.NotificationId = Convert.ToInt32(dataReader["NotificationId"]);
+        n.Email = dataReader["Email"].ToString();
+        n.Type = dataReader["Type"].ToString();
+        n.Title = dataReader["Title"].ToString();
+        n.Message = dataReader["Message"].ToString();
+        n.IsRead = Convert.ToBoolean(dataReader["IsRead"]);
+        n.CreatedAt = Convert.ToDateTime(dataReader["CreatedAt"]);
+        n.RelatedEntityId = dataReader["RelatedEntityId"] == DBNull.Value ? (int?)null : Convert.ToInt32(dataReader["RelatedEntityId"]);
+        n.RelatedEntityType = dataReader["RelatedEntityType"] == DBNull.Value ? null : dataReader["RelatedEntityType"].ToString();
+        return n;
     }
 
     // =====================================================
@@ -2778,66 +2827,63 @@ public class DBservices
     // =====================================================
 
     // Reads a SqlDataReader row into a SchedulingTaskRow record.
-    private static SchedulingTaskRow MapSchedulingTaskRow(SqlDataReader r)
+    private static SchedulingTaskRow MapSchedulingTaskRow(SqlDataReader dataReader)
     {
-        return new SchedulingTaskRow
-        {
-            TaskId = r.GetInt32(r.GetOrdinal("TaskId")),
-            CourseId = r.GetInt32(r.GetOrdinal("CourseId")),
-            CourseName = r.GetString(r.GetOrdinal("CourseName")),
-            Title = r.GetString(r.GetOrdinal("Title")),
-            Type = r.GetString(r.GetOrdinal("Type")),
-            EstimatedHours = r.IsDBNull(r.GetOrdinal("EstimatedHours")) ? null : r.GetDecimal(r.GetOrdinal("EstimatedHours")),
-            DueDate = r.IsDBNull(r.GetOrdinal("DueDate")) ? null : r.GetDateTime(r.GetOrdinal("DueDate")),
-            IsCompleted = Convert.ToBoolean(r.GetValue(r.GetOrdinal("IsCompleted"))),
-            Priority = r.IsDBNull(r.GetOrdinal("Priority")) ? null : r.GetString(r.GetOrdinal("Priority")),
-            AllowSplitting = Convert.ToBoolean(r.GetValue(r.GetOrdinal("AllowSplitting"))),
-            IsManuallyPinned = Convert.ToBoolean(r.GetValue(r.GetOrdinal("IsManuallyPinned"))),
-            IsManualPriority = Convert.ToBoolean(r.GetValue(r.GetOrdinal("IsManualPriority"))),
-            Email = r.GetString(r.GetOrdinal("Email")),
-            CourseCredits = r.IsDBNull(r.GetOrdinal("CourseCredits")) ? null : r.GetDecimal(r.GetOrdinal("CourseCredits")),
-            DefaultTaskEstimatedHours = r.IsDBNull(r.GetOrdinal("DefaultTaskEstimatedHours")) ? null : r.GetDouble(r.GetOrdinal("DefaultTaskEstimatedHours")),
-            CourseExamPrepHoursPerDay = r.IsDBNull(r.GetOrdinal("CourseExamPrepHoursPerDay")) ? null : r.GetDouble(r.GetOrdinal("CourseExamPrepHoursPerDay")),
-            CourseExamPrepDays = r.IsDBNull(r.GetOrdinal("CourseExamPrepDays")) ? null : r.GetInt32(r.GetOrdinal("CourseExamPrepDays")),
-            HasSharedTask = Convert.ToBoolean(r.GetValue(r.GetOrdinal("HasSharedTask")))
-        };
+        SchedulingTaskRow t = new SchedulingTaskRow();
+        t.TaskId = Convert.ToInt32(dataReader["TaskId"]);
+        t.CourseId = Convert.ToInt32(dataReader["CourseId"]);
+        t.CourseName = dataReader["CourseName"].ToString();
+        t.Title = dataReader["Title"].ToString();
+        t.Type = dataReader["Type"].ToString();
+        t.EstimatedHours = dataReader["EstimatedHours"] == DBNull.Value ? (decimal?)null : Convert.ToDecimal(dataReader["EstimatedHours"]);
+        t.DueDate = dataReader["DueDate"] == DBNull.Value ? (DateTime?)null : Convert.ToDateTime(dataReader["DueDate"]);
+        t.IsCompleted = Convert.ToBoolean(dataReader["IsCompleted"]);
+        t.Priority = dataReader["Priority"] == DBNull.Value ? null : dataReader["Priority"].ToString();
+        t.AllowSplitting = Convert.ToBoolean(dataReader["AllowSplitting"]);
+        t.IsManuallyPinned = Convert.ToBoolean(dataReader["IsManuallyPinned"]);
+        t.IsManualPriority = Convert.ToBoolean(dataReader["IsManualPriority"]);
+        t.Email = dataReader["Email"].ToString();
+        t.CourseCredits = dataReader["CourseCredits"] == DBNull.Value ? (decimal?)null : Convert.ToDecimal(dataReader["CourseCredits"]);
+        t.DefaultTaskEstimatedHours = dataReader["DefaultTaskEstimatedHours"] == DBNull.Value ? (double?)null : Convert.ToDouble(dataReader["DefaultTaskEstimatedHours"]);
+        t.CourseExamPrepHoursPerDay = dataReader["CourseExamPrepHoursPerDay"] == DBNull.Value ? (double?)null : Convert.ToDouble(dataReader["CourseExamPrepHoursPerDay"]);
+        t.CourseExamPrepDays = dataReader["CourseExamPrepDays"] == DBNull.Value ? (int?)null : Convert.ToInt32(dataReader["CourseExamPrepDays"]);
+        t.HasSharedTask = Convert.ToBoolean(dataReader["HasSharedTask"]);
+        return t;
     }
 
     // Reads a SqlDataReader row into a TaskEventRow record.
-    private static TaskEventRow MapTaskEventRow(SqlDataReader r)
+    private static TaskEventRow MapTaskEventRow(SqlDataReader dataReader)
     {
-        return new TaskEventRow
-        {
-            EventId = r.GetInt32(r.GetOrdinal("EventId")),
-            Email = r.GetString(r.GetOrdinal("Email")),
-            From = r.GetDateTime(r.GetOrdinal("From")),
-            To = r.GetDateTime(r.GetOrdinal("To")),
-            Recurring = HasColumn(r, "Recurring") && !r.IsDBNull(r.GetOrdinal("Recurring"))
-                && Convert.ToBoolean(r.GetValue(r.GetOrdinal("Recurring"))),
-            RecurrenceEndDate = HasColumn(r, "RecurrenceEndDate") && !r.IsDBNull(r.GetOrdinal("RecurrenceEndDate"))
-                ? r.GetDateTime(r.GetOrdinal("RecurrenceEndDate")) : (DateTime?)null,
-            TaskId = r.GetInt32(r.GetOrdinal("TaskId")),
-            Priority = r.IsDBNull(r.GetOrdinal("Priority")) ? null : r.GetString(r.GetOrdinal("Priority")),
-            Status = r.IsDBNull(r.GetOrdinal("Status")) ? null : r.GetString(r.GetOrdinal("Status"))
-        };
+        TaskEventRow e = new TaskEventRow();
+        e.EventId = Convert.ToInt32(dataReader["EventId"]);
+        e.Email = dataReader["Email"].ToString();
+        e.From = Convert.ToDateTime(dataReader["From"]);
+        e.To = Convert.ToDateTime(dataReader["To"]);
+        e.Recurring = HasColumn(dataReader, "Recurring") && dataReader["Recurring"] != DBNull.Value
+            && Convert.ToBoolean(dataReader["Recurring"]);
+        e.RecurrenceEndDate = HasColumn(dataReader, "RecurrenceEndDate") && dataReader["RecurrenceEndDate"] != DBNull.Value
+            ? Convert.ToDateTime(dataReader["RecurrenceEndDate"]) : (DateTime?)null;
+        e.TaskId = Convert.ToInt32(dataReader["TaskId"]);
+        e.Priority = dataReader["Priority"] == DBNull.Value ? null : dataReader["Priority"].ToString();
+        e.Status = dataReader["Status"] == DBNull.Value ? null : dataReader["Status"].ToString();
+        return e;
     }
 
     // Reads a SqlDataReader row into a SimpleTaskRow record.
-    private static SimpleTaskRow MapSimpleTaskRow(SqlDataReader r)
+    private static SimpleTaskRow MapSimpleTaskRow(SqlDataReader dataReader)
     {
-        return new SimpleTaskRow
-        {
-            TaskId = r.GetInt32(r.GetOrdinal("TaskId")),
-            CourseId = r.GetInt32(r.GetOrdinal("CourseId")),
-            Title = r.GetString(r.GetOrdinal("Title")),
-            Type = r.GetString(r.GetOrdinal("Type")),
-            EstimatedHours = r.IsDBNull(r.GetOrdinal("EstimatedHours")) ? null : r.GetDecimal(r.GetOrdinal("EstimatedHours")),
-            DueDate = r.IsDBNull(r.GetOrdinal("DueDate")) ? null : r.GetDateTime(r.GetOrdinal("DueDate")),
-            IsCompleted = Convert.ToBoolean(r.GetValue(r.GetOrdinal("IsCompleted"))),
-            Priority = r.IsDBNull(r.GetOrdinal("Priority")) ? null : r.GetString(r.GetOrdinal("Priority")),
-            AllowSplitting = Convert.ToBoolean(r.GetValue(r.GetOrdinal("AllowSplitting"))),
-            Email = r.GetString(r.GetOrdinal("Email"))
-        };
+        SimpleTaskRow t = new SimpleTaskRow();
+        t.TaskId = Convert.ToInt32(dataReader["TaskId"]);
+        t.CourseId = Convert.ToInt32(dataReader["CourseId"]);
+        t.Title = dataReader["Title"].ToString();
+        t.Type = dataReader["Type"].ToString();
+        t.EstimatedHours = dataReader["EstimatedHours"] == DBNull.Value ? (decimal?)null : Convert.ToDecimal(dataReader["EstimatedHours"]);
+        t.DueDate = dataReader["DueDate"] == DBNull.Value ? (DateTime?)null : Convert.ToDateTime(dataReader["DueDate"]);
+        t.IsCompleted = Convert.ToBoolean(dataReader["IsCompleted"]);
+        t.Priority = dataReader["Priority"] == DBNull.Value ? null : dataReader["Priority"].ToString();
+        t.AllowSplitting = Convert.ToBoolean(dataReader["AllowSplitting"]);
+        t.Email = dataReader["Email"].ToString();
+        return t;
     }
 
     // 1. ApproveTaskEvents
@@ -2861,8 +2907,8 @@ public class DBservices
             SqlDataReader reader = cmd.ExecuteReader(System.Data.CommandBehavior.CloseConnection);
             if (reader.Read())
             {
-                approved = reader.GetInt32(reader.GetOrdinal("ApprovedCount"));
-                removed = reader.GetInt32(reader.GetOrdinal("RemovedPast"));
+                approved = Convert.ToInt32(reader["ApprovedCount"]);
+                removed = Convert.ToInt32(reader["RemovedPast"]);
             }
             return (approved, removed);
         }
@@ -3121,13 +3167,13 @@ public class DBservices
             {
                 return new ExamBasicRow
                 {
-                    ExamId = reader.GetInt32(reader.GetOrdinal("ExamId")),
-                    CourseId = reader.GetInt32(reader.GetOrdinal("CourseId")),
-                    Date = reader.GetDateTime(reader.GetOrdinal("Date")),
-                    Time = reader.GetTimeSpan(reader.GetOrdinal("Time")),
-                    Session = reader.GetString(reader.GetOrdinal("Session")),
-                    Duration = reader.IsDBNull(reader.GetOrdinal("Duration")) ? null : reader.GetInt32(reader.GetOrdinal("Duration")),
-                    IsTakingExam = Convert.ToBoolean(reader.GetValue(reader.GetOrdinal("IsTakingExam")))
+                    ExamId = Convert.ToInt32(reader["ExamId"]),
+                    CourseId = Convert.ToInt32(reader["CourseId"]),
+                    Date = Convert.ToDateTime(reader["Date"]),
+                    Time = (TimeSpan)reader["Time"],
+                    Session = reader["Session"].ToString(),
+                    Duration = reader["Duration"] == DBNull.Value ? null : Convert.ToInt32(reader["Duration"]),
+                    IsTakingExam = Convert.ToBoolean(reader["IsTakingExam"])
                 };
             }
             return null;
@@ -3156,8 +3202,8 @@ public class DBservices
             {
                 return new Instructor
                 {
-                    InstructorId = reader.GetInt32(reader.GetOrdinal("InstructorId")),
-                    InstructorName = reader.GetString(reader.GetOrdinal("InstructorName"))
+                    InstructorId = Convert.ToInt32(reader["InstructorId"]),
+                    InstructorName = reader["InstructorName"].ToString()
                 };
             }
             return null;
@@ -3187,11 +3233,11 @@ public class DBservices
             {
                 return new PersonalEventRow
                 {
-                    EventId = reader.GetInt32(reader.GetOrdinal("EventId")),
-                    From = reader.GetDateTime(reader.GetOrdinal("From")),
-                    To = reader.GetDateTime(reader.GetOrdinal("To")),
-                    Type = reader.IsDBNull(reader.GetOrdinal("Type")) ? null : reader.GetString(reader.GetOrdinal("Type")),
-                    Description = reader.IsDBNull(reader.GetOrdinal("Description")) ? null : reader.GetString(reader.GetOrdinal("Description"))
+                    EventId = Convert.ToInt32(reader["EventId"]),
+                    From = Convert.ToDateTime(reader["From"]),
+                    To = Convert.ToDateTime(reader["To"]),
+                    Type = reader["Type"] == DBNull.Value ? null : reader["Type"].ToString(),
+                    Description = reader["Description"] == DBNull.Value ? null : reader["Description"].ToString()
                 };
             }
             return null;
@@ -3248,11 +3294,11 @@ public class DBservices
             {
                 return new MoodleTaskMatch
                 {
-                    TaskId = reader.GetInt32(reader.GetOrdinal("TaskId")),
-                    CourseId = reader.GetInt32(reader.GetOrdinal("CourseId")),
-                    Title = reader.GetString(reader.GetOrdinal("Title")),
-                    DueDate = reader.IsDBNull(reader.GetOrdinal("DueDate")) ? null : reader.GetDateTime(reader.GetOrdinal("DueDate")),
-                    IsCompleted = Convert.ToBoolean(reader.GetValue(reader.GetOrdinal("IsCompleted")))
+                    TaskId = Convert.ToInt32(reader["TaskId"]),
+                    CourseId = Convert.ToInt32(reader["CourseId"]),
+                    Title = reader["Title"].ToString(),
+                    DueDate = reader["DueDate"] == DBNull.Value ? null : Convert.ToDateTime(reader["DueDate"]),
+                    IsCompleted = Convert.ToBoolean(reader["IsCompleted"])
                 };
             }
             return null;
@@ -3305,9 +3351,9 @@ public class DBservices
             while (reader.Read())
             {
                 var row = MapSchedulingTaskRow(reader);
-                row.SubTaskCount = reader.GetInt32(reader.GetOrdinal("SubTaskCount"));
-                row.TaskEventCount = reader.GetInt32(reader.GetOrdinal("TaskEventCount"));
-                row.HasNeedReview = Convert.ToBoolean(reader.GetValue(reader.GetOrdinal("HasNeedReview")));
+                row.SubTaskCount = Convert.ToInt32(reader["SubTaskCount"]);
+                row.TaskEventCount = Convert.ToInt32(reader["TaskEventCount"]);
+                row.HasNeedReview = Convert.ToBoolean(reader["HasNeedReview"]);
                 list.Add(row);
             }
             return list;
@@ -3333,7 +3379,7 @@ public class DBservices
             List<string> list = new List<string>();
             SqlDataReader reader = cmd.ExecuteReader(System.Data.CommandBehavior.CloseConnection);
             while (reader.Read())
-                list.Add(reader.GetString(0));
+                list.Add(reader[0].ToString());
             return list;
         }
         catch (Exception) { throw; }
@@ -3363,12 +3409,12 @@ public class DBservices
             {
                 list.Add(new Event
                 {
-                    EventId = reader.GetInt32(reader.GetOrdinal("EventId")),
-                    Email = reader.GetString(reader.GetOrdinal("Email")),
-                    From = reader.GetDateTime(reader.GetOrdinal("From")),
-                    To = reader.GetDateTime(reader.GetOrdinal("To")),
-                    Recurring = Convert.ToBoolean(reader.GetValue(reader.GetOrdinal("Recurring"))),
-                    RecurrenceEndDate = reader.IsDBNull(reader.GetOrdinal("RecurrenceEndDate")) ? null : reader.GetDateTime(reader.GetOrdinal("RecurrenceEndDate"))
+                    EventId = Convert.ToInt32(reader["EventId"]),
+                    Email = reader["Email"].ToString(),
+                    From = Convert.ToDateTime(reader["From"]),
+                    To = Convert.ToDateTime(reader["To"]),
+                    Recurring = Convert.ToBoolean(reader["Recurring"]),
+                    RecurrenceEndDate = reader["RecurrenceEndDate"] == DBNull.Value ? null : Convert.ToDateTime(reader["RecurrenceEndDate"])
                 });
             }
             return list;
@@ -3395,8 +3441,36 @@ public class DBservices
             List<int> list = new List<int>();
             SqlDataReader reader = cmd.ExecuteReader(System.Data.CommandBehavior.CloseConnection);
             while (reader.Read())
-                list.Add(reader.GetInt32(0));
+                list.Add(Convert.ToInt32(reader[0]));
             return list;
+        }
+        catch (Exception) { throw; }
+        finally { if (con != null) con.Close(); }
+    }
+
+    // Returns avg(ActualHours/EstimatedHours) per course for users with >= 2 completed tasks per course.
+    public Dictionary<int, double> GetCourseTimeRatios(string email)
+    {
+        SqlConnection con;
+        SqlCommand cmd;
+        try { con = connect("SmartStudyDb"); }
+        catch (Exception) { throw; }
+
+        Dictionary<string, object> paramDic = new Dictionary<string, object>();
+        paramDic.Add("@Email", email);
+
+        cmd = CreateCommandWithStoredProcedureGeneral("SS_Tasks_GetCourseTimeRatios", con, paramDic);
+
+        try
+        {
+            Dictionary<int, double> ratios = new Dictionary<int, double>();
+            SqlDataReader reader = cmd.ExecuteReader(System.Data.CommandBehavior.CloseConnection);
+            while (reader.Read())
+            {
+                ratios[Convert.ToInt32(reader["CourseId"])]
+                    = Convert.ToDouble(reader["Ratio"]);
+            }
+            return ratios;
         }
         catch (Exception) { throw; }
         finally { if (con != null) con.Close(); }
@@ -3423,9 +3497,9 @@ public class DBservices
             {
                 list.Add(new MLCompletedTaskRow
                 {
-                    CourseId = reader.GetInt32(reader.GetOrdinal("CourseId")),
-                    ActualHours = reader.GetDouble(reader.GetOrdinal("ActualHours")),
-                    EstimatedHours = reader.GetDouble(reader.GetOrdinal("EstimatedHours"))
+                    CourseId = Convert.ToInt32(reader["CourseId"]),
+                    ActualHours = Convert.ToDouble(reader["ActualHours"]),
+                    EstimatedHours = Convert.ToDouble(reader["EstimatedHours"])
                 });
             }
             return list;
@@ -3457,12 +3531,12 @@ public class DBservices
             {
                 list.Add(new Event
                 {
-                    EventId = reader.GetInt32(reader.GetOrdinal("EventId")),
-                    Email = reader.GetString(reader.GetOrdinal("Email")),
-                    From = reader.GetDateTime(reader.GetOrdinal("From")),
-                    To = reader.GetDateTime(reader.GetOrdinal("To")),
-                    Recurring = Convert.ToBoolean(reader.GetValue(reader.GetOrdinal("Recurring"))),
-                    RecurrenceEndDate = reader.IsDBNull(reader.GetOrdinal("RecurrenceEndDate")) ? null : reader.GetDateTime(reader.GetOrdinal("RecurrenceEndDate"))
+                    EventId = Convert.ToInt32(reader["EventId"]),
+                    Email = reader["Email"].ToString(),
+                    From = Convert.ToDateTime(reader["From"]),
+                    To = Convert.ToDateTime(reader["To"]),
+                    Recurring = Convert.ToBoolean(reader["Recurring"]),
+                    RecurrenceEndDate = reader["RecurrenceEndDate"] == DBNull.Value ? null : Convert.ToDateTime(reader["RecurrenceEndDate"])
                 });
             }
             return list;
@@ -3494,16 +3568,16 @@ public class DBservices
             {
                 list.Add(new SchedulingExamRow
                 {
-                    ExamId = reader.GetInt32(reader.GetOrdinal("ExamId")),
-                    CourseId = reader.GetInt32(reader.GetOrdinal("CourseId")),
-                    CourseName = reader.GetString(reader.GetOrdinal("CourseName")),
-                    Date = reader.GetDateTime(reader.GetOrdinal("Date")),
-                    Time = reader.GetTimeSpan(reader.GetOrdinal("Time")),
-                    Session = reader.GetString(reader.GetOrdinal("Session")),
-                    Duration = reader.IsDBNull(reader.GetOrdinal("Duration")) ? null : reader.GetInt32(reader.GetOrdinal("Duration")),
-                    IsTakingExam = Convert.ToBoolean(reader.GetValue(reader.GetOrdinal("IsTakingExam"))),
-                    CourseExamPrepHoursPerDay = reader.IsDBNull(reader.GetOrdinal("CourseExamPrepHoursPerDay")) ? null : reader.GetDouble(reader.GetOrdinal("CourseExamPrepHoursPerDay")),
-                    CourseExamPrepDays = reader.IsDBNull(reader.GetOrdinal("CourseExamPrepDays")) ? null : reader.GetInt32(reader.GetOrdinal("CourseExamPrepDays"))
+                    ExamId = Convert.ToInt32(reader["ExamId"]),
+                    CourseId = Convert.ToInt32(reader["CourseId"]),
+                    CourseName = reader["CourseName"].ToString(),
+                    Date = Convert.ToDateTime(reader["Date"]),
+                    Time = (TimeSpan)reader["Time"],
+                    Session = reader["Session"].ToString(),
+                    Duration = reader["Duration"] == DBNull.Value ? null : Convert.ToInt32(reader["Duration"]),
+                    IsTakingExam = Convert.ToBoolean(reader["IsTakingExam"]),
+                    CourseExamPrepHoursPerDay = reader["CourseExamPrepHoursPerDay"] == DBNull.Value ? null : Convert.ToDouble(reader["CourseExamPrepHoursPerDay"]),
+                    CourseExamPrepDays = reader["CourseExamPrepDays"] == DBNull.Value ? null : Convert.ToInt32(reader["CourseExamPrepDays"])
                 });
             }
             return list;
@@ -3530,7 +3604,7 @@ public class DBservices
             List<int> list = new List<int>();
             SqlDataReader reader = cmd.ExecuteReader(System.Data.CommandBehavior.CloseConnection);
             while (reader.Read())
-                list.Add(reader.GetInt32(0));
+                list.Add(Convert.ToInt32(reader[0]));
             return list;
         }
         catch (Exception) { throw; }
@@ -3584,22 +3658,22 @@ public class DBservices
             {
                 tasks.Add(new DashboardTaskRow
                 {
-                    TaskId = reader.GetInt32(reader.GetOrdinal("TaskId")),
-                    CourseId = reader.GetInt32(reader.GetOrdinal("CourseId")),
-                    CourseName = reader.GetString(reader.GetOrdinal("CourseName")),
-                    Title = reader.GetString(reader.GetOrdinal("Title")),
-                    Type = reader.GetString(reader.GetOrdinal("Type")),
-                    EstimatedHours = reader.IsDBNull(reader.GetOrdinal("EstimatedHours")) ? null : reader.GetDecimal(reader.GetOrdinal("EstimatedHours")),
-                    DueDate = reader.IsDBNull(reader.GetOrdinal("DueDate")) ? null : reader.GetDateTime(reader.GetOrdinal("DueDate")),
-                    IsCompleted = Convert.ToBoolean(reader.GetValue(reader.GetOrdinal("IsCompleted"))),
-                    Priority = reader.IsDBNull(reader.GetOrdinal("Priority")) ? null : reader.GetString(reader.GetOrdinal("Priority")),
-                    AllowSplitting = Convert.ToBoolean(reader.GetValue(reader.GetOrdinal("AllowSplitting"))),
-                    IsManuallyPinned = Convert.ToBoolean(reader.GetValue(reader.GetOrdinal("IsManuallyPinned"))),
-                    IsManualPriority = Convert.ToBoolean(reader.GetValue(reader.GetOrdinal("IsManualPriority"))),
-                    Email = reader.GetString(reader.GetOrdinal("Email")),
-                    CourseCredits = reader.IsDBNull(reader.GetOrdinal("CourseCredits")) ? null : reader.GetDecimal(reader.GetOrdinal("CourseCredits")),
-                    DefaultTaskEstimatedHours = reader.IsDBNull(reader.GetOrdinal("DefaultTaskEstimatedHours")) ? null : reader.GetDouble(reader.GetOrdinal("DefaultTaskEstimatedHours")),
-                    SharedStatus = reader.IsDBNull(reader.GetOrdinal("SharedStatus")) ? null : reader.GetString(reader.GetOrdinal("SharedStatus"))
+                    TaskId = Convert.ToInt32(reader["TaskId"]),
+                    CourseId = Convert.ToInt32(reader["CourseId"]),
+                    CourseName = reader["CourseName"].ToString(),
+                    Title = reader["Title"].ToString(),
+                    Type = reader["Type"].ToString(),
+                    EstimatedHours = reader["EstimatedHours"] == DBNull.Value ? null : Convert.ToDecimal(reader["EstimatedHours"]),
+                    DueDate = reader["DueDate"] == DBNull.Value ? null : Convert.ToDateTime(reader["DueDate"]),
+                    IsCompleted = Convert.ToBoolean(reader["IsCompleted"]),
+                    Priority = reader["Priority"] == DBNull.Value ? null : reader["Priority"].ToString(),
+                    AllowSplitting = Convert.ToBoolean(reader["AllowSplitting"]),
+                    IsManuallyPinned = Convert.ToBoolean(reader["IsManuallyPinned"]),
+                    IsManualPriority = Convert.ToBoolean(reader["IsManualPriority"]),
+                    Email = reader["Email"].ToString(),
+                    CourseCredits = reader["CourseCredits"] == DBNull.Value ? null : Convert.ToDecimal(reader["CourseCredits"]),
+                    DefaultTaskEstimatedHours = reader["DefaultTaskEstimatedHours"] == DBNull.Value ? null : Convert.ToDouble(reader["DefaultTaskEstimatedHours"]),
+                    SharedStatus = reader["SharedStatus"] == DBNull.Value ? null : reader["SharedStatus"].ToString()
                 });
             }
             if (reader.NextResult())
@@ -3608,11 +3682,11 @@ public class DBservices
                 {
                     taskEvents.Add(new DashboardTaskEventRow
                     {
-                        TaskId = reader.GetInt32(reader.GetOrdinal("TaskId")),
-                        EventId = reader.GetInt32(reader.GetOrdinal("EventId")),
-                        From = reader.GetDateTime(reader.GetOrdinal("From")),
-                        To = reader.GetDateTime(reader.GetOrdinal("To")),
-                        Status = reader.IsDBNull(reader.GetOrdinal("Status")) ? null : reader.GetString(reader.GetOrdinal("Status"))
+                        TaskId = Convert.ToInt32(reader["TaskId"]),
+                        EventId = Convert.ToInt32(reader["EventId"]),
+                        From = Convert.ToDateTime(reader["From"]),
+                        To = Convert.ToDateTime(reader["To"]),
+                        Status = reader["Status"] == DBNull.Value ? null : reader["Status"].ToString()
                     });
                 }
             }
@@ -3640,7 +3714,7 @@ public class DBservices
             List<int> list = new List<int>();
             SqlDataReader reader = cmd.ExecuteReader(System.Data.CommandBehavior.CloseConnection);
             while (reader.Read())
-                list.Add(reader.GetInt32(0));
+                list.Add(Convert.ToInt32(reader[0]));
             return list;
         }
         catch (Exception) { throw; }
@@ -3665,7 +3739,7 @@ public class DBservices
             List<int> list = new List<int>();
             SqlDataReader reader = cmd.ExecuteReader(System.Data.CommandBehavior.CloseConnection);
             while (reader.Read())
-                list.Add(reader.GetInt32(0));
+                list.Add(Convert.ToInt32(reader[0]));
             return list;
         }
         catch (Exception) { throw; }
@@ -3693,12 +3767,12 @@ public class DBservices
             {
                 list.Add(new PersonalEventRow
                 {
-                    EventId = reader.GetInt32(reader.GetOrdinal("EventId")),
-                    Email = reader.GetString(reader.GetOrdinal("Email")),
-                    From = reader.GetDateTime(reader.GetOrdinal("From")),
-                    To = reader.GetDateTime(reader.GetOrdinal("To")),
-                    Type = reader.IsDBNull(reader.GetOrdinal("Type")) ? null : reader.GetString(reader.GetOrdinal("Type")),
-                    Description = reader.IsDBNull(reader.GetOrdinal("Description")) ? null : reader.GetString(reader.GetOrdinal("Description"))
+                    EventId = Convert.ToInt32(reader["EventId"]),
+                    Email = reader["Email"].ToString(),
+                    From = Convert.ToDateTime(reader["From"]),
+                    To = Convert.ToDateTime(reader["To"]),
+                    Type = reader["Type"] == DBNull.Value ? null : reader["Type"].ToString(),
+                    Description = reader["Description"] == DBNull.Value ? null : reader["Description"].ToString()
                 });
             }
             return list;
@@ -3725,7 +3799,7 @@ public class DBservices
             List<int> list = new List<int>();
             SqlDataReader reader = cmd.ExecuteReader(System.Data.CommandBehavior.CloseConnection);
             while (reader.Read())
-                list.Add(reader.GetInt32(0));
+                list.Add(Convert.ToInt32(reader[0]));
             return list;
         }
         catch (Exception) { throw; }
@@ -3839,6 +3913,45 @@ public class DBservices
         finally { if (con != null) con.Close(); }
     }
 
+    // Returns the next N upcoming exams (ordered by date) on or after @fromDate.
+    public List<SchedulingExamRow> GetUpcomingExamsTopN(string email, DateTime fromDate, int top)
+    {
+        SqlConnection con;
+        SqlCommand cmd;
+        try { con = connect("SmartStudyDb"); }
+        catch (Exception) { throw; }
+
+        Dictionary<string, object> paramDic = new Dictionary<string, object>();
+        paramDic.Add("@Email", email);
+        paramDic.Add("@FromDate", fromDate);
+        paramDic.Add("@Top", top);
+
+        cmd = CreateCommandWithStoredProcedureGeneral("SS_Exams_GetUpcomingTopN", con, paramDic);
+
+        try
+        {
+            List<SchedulingExamRow> list = new List<SchedulingExamRow>();
+            SqlDataReader reader = cmd.ExecuteReader(System.Data.CommandBehavior.CloseConnection);
+            while (reader.Read())
+            {
+                list.Add(new SchedulingExamRow
+                {
+                    ExamId = Convert.ToInt32(reader["ExamId"]),
+                    CourseId = Convert.ToInt32(reader["CourseId"]),
+                    CourseName = reader["CourseName"].ToString(),
+                    Date = Convert.ToDateTime(reader["Date"]),
+                    Time = (TimeSpan)reader["Time"],
+                    Session = reader["Session"].ToString(),
+                    Duration = reader["Duration"] == DBNull.Value ? null : Convert.ToInt32(reader["Duration"]),
+                    IsTakingExam = Convert.ToBoolean(reader["IsTakingExam"])
+                });
+            }
+            return list;
+        }
+        catch (Exception) { throw; }
+        finally { if (con != null) con.Close(); }
+    }
+
     // 37. GetUpcomingExams
     public List<SchedulingExamRow> GetUpcomingExams(string email, DateTime fromDate)
     {
@@ -3861,14 +3974,14 @@ public class DBservices
             {
                 list.Add(new SchedulingExamRow
                 {
-                    ExamId = reader.GetInt32(reader.GetOrdinal("ExamId")),
-                    CourseId = reader.GetInt32(reader.GetOrdinal("CourseId")),
-                    CourseName = reader.GetString(reader.GetOrdinal("CourseName")),
-                    Date = reader.GetDateTime(reader.GetOrdinal("Date")),
-                    Time = reader.GetTimeSpan(reader.GetOrdinal("Time")),
-                    Session = reader.GetString(reader.GetOrdinal("Session")),
-                    Duration = reader.IsDBNull(reader.GetOrdinal("Duration")) ? null : reader.GetInt32(reader.GetOrdinal("Duration")),
-                    IsTakingExam = Convert.ToBoolean(reader.GetValue(reader.GetOrdinal("IsTakingExam")))
+                    ExamId = Convert.ToInt32(reader["ExamId"]),
+                    CourseId = Convert.ToInt32(reader["CourseId"]),
+                    CourseName = reader["CourseName"].ToString(),
+                    Date = Convert.ToDateTime(reader["Date"]),
+                    Time = (TimeSpan)reader["Time"],
+                    Session = reader["Session"].ToString(),
+                    Duration = reader["Duration"] == DBNull.Value ? null : Convert.ToInt32(reader["Duration"]),
+                    IsTakingExam = Convert.ToBoolean(reader["IsTakingExam"])
                 });
             }
             return list;
@@ -3895,7 +4008,7 @@ public class DBservices
             List<(int CourseId, string CourseName)> list = new List<(int, string)>();
             SqlDataReader reader = cmd.ExecuteReader(System.Data.CommandBehavior.CloseConnection);
             while (reader.Read())
-                list.Add((reader.GetInt32(reader.GetOrdinal("CourseId")), reader.GetString(reader.GetOrdinal("CourseName"))));
+                list.Add((Convert.ToInt32(reader["CourseId"]), reader["CourseName"].ToString()));
             return list;
         }
         catch (Exception) { throw; }
@@ -3920,7 +4033,7 @@ public class DBservices
             List<string> list = new List<string>();
             SqlDataReader reader = cmd.ExecuteReader(System.Data.CommandBehavior.CloseConnection);
             while (reader.Read())
-                list.Add(reader.GetString(0));
+                list.Add(reader[0].ToString());
             return list;
         }
         catch (Exception) { throw; }
@@ -3945,7 +4058,7 @@ public class DBservices
             List<string> list = new List<string>();
             SqlDataReader reader = cmd.ExecuteReader(System.Data.CommandBehavior.CloseConnection);
             while (reader.Read())
-                list.Add(reader.GetString(0));
+                list.Add(reader[0].ToString());
             return list;
         }
         catch (Exception) { throw; }
@@ -3970,7 +4083,7 @@ public class DBservices
             List<string> list = new List<string>();
             SqlDataReader reader = cmd.ExecuteReader(System.Data.CommandBehavior.CloseConnection);
             while (reader.Read())
-                list.Add(reader.GetString(0));
+                list.Add(reader[0].ToString());
             return list;
         }
         catch (Exception) { throw; }
@@ -3998,12 +4111,12 @@ public class DBservices
             {
                 list.Add(new WorkEventRow
                 {
-                    EventId = reader.GetInt32(reader.GetOrdinal("EventId")),
-                    Email = reader.GetString(reader.GetOrdinal("Email")),
-                    From = reader.GetDateTime(reader.GetOrdinal("From")),
-                    To = reader.GetDateTime(reader.GetOrdinal("To")),
-                    WorkPlace = reader.IsDBNull(reader.GetOrdinal("WorkPlace")) ? null : reader.GetString(reader.GetOrdinal("WorkPlace")),
-                    TravelTime = reader.IsDBNull(reader.GetOrdinal("TravelTime")) ? null : reader.GetInt32(reader.GetOrdinal("TravelTime"))
+                    EventId = Convert.ToInt32(reader["EventId"]),
+                    Email = reader["Email"].ToString(),
+                    From = Convert.ToDateTime(reader["From"]),
+                    To = Convert.ToDateTime(reader["To"]),
+                    WorkPlace = reader["WorkPlace"] == DBNull.Value ? null : reader["WorkPlace"].ToString(),
+                    TravelTime = reader["TravelTime"] == DBNull.Value ? null : Convert.ToInt32(reader["TravelTime"])
                 });
             }
             return list;
@@ -4587,6 +4700,14 @@ public class SimpleTaskRow
     public string? Priority { get; set; }
     public bool AllowSplitting { get; set; }
     public string Email { get; set; } = null!;
+}
+
+// Single-row task-count summary for the dashboard.
+public class TaskCountsRow
+{
+    public int TotalTasks { get; set; }
+    public int CompletedTasks { get; set; }
+    public int PendingTasks { get; set; }
 }
 
 // Exam projection consumed by the auto-scheduling engine.
