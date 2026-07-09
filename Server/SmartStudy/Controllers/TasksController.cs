@@ -136,6 +136,35 @@ public class TasksController : ControllerBase
         StudentTask.Update(id, dto.CourseId, dto.Title, dto.Type, dto.EstimatedHours,
             dto.DueDate, dto.IsCompleted, dto.AllowSplitting, dto.IsManuallyPinned, priority, isManualPriority);
 
+        // If this is a confirmed shared task, sync the partner's copy and reschedule both at the same time.
+        var sharedInfo = StudentTask.GetSharedInfo(id);
+        if (sharedInfo?.SharedStatus == "Confirmed")
+        {
+            var originalTaskId = sharedInfo.TaskId;
+            var creatorEmail = sharedInfo.CreatedByEmail;
+            var partnerMember = sharedInfo.Members.FirstOrDefault(m =>
+                !string.Equals(m.Email, email, StringComparison.OrdinalIgnoreCase));
+            var partnerEmail = partnerMember?.Email;
+
+            if (partnerEmail != null)
+            {
+                // When the creator edits the original task, propagate definition changes to the partner's copy.
+                if (string.Equals(email, creatorEmail, StringComparison.OrdinalIgnoreCase))
+                {
+                    var copyTaskId = SharedTask.GetPartnerCopyTaskId(originalTaskId, partnerEmail);
+                    if (copyTaskId.HasValue)
+                    {
+                        StudentTask.Update(copyTaskId.Value, dto.CourseId, dto.Title, dto.Type,
+                            dto.EstimatedHours, dto.DueDate, null,
+                            dto.AllowSplitting, null, priority, isManualPriority);
+                    }
+                }
+
+                StudentTask.ScheduleSharedTaskAtCommonTime(originalTaskId, creatorEmail, partnerEmail);
+                StudentTask.ScheduleAll(partnerEmail);
+            }
+        }
+
         StudentTask.ScheduleAll(email);
 
         var reloaded = StudentTask.GetById(id);

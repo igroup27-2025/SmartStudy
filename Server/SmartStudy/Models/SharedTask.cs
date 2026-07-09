@@ -86,6 +86,13 @@ public class SharedTask
         DBservices db = new DBservices();
         return db.CleanupSharedTaskPartnerCopies(taskId);
     }
+
+    // Returns the copy task ID stored for a specific partner member, or null if not yet assigned.
+    public static int? GetPartnerCopyTaskId(int originalTaskId, string partnerEmail)
+    {
+        DBservices db = new DBservices();
+        return db.GetSharedTaskMemberCopyTaskId(originalTaskId, partnerEmail);
+    }
 }
 
 // ───── DTOs (from SharedTaskDtos.cs) ───────────────────────────────
